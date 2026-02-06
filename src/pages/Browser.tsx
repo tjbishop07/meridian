@@ -233,7 +233,7 @@ export default function Browser() {
   return (
     <div className="h-full flex flex-col">
       {/* Address Bar */}
-      <div className="bg-base-200 border-b border-base-300 p-3">
+      <div className="bg-base-200 p-3">
         <div className="flex items-center gap-2">
           {/* Navigation buttons */}
           <div className="flex gap-1">
