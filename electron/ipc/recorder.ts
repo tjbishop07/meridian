@@ -434,9 +434,9 @@ export function registerRecorderHandlers(): void {
       mainWindow.addBrowserView(browserView);
 
       // Position the browser view
-      // Account for sidebar (256px) and address bar (~110px with padding)
+      // Account for sidebar (256px) and address bar (~85px with padding)
       const SIDEBAR_WIDTH = 256;
-      const ADDRESS_BAR_HEIGHT = 110;
+      const ADDRESS_BAR_HEIGHT = 85;
 
       const bounds = mainWindow.getContentBounds();
       browserView.setBounds({
@@ -532,7 +532,7 @@ export function registerRecorderHandlers(): void {
 
         // Restore browser view to correct position
         const SIDEBAR_WIDTH = 256;
-        const ADDRESS_BAR_HEIGHT = 110;
+        const ADDRESS_BAR_HEIGHT = 85;
         const bounds = mainWindow.getContentBounds();
 
         browserView.setBounds({
