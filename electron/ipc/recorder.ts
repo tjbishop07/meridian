@@ -5,6 +5,7 @@ import { detectFormat } from '../services/csv-detector';
 
 let recorderWindow: BrowserWindow | null = null;
 let browserView: BrowserView | null = null;
+let isBrowserVisible: boolean = false;
 
 // Content script to inject into the recorder browser
 const getRecorderScript = () => `
@@ -449,12 +450,24 @@ export function registerRecorderHandlers(): void {
       const resizeHandler = () => {
         if (browserView && !browserView.webContents.isDestroyed()) {
           const newBounds = mainWindow.getContentBounds();
-          browserView.setBounds({
-            x: SIDEBAR_WIDTH,
-            y: ADDRESS_BAR_HEIGHT,
-            width: newBounds.width - SIDEBAR_WIDTH,
-            height: newBounds.height - ADDRESS_BAR_HEIGHT,
-          });
+
+          // Only reposition to visible area if browser should be visible
+          if (isBrowserVisible) {
+            browserView.setBounds({
+              x: SIDEBAR_WIDTH,
+              y: ADDRESS_BAR_HEIGHT,
+              width: newBounds.width - SIDEBAR_WIDTH,
+              height: newBounds.height - ADDRESS_BAR_HEIGHT,
+            });
+          } else {
+            // Keep it hidden off-screen
+            browserView.setBounds({
+              x: -10000,
+              y: -10000,
+              width: 1,
+              height: 1,
+            });
+          }
         }
       };
 
@@ -462,6 +475,9 @@ export function registerRecorderHandlers(): void {
 
       // Store the handler so we can remove it on detach
       (browserView as any)._resizeHandler = resizeHandler;
+
+      // Mark as visible since we just attached it
+      isBrowserVisible = true;
 
       // Load URL (don't await to avoid blocking if initial load fails)
       browserView.webContents.loadURL(url, { userAgent }).catch(err => {
@@ -486,6 +502,7 @@ export function registerRecorderHandlers(): void {
       if (browserView && !browserView.webContents.isDestroyed()) {
         // Move browser view off-screen instead of destroying it
         browserView.setBounds({ x: -10000, y: -10000, width: 1, height: 1 });
+        isBrowserVisible = false;
       }
 
       return { success: true };
@@ -525,6 +542,8 @@ export function registerRecorderHandlers(): void {
           height: bounds.height - ADDRESS_BAR_HEIGHT,
         });
 
+        isBrowserVisible = true;
+
         console.log('[Browser] Browser view shown successfully');
         return { success: true };
       } else {
@@ -557,6 +576,7 @@ export function registerRecorderHandlers(): void {
         mainWindow.removeBrowserView(browserView);
         (browserView.webContents as any).destroy();
         browserView = null;
+        isBrowserVisible = false;
       }
 
       return { success: true };
