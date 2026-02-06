@@ -102,7 +102,6 @@ export default function Browser() {
       processedDownloads.current.add(data.filePath);
 
       setDownloadedFile(data);
-      toast.success(`${data.fileName} downloaded! Select an account to import.`);
 
       // Hide browser view so modal is visible
       window.electron.invoke('browser:hide').catch(err => {
@@ -314,7 +313,7 @@ export default function Browser() {
           <div className="modal-box">
             <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
               <Download className="w-5 h-5 text-success" />
-              CSV Downloaded!
+              Download Detected!
             </h3>
 
             <div className="alert alert-success mb-4">
