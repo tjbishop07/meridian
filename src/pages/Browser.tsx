@@ -284,7 +284,7 @@ export default function Browser() {
 
         {/* Info banner */}
         <div className="alert alert-info mt-3 py-2 rounded-none -mx-3 -mb-3">
-          <span className="text-xs">
+          <span className="text-sm">
             💡 Navigate to your bank, log in, and export your CSV. We'll automatically detect the download!
           </span>
         </div>
