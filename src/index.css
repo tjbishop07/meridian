@@ -1,0 +1,81 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: dark --default,
+    light, cupcake, bumblebee, emerald, corporate, synthwave, retro,
+    cyberpunk, valentine, halloween, garden, forest, aqua, lofi, pastel,
+    fantasy, wireframe, black, luxury, dracula, cmyk, autumn, business,
+    acid, lemonade, night, coffee, winter, dim, nord, sunset,
+    caramellatte, abyss, silk;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: oklch(var(--b2));
+}
+
+::-webkit-scrollbar-thumb {
+  @apply rounded-full;
+  background: oklch(var(--bc) / 0.3);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(var(--bc) / 0.4);
+}
+
+/* Loading states */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
+  background: linear-gradient(
+    to right,
+    oklch(var(--b2)) 0%,
+    oklch(var(--b3)) 20%,
+    oklch(var(--b2)) 40%,
+    oklch(var(--b2)) 100%
+  );
+  background-size: 1000px 100%;
+}
+
+/* Toast notifications - glass effect with DaisyUI theme classes */
+.toast-base,
+.toast-success,
+.toast-error,
+.toast-warning,
+.toast-info {
+  @apply glass rounded-lg shadow-xl px-4 py-3 min-w-[300px] max-w-[500px] flex items-center gap-2;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.toast-success {
+  @apply bg-success/90 text-success-content border border-success;
+}
+
+.toast-error {
+  @apply bg-error/90 text-error-content border border-error;
+}
+
+.toast-warning {
+  @apply bg-warning/90 text-warning-content border border-warning;
+}
+
+.toast-info {
+  @apply bg-info/90 text-info-content border border-info;
+}
+
+.toast-base {
+  @apply bg-base-100/90 text-base-content border border-base-300;
+}
