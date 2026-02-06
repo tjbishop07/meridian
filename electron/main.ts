@@ -12,6 +12,7 @@ import { registerBudgetHandlers } from './ipc/budgets';
 import { registerGoalHandlers } from './ipc/goals';
 import { registerBillHandlers } from './ipc/bills';
 import { registerSettingsHandlers } from './ipc/settings';
+import { registerRecorderHandlers } from './ipc/recorder';
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -44,7 +45,8 @@ function createWindow() {
   // Load the app
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
-    mainWindow.webContents.openDevTools();
+    // DevTools disabled
+    // mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
@@ -72,6 +74,7 @@ app.whenReady().then(() => {
     registerGoalHandlers();
     registerBillHandlers();
     registerSettingsHandlers();
+    registerRecorderHandlers();
 
     // File dialog handler
     ipcMain.handle('dialog:open-file', async (_, options) => {
@@ -111,6 +114,15 @@ app.on('window-all-closed', () => {
 // Clean up before quit
 app.on('before-quit', () => {
   closeDatabase();
+
+  // Clean up browser view if it exists
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    try {
+      mainWindow.webContents.send('app:closing');
+    } catch (error) {
+      console.error('Error sending app closing event:', error);
+    }
+  }
 });
 
 // Handle uncaught errors

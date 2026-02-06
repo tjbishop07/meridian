@@ -111,7 +111,7 @@ export default function Dashboard() {
       <div className="mb-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-base-content">Dashboard</h1>
-          <div className="text-sm text-base-content/70">
+          <div className="text-3xl font-bold text-base-content">
             {format(new Date(), 'EEEE, MMMM d, yyyy')}
           </div>
         </div>
@@ -130,12 +130,12 @@ export default function Dashboard() {
                 )}
                 <div className="timeline-start text-xs text-base-content/70 mb-1">{month.label}</div>
                 <div
-                  className={`timeline-middle cursor-pointer transition-all ${
+                  className={`timeline-middle cursor-pointer transition-all rounded-full ${
                     isSelected
-                      ? 'bg-primary scale-125 shadow-lg'
+                      ? 'bg-primary text-primary scale-125 shadow-lg'
                       : isFilled
-                      ? 'bg-primary/60'
-                      : 'bg-base-300 hover:bg-primary/30'
+                      ? 'bg-primary text-primary'
+                      : 'bg-base-300 text-base-300 hover:bg-primary/30 hover:text-primary/30'
                   }`}
                   onClick={() => setSelectedMonth(month.value)}
                 >

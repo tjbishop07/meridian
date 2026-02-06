@@ -351,6 +351,24 @@ export interface ElectronAPI {
 
   // File operations
   invoke(channel: 'dialog:open-file', options: { filters: Array<{ name: string; extensions: string[] }> }): Promise<string | null>;
+
+  // Browser
+  invoke(channel: 'browser:attach', url: string): Promise<{ success: boolean }>;
+  invoke(channel: 'browser:detach'): Promise<{ success: boolean }>;
+  invoke(channel: 'browser:show'): Promise<{ success: boolean }>;
+  invoke(channel: 'browser:hide'): Promise<{ success: boolean }>;
+  invoke(channel: 'browser:navigate', url: string): Promise<{ success: boolean }>;
+  invoke(channel: 'browser:back'): Promise<{ success: boolean }>;
+  invoke(channel: 'browser:forward'): Promise<{ success: boolean }>;
+  invoke(channel: 'browser:reload'): Promise<{ success: boolean }>;
+
+  // Event listeners
+  on(channel: 'csv:downloaded', callback: (data: { filePath: string; fileName: string }) => void): void;
+  on(channel: 'recorder:interaction', callback: (interaction: any) => void): void;
+  on(channel: 'browser:loading', callback: (isLoading: boolean) => void): void;
+  on(channel: 'browser:url-changed', callback: (url: string) => void): void;
+  on(channel: 'browser:error', callback: (error: { code: number; description: string; url: string }) => void): void;
+  removeListener(channel: string, callback: (...args: any[]) => void): void;
 }
 
 declare global {

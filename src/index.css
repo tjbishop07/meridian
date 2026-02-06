@@ -58,6 +58,7 @@
   @apply glass rounded-lg shadow-xl px-4 py-3 min-w-[300px] max-w-[500px] flex items-center gap-2;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+  z-index: 99999 !important;
 }
 
 .toast-success {

@@ -23,12 +23,15 @@ export async function findDuplicates(
     .all(accountId) as Transaction[];
 
   for (const row of rows) {
-    // Check for exact match
+    // Check for exact match on description or original_description
     const exactMatch = existingTransactions.find(
       (t) =>
         t.date === row.date &&
         Math.abs(t.amount - row.amount) < 0.01 &&
-        t.description === row.description
+        (t.description === row.description ||
+         t.original_description === row.original_description ||
+         t.description === row.original_description ||
+         t.original_description === row.description)
     );
 
     if (exactMatch) {
@@ -65,19 +68,49 @@ function findFuzzyMatch(
       continue;
     }
 
-    // Calculate description similarity
-    const similarity = calculateSimilarity(
+    // Calculate similarity for both description and original_description
+    const descSimilarity = calculateSimilarity(
       row.description.toLowerCase(),
       transaction.description.toLowerCase()
     );
 
-    // If descriptions are 70% similar, consider it a fuzzy match
-    if (similarity >= 0.7) {
+    const origDescSimilarity = transaction.original_description && row.original_description
+      ? calculateSimilarity(
+          row.original_description.toLowerCase(),
+          transaction.original_description.toLowerCase()
+        )
+      : 0;
+
+    // Also check cross-field similarity
+    const crossSimilarity1 = transaction.original_description
+      ? calculateSimilarity(
+          row.description.toLowerCase(),
+          transaction.original_description.toLowerCase()
+        )
+      : 0;
+
+    const crossSimilarity2 = row.original_description
+      ? calculateSimilarity(
+          row.original_description.toLowerCase(),
+          transaction.description.toLowerCase()
+        )
+      : 0;
+
+    // Use the highest similarity score
+    const maxSimilarity = Math.max(
+      descSimilarity,
+      origDescSimilarity,
+      crossSimilarity1,
+      crossSimilarity2
+    );
+
+    // If any description comparison is 70% similar, consider it a fuzzy match
+    if (maxSimilarity >= 0.7) {
       return {
         csvRow: row,
         existingTransaction: transaction,
         matchType: 'fuzzy',
-        confidence: similarity,
+        confidence: maxSimilarity,
       };
     }
   }

@@ -9,7 +9,7 @@ import {
   Settings,
   Wallet,
   BarChart3,
-  Code2,
+  Globe,
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -17,7 +17,7 @@ const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Transactions', href: '/transactions', icon: Receipt },
   { name: 'Import', href: '/import', icon: Upload },
-  { name: 'Bookmarklet Builder', href: '/bookmarklet-builder', icon: Code2 },
+  { name: 'Browser', href: '/browser', icon: Globe },
   { name: 'Budgets', href: '/budgets', icon: Wallet2 },
   { name: 'Goals', href: '/goals', icon: Target },
   { name: 'Bills', href: '/bills', icon: FileText },

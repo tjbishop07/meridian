@@ -1,12 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Upload, FileText, CheckCircle, AlertCircle, Download } from 'lucide-react';
 import { useAccounts } from '../hooks/useAccounts';
 import type { CSVFormat, ImportPreview, ImportResult } from '../types';
 
 type Step = 'select' | 'preview' | 'complete';
 
+interface LocationState {
+  filePath?: string;
+  accountId?: number;
+  format?: CSVFormat;
+}
+
 export default function Import() {
   const { accounts, loadAccounts } = useAccounts();
+  const location = useLocation();
+  const state = location.state as LocationState | null;
 
   const [step, setStep] = useState<Step>('select');
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -16,6 +25,39 @@ export default function Import() {
   const [result, setResult] = useState<ImportResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Handle auto-import from browser mode
+  useEffect(() => {
+    if (state?.filePath && state?.accountId && state?.format) {
+      console.log('[Import] Auto-importing from browser mode:', state);
+      setSelectedFile(state.filePath);
+      setSelectedAccount(state.accountId);
+      setDetectedFormat(state.format);
+
+      // Automatically trigger preview
+      const autoPreview = async () => {
+        try {
+          setIsLoading(true);
+          setError(null);
+
+          const previewData = await window.electron.invoke('import:preview', {
+            filePath: state.filePath!,
+            accountId: state.accountId!,
+            format: state.format!,
+          });
+
+          setPreview(previewData);
+          setStep('preview');
+          setIsLoading(false);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'Failed to preview import');
+          setIsLoading(false);
+        }
+      };
+
+      autoPreview();
+    }
+  }, [state]);
 
   // Step 1: File Selection
   const handleFileSelect = async () => {

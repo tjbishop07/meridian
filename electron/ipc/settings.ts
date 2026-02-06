@@ -11,9 +11,9 @@ export function registerSettingsHandlers(): void {
     }
   });
 
-  ipcMain.handle('settings:set', async (_, key: string, value: string) => {
+  ipcMain.handle('settings:set', async (_, data: { key: string; value: string }) => {
     try {
-      settingsQueries.setSetting(key, value);
+      settingsQueries.setSetting(data.key, data.value);
     } catch (error) {
       console.error('Error setting setting:', error);
       throw error;

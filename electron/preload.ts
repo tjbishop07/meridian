@@ -75,6 +75,20 @@ const electronAPI: ElectronAPI = {
       'settings:set',
       'settings:get-all',
 
+      // Recorder
+      'recorder:start',
+      'recorder:stop',
+
+      // Browser
+      'browser:attach',
+      'browser:detach',
+      'browser:show',
+      'browser:hide',
+      'browser:navigate',
+      'browser:back',
+      'browser:forward',
+      'browser:reload',
+
       // File operations
       'dialog:open-file',
     ];
@@ -84,6 +98,37 @@ const electronAPI: ElectronAPI = {
     }
 
     throw new Error(`Invalid IPC channel: ${channel}`);
+  },
+
+  on: (channel: string, callback: (...args: any[]) => void) => {
+    // Whitelist of allowed receive channels
+    const validReceiveChannels = [
+      'csv:downloaded',
+      'recorder:interaction',
+      'browser:loading',
+      'browser:url-changed',
+      'browser:error',
+    ];
+
+    if (validReceiveChannels.includes(channel)) {
+      ipcRenderer.on(channel, (_, ...args) => callback(...args));
+    } else {
+      throw new Error(`Invalid IPC receive channel: ${channel}`);
+    }
+  },
+
+  removeListener: (channel: string, callback: (...args: any[]) => void) => {
+    const validReceiveChannels = [
+      'csv:downloaded',
+      'recorder:interaction',
+      'browser:loading',
+      'browser:url-changed',
+      'browser:error',
+    ];
+
+    if (validReceiveChannels.includes(channel)) {
+      ipcRenderer.removeListener(channel, (_, ...args) => callback(...args));
+    }
   },
 } as any;
 

@@ -1,8 +1,12 @@
 import { useState } from 'react';
-import { Code2, Copy, Check, HelpCircle } from 'lucide-react';
+import { Code2, Copy, Check, HelpCircle, Edit3, Globe } from 'lucide-react';
 import toast from 'react-hot-toast';
+import RecorderView from '../components/bookmarklet/RecorderView';
+
+type Mode = 'manual' | 'browser';
 
 export default function BookmarkletBuilder() {
+  const [mode, setMode] = useState<Mode>('manual');
   const [bankName, setBankName] = useState('');
   const [startDateSelector, setStartDateSelector] = useState('');
   const [endDateSelector, setEndDateSelector] = useState('');
@@ -82,7 +86,28 @@ export default function BookmarkletBuilder() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {/* Mode Selector */}
+      <div className="tabs tabs-boxed mb-8 inline-flex">
+        <button
+          className={`tab gap-2 ${mode === 'manual' ? 'tab-active' : ''}`}
+          onClick={() => setMode('manual')}
+        >
+          <Edit3 className="w-4 h-4" />
+          Manual Mode
+        </button>
+        <button
+          className={`tab gap-2 ${mode === 'browser' ? 'tab-active' : ''}`}
+          onClick={() => setMode('browser')}
+        >
+          <Globe className="w-4 h-4" />
+          Browser Mode
+        </button>
+      </div>
+
+      {mode === 'browser' ? (
+        <RecorderView />
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Left Column - Form */}
         <div className="space-y-6">
           <div className="bg-info/10 border border-info/20 rounded-lg p-4">
@@ -279,6 +304,7 @@ export default function BookmarkletBuilder() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
