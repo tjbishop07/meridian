@@ -228,6 +228,21 @@ export function initializeDatabase(db: Database.Database): void {
     );
   `);
 
+  // Export recipes table (saved browser recordings)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS export_recipes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      institution TEXT,
+      steps TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_export_recipes_institution ON export_recipes(institution);
+  `);
+
   // Sync metadata table (for future use)
   db.exec(`
     CREATE TABLE IF NOT EXISTS sync_metadata (

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, TrendingUp, Target, Calendar, DollarSign, CheckCircle2 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { useCategories } from '../hooks/useCategories';
 import { useGoals } from '../hooks/useGoals';
 import Modal from '../components/ui/Modal';
@@ -648,7 +648,7 @@ export default function Goals() {
                         )}
                       </div>
                       <span className="text-base-content/60">
-                        {format(new Date(contrib.date), 'MMM d, yyyy')}
+                        {format(parseISO(contrib.date), 'MMM d, yyyy')}
                       </span>
                     </div>
                   ))}

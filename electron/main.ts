@@ -13,6 +13,7 @@ import { registerGoalHandlers } from './ipc/goals';
 import { registerBillHandlers } from './ipc/bills';
 import { registerSettingsHandlers } from './ipc/settings';
 import { registerRecorderHandlers } from './ipc/recorder';
+import { registerExportRecipeHandlers } from './ipc/export-recipes';
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -45,8 +46,7 @@ function createWindow() {
   // Load the app
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
-    // DevTools disabled
-    // mainWindow.webContents.openDevTools();
+    mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
@@ -75,6 +75,7 @@ app.whenReady().then(() => {
     registerBillHandlers();
     registerSettingsHandlers();
     registerRecorderHandlers();
+    registerExportRecipeHandlers();
 
     // File dialog handler
     ipcMain.handle('dialog:open-file', async (_, options) => {

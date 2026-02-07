@@ -301,7 +301,7 @@ export default function Dashboard() {
               <div className="flex-1">
                 <p className="font-medium text-base-content">{transaction.description}</p>
                 <p className="text-sm text-base-content/70">
-                  {format(new Date(transaction.date), 'MMM d, yyyy')} • {transaction.category_name || 'Uncategorized'}
+                  {format(parseISO(transaction.date), 'MMM d, yyyy')} • {transaction.category_name || 'Uncategorized'}
                 </p>
               </div>
               <p

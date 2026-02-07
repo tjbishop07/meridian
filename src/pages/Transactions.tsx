@@ -8,7 +8,7 @@ import { useStore } from '../store';
 import Modal from '../components/ui/Modal';
 import TransactionForm from '../components/transactions/TransactionForm';
 import type { Transaction, CreateTransactionInput } from '../types';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 
 export default function Transactions() {
   const {
@@ -229,7 +229,7 @@ export default function Transactions() {
                   }`}
                 >
                   <td className={`px-6 py-4 whitespace-nowrap text-sm ${isUncategorized ? 'text-warning' : 'text-base-content'}`}>
-                    {format(new Date(transaction.date), 'MMM d, yyyy')}
+                    {format(parseISO(transaction.date), 'MMM d, yyyy')}
                   </td>
                   <td className={`px-6 py-4 text-sm ${isUncategorized ? 'text-warning' : 'text-base-content'}`}>
                     <div className="font-medium">{transaction.description}</div>

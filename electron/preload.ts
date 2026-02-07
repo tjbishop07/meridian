@@ -88,6 +88,16 @@ const electronAPI: ElectronAPI = {
       'browser:back',
       'browser:forward',
       'browser:reload',
+      'browser:start-recording',
+      'browser:stop-recording',
+      'browser:execute-step',
+
+      // Export recipes
+      'export-recipes:get-all',
+      'export-recipes:get-by-id',
+      'export-recipes:create',
+      'export-recipes:update',
+      'export-recipes:delete',
 
       // File operations
       'dialog:open-file',

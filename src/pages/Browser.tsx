@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, ArrowRight, RotateCw, Home, Download, FileText } from 'lucide-react';
+import { ArrowLeft, ArrowRight, RotateCw, Home, Download, FileText, Circle, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useStore } from '../store';
 import { useNavigate } from 'react-router-dom';
@@ -11,16 +11,37 @@ export default function Browser() {
   const [isBrowserAttached, setIsBrowserAttached] = useState(false);
   const [downloadedFile, setDownloadedFile] = useState<{ filePath: string; fileName: string } | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [savedRecipes, setSavedRecipes] = useState<any[]>([]);
+  const [selectedRecipe, setSelectedRecipe] = useState<number | null>(null);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [recordingToSave, setRecordingToSave] = useState<any>(null);
+  const [recipeName, setRecipeName] = useState('');
+  const [recipeInstitution, setRecipeInstitution] = useState('');
+  const [showSensitiveInputModal, setShowSensitiveInputModal] = useState(false);
+  const [sensitiveInputValue, setSensitiveInputValue] = useState('');
+  const [sensitiveInputLabel, setSensitiveInputLabel] = useState('');
+  const [sensitiveInputResolver, setSensitiveInputResolver] = useState<((value: string) => void) | null>(null);
   const processedDownloads = useRef<Set<string>>(new Set());
   const isProcessingDownload = useRef(false);
 
   const { accounts, loadAccounts } = useStore();
   const navigate = useNavigate();
 
-  // Fetch accounts on mount
+  // Fetch accounts and saved recipes on mount
   useEffect(() => {
     loadAccounts();
+    loadSavedRecipes();
   }, [loadAccounts]);
+
+  const loadSavedRecipes = async () => {
+    try {
+      const recipes = await window.electron.invoke('export-recipes:get-all');
+      setSavedRecipes(recipes);
+    } catch (error) {
+      console.error('Failed to load export recipes:', error);
+    }
+  };
 
   // Save current URL to settings whenever it changes
   useEffect(() => {
@@ -185,6 +206,161 @@ export default function Browser() {
     handleNavigate('https://google.com');
   };
 
+  const promptForSensitiveInput = (label: string): Promise<string> => {
+    return new Promise((resolve) => {
+      // Hide browser so modal is visible
+      window.electron.invoke('browser:hide');
+
+      setSensitiveInputLabel(label);
+      setSensitiveInputValue('');
+      setShowSensitiveInputModal(true);
+      setSensitiveInputResolver(() => resolve);
+    });
+  };
+
+  const handleSensitiveInputSubmit = () => {
+    if (sensitiveInputResolver) {
+      sensitiveInputResolver(sensitiveInputValue);
+      setSensitiveInputResolver(null);
+      setShowSensitiveInputModal(false);
+      setSensitiveInputValue('');
+
+      // Show browser again
+      window.electron.invoke('browser:show');
+    }
+  };
+
+  const handleDeleteRecipe = async () => {
+    if (!selectedRecipe) {
+      toast.error('Please select a recipe to delete');
+      return;
+    }
+
+    const recipe = savedRecipes.find(r => r.id === selectedRecipe);
+    if (!recipe) return;
+
+    if (confirm(`Delete recipe "${recipe.name}"?\n\nThis cannot be undone.`)) {
+      try {
+        await window.electron.invoke('export-recipes:delete', selectedRecipe);
+        toast.success('Recipe deleted');
+        setSelectedRecipe(null);
+        loadSavedRecipes();
+      } catch (error) {
+        console.error('Failed to delete recipe:', error);
+        toast.error('Failed to delete recipe');
+      }
+    }
+  };
+
+  const handleReplayRecipe = async () => {
+    if (!selectedRecipe) {
+      toast.error('Please select a recipe to replay');
+      return;
+    }
+
+    try {
+      const recipe = await window.electron.invoke('export-recipes:get-by-id', selectedRecipe);
+      if (!recipe) {
+        toast.error('Recipe not found');
+        return;
+      }
+
+      toast.success(`Starting replay: ${recipe.name}`, { duration: 2000 });
+
+      // Navigate to the URL
+      await handleNavigate(recipe.url);
+
+      // Wait for page to load
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
+      // Execute steps one by one
+      for (let i = 0; i < recipe.steps.length; i++) {
+        let step = recipe.steps[i];
+
+        // Check if this is a sensitive input that was redacted
+        if (step.type === 'input' && step.value === '[REDACTED]') {
+          const userValue = await promptForSensitiveInput(
+            `Enter value for ${step.element} (Step ${i + 1}/${recipe.steps.length})`
+          );
+          // Create a new step with the user-provided value
+          step = { ...step, value: userValue };
+        }
+
+        toast.loading(`Step ${i + 1}/${recipe.steps.length}: ${step.type} on ${step.element}`, {
+          duration: 1500,
+        });
+
+        const result = await window.electron.invoke('browser:execute-step', step);
+
+        if (!result.success) {
+          toast.error(`Step ${i + 1} failed: ${result.error}`);
+          console.error('Step failed:', step, result.error);
+
+          // Ask if user wants to continue
+          if (!confirm(`Step ${i + 1} failed: ${result.error}\n\nContinue with remaining steps?`)) {
+            break;
+          }
+        }
+
+        // Wait between steps
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      toast.success(`Replay complete! Executed ${recipe.steps.length} steps.`);
+    } catch (error) {
+      console.error('Failed to replay recipe:', error);
+      toast.error('Failed to replay recipe');
+    }
+  };
+
+  const handleRecord = async () => {
+    if (!isBrowserAttached) {
+      toast.error('Browser is not ready yet');
+      return;
+    }
+
+    try {
+      if (isRecording) {
+        // Stop recording
+        console.log('[Browser UI] Stopping recording...');
+        const result = await window.electron.invoke('browser:stop-recording');
+        console.log('[Browser UI] Stop result:', result);
+        setIsRecording(false);
+
+        if (!result) {
+          toast.error('No result from stop recording');
+          return;
+        }
+
+        if (!result.success) {
+          toast.error(`Stop failed: ${result.error || 'Unknown error'}`);
+          return;
+        }
+
+        if (result.recording && result.recording.interactions && result.recording.interactions.length > 0) {
+          // Hide browser so modal is visible
+          window.electron.invoke('browser:hide');
+
+          // Show modal to save the recording
+          setRecordingToSave(result.recording);
+          setRecipeName('');
+          setRecipeInstitution('');
+          setShowSaveModal(true);
+        } else {
+          toast.success('Recording stopped (no steps captured)');
+        }
+      } else {
+        // Start recording
+        await window.electron.invoke('browser:start-recording');
+        setIsRecording(true);
+        toast.success('Recording started - interact with the page to capture steps');
+      }
+    } catch (error) {
+      console.error('Failed to toggle recording - full error:', error);
+      toast.error(`Failed to toggle recording: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
   const handleImport = async () => {
     if (!downloadedFile || !selectedAccountId) return;
 
@@ -208,7 +384,6 @@ export default function Browser() {
         },
       });
 
-      toast.success('Starting import...');
       setDownloadedFile(null);
       setSelectedAccountId(null);
       // Browser will be hidden by cleanup since we're navigating away
@@ -228,6 +403,34 @@ export default function Browser() {
     window.electron.invoke('browser:show').catch(err => {
       console.error('Failed to show browser:', err);
     });
+  };
+
+  const handleSaveRecipe = async () => {
+    if (!recordingToSave || !recipeName.trim()) {
+      toast.error('Please enter a recipe name');
+      return;
+    }
+
+    try {
+      await window.electron.invoke('export-recipes:create', {
+        name: recipeName.trim(),
+        url: recordingToSave.url,
+        institution: recipeInstitution.trim() || undefined,
+        steps: recordingToSave.interactions,
+      });
+      toast.success(`Saved export recipe: ${recipeName}`);
+      loadSavedRecipes(); // Reload the list
+      setShowSaveModal(false);
+      setRecordingToSave(null);
+      setRecipeName('');
+      setRecipeInstitution('');
+
+      // Show browser again
+      window.electron.invoke('browser:show');
+    } catch (error) {
+      console.error('Failed to save recipe:', error);
+      toast.error('Failed to save recipe');
+    }
   };
 
   return (
@@ -265,6 +468,13 @@ export default function Browser() {
             >
               <Home className="w-4 h-4" />
             </button>
+            <button
+              className={`btn btn-sm ${isRecording ? 'btn-error' : 'btn-ghost'}`}
+              onClick={handleRecord}
+              title={isRecording ? 'Stop Recording' : 'Record Export Steps'}
+            >
+              <Circle className={`w-4 h-4 ${isRecording ? 'fill-current animate-pulse' : ''}`} />
+            </button>
           </div>
 
           {/* URL input */}
@@ -282,12 +492,40 @@ export default function Browser() {
           />
         </div>
 
-        {/* Info banner */}
-        <div className="alert alert-info mt-3 py-2 rounded-none -mx-3 -mb-3">
-          <span className="text-sm">
-            💡 Navigate to your bank, log in, and export your CSV. We'll automatically detect the download!
-          </span>
-        </div>
+        {/* Saved Recipes Row */}
+        {savedRecipes.length > 0 && (
+          <div className="flex items-center gap-2 mt-2">
+            <label className="text-xs text-base-content/70">Saved Recipes:</label>
+            <select
+              className="select select-sm select-bordered flex-1 text-xs"
+              value={selectedRecipe || ''}
+              onChange={(e) => setSelectedRecipe(e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">Select a saved export recipe...</option>
+              {savedRecipes.map((recipe) => (
+                <option key={recipe.id} value={recipe.id}>
+                  {recipe.name} {recipe.institution && `(${recipe.institution})`} - {recipe.steps.length} steps
+                </option>
+              ))}
+            </select>
+            <button
+              className="btn btn-sm btn-primary"
+              onClick={handleReplayRecipe}
+              disabled={!selectedRecipe}
+              title="Replay selected recipe"
+            >
+              Replay
+            </button>
+            <button
+              className="btn btn-sm btn-error btn-outline"
+              onClick={handleDeleteRecipe}
+              disabled={!selectedRecipe}
+              title="Delete selected recipe"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Browser content area - BrowserView is overlaid here by Electron */}
@@ -352,7 +590,118 @@ export default function Browser() {
                 onClick={handleImport}
                 disabled={!selectedAccountId}
               >
-                Start Import
+                Continue Import
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save Recipe Modal */}
+      {showSaveModal && recordingToSave && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+              <Circle className="w-5 h-5 text-success" />
+              Save Export Recipe
+            </h3>
+
+            <div className="alert alert-success mb-4">
+              <span>Captured {recordingToSave.interactions.length} steps</span>
+            </div>
+
+            <p className="mb-4 text-sm text-base-content/70">
+              Save this recording so you can replay it later:
+            </p>
+
+            <div className="form-control mb-4">
+              <label className="label">
+                <span className="label-text">Recipe Name *</span>
+              </label>
+              <input
+                type="text"
+                className="input input-bordered"
+                placeholder="e.g., Bank of America CSV Export"
+                value={recipeName}
+                onChange={(e) => setRecipeName(e.target.value)}
+                autoFocus
+              />
+            </div>
+
+            <div className="form-control mb-6">
+              <label className="label">
+                <span className="label-text">Institution (optional)</span>
+              </label>
+              <input
+                type="text"
+                className="input input-bordered"
+                placeholder="e.g., Bank of America"
+                value={recipeInstitution}
+                onChange={(e) => setRecipeInstitution(e.target.value)}
+              />
+            </div>
+
+            <div className="modal-action">
+              <button
+                className="btn btn-ghost"
+                onClick={() => {
+                  setShowSaveModal(false);
+                  setRecordingToSave(null);
+                  setRecipeName('');
+                  setRecipeInstitution('');
+                  // Show browser again
+                  window.electron.invoke('browser:show');
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={handleSaveRecipe}
+                disabled={!recipeName.trim()}
+              >
+                Save Recipe
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sensitive Input Modal (for replay) */}
+      {showSensitiveInputModal && (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="font-bold text-lg mb-4">
+              Enter Sensitive Value
+            </h3>
+
+            <p className="mb-4 text-sm text-base-content/70">
+              {sensitiveInputLabel}
+            </p>
+
+            <div className="form-control mb-6">
+              <input
+                type="password"
+                className="input input-bordered"
+                placeholder="Enter value..."
+                value={sensitiveInputValue}
+                onChange={(e) => setSensitiveInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && sensitiveInputValue) {
+                    handleSensitiveInputSubmit();
+                  }
+                }}
+                autoFocus
+              />
+            </div>
+
+            <div className="modal-action">
+              <button
+                className="btn btn-primary"
+                onClick={handleSensitiveInputSubmit}
+                disabled={!sensitiveInputValue}
+              >
+                Continue
               </button>
             </div>
           </div>

@@ -7,18 +7,95 @@ let recorderWindow: BrowserWindow | null = null;
 let browserView: BrowserView | null = null;
 let isBrowserVisible: boolean = false;
 
+// Current recording state
+let currentRecording: {
+  url: string;
+  interactions: any[];
+} | null = null;
+
 // Content script to inject into the recorder browser
 const getRecorderScript = () => `
 (function() {
-  console.log('[Recorder] Content script loaded');
+  // Prevent duplicate injection using a less obvious flag
+  if (window._evtLog) {
+    return;
+  }
+  window._evtLog = true;
+
+  const listeners = [];
 
   // Generate a unique CSS selector for an element
   function generateSelector(element) {
     if (!element) return '';
 
-    // Try ID first
-    if (element.id) {
-      return '#' + CSS.escape(element.id);
+    // Strategy 1: Find by associated label text (most stable for forms)
+    if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT') {
+      // Try aria-labelledby
+      if (element.getAttribute('aria-labelledby')) {
+        const labelId = element.getAttribute('aria-labelledby');
+        const labelElement = document.getElementById(labelId);
+        if (labelElement && labelElement.textContent) {
+          return 'label:' + labelElement.textContent.trim();
+        }
+      }
+
+      // Try label for attribute
+      if (element.id) {
+        const label = document.querySelector('label[for="' + CSS.escape(element.id) + '"]');
+        if (label && label.textContent) {
+          return 'label:' + label.textContent.trim();
+        }
+      }
+
+      // Try parent label
+      const parentLabel = element.closest('label');
+      if (parentLabel && parentLabel.textContent) {
+        return 'label:' + parentLabel.textContent.trim();
+      }
+
+      // Try placeholder as label
+      if (element.placeholder) {
+        return 'placeholder:' + element.placeholder.trim();
+      }
+
+      // Try aria-label
+      if (element.getAttribute('aria-label')) {
+        return 'aria-label:' + element.getAttribute('aria-label').trim();
+      }
+    }
+
+    // Strategy 2: Try stable attributes
+    if (element.name) {
+      const selector = element.tagName.toLowerCase() + '[name="' + CSS.escape(element.name) + '"]';
+      const matches = document.querySelectorAll(selector);
+      if (matches.length === 1) {
+        return selector;
+      }
+    }
+
+    if (element.placeholder) {
+      const selector = element.tagName.toLowerCase() + '[placeholder="' + CSS.escape(element.placeholder) + '"]';
+      const matches = document.querySelectorAll(selector);
+      if (matches.length === 1) {
+        return selector;
+      }
+    }
+
+    if (element.getAttribute('aria-label')) {
+      const selector = element.tagName.toLowerCase() + '[aria-label="' + CSS.escape(element.getAttribute('aria-label')) + '"]';
+      const matches = document.querySelectorAll(selector);
+      if (matches.length === 1) {
+        return selector;
+      }
+    }
+
+    // Try type attribute for inputs
+    if (element.type && element.tagName === 'INPUT') {
+      const selector = 'input[type="' + CSS.escape(element.type) + '"]';
+      const matches = document.querySelectorAll(selector);
+      if (matches.length === 1) {
+        return selector;
+      }
     }
 
     // Try unique class combination
@@ -76,7 +153,7 @@ const getRecorderScript = () => `
   }
 
   // Track clicks
-  document.addEventListener('click', function(e) {
+  const clickHandler = function(e) {
     const target = e.target;
     const selector = generateSelector(target);
 
@@ -88,14 +165,17 @@ const getRecorderScript = () => `
       timestamp: Date.now()
     };
 
-    console.log('[Recorder] Click:', interaction);
+    // Send interaction data via console (looks like debug info)
+    console.log('debug:evt:' + JSON.stringify(interaction));
 
     // Send to main process
     window.electron?.send?.('recorder:interaction', interaction);
-  }, true);
+  };
+  document.addEventListener('click', clickHandler, false);
+  listeners.push({ type: 'click', handler: clickHandler });
 
   // Track input changes
-  document.addEventListener('input', function(e) {
+  const inputHandler = function(e) {
     const target = e.target;
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
       const selector = generateSelector(target);
@@ -108,13 +188,15 @@ const getRecorderScript = () => `
         timestamp: Date.now()
       };
 
-      console.log('[Recorder] Input:', interaction);
+      console.log('debug:evt:' + JSON.stringify(interaction));
       window.electron?.send?.('recorder:interaction', interaction);
     }
-  }, true);
+  };
+  document.addEventListener('input', inputHandler, false);
+  listeners.push({ type: 'input', handler: inputHandler });
 
   // Track select changes
-  document.addEventListener('change', function(e) {
+  const changeHandler = function(e) {
     const target = e.target;
     if (target.tagName === 'SELECT') {
       const selector = generateSelector(target);
@@ -127,12 +209,21 @@ const getRecorderScript = () => `
         timestamp: Date.now()
       };
 
-      console.log('[Recorder] Select:', interaction);
+      console.log('debug:evt:' + JSON.stringify(interaction));
       window.electron?.send?.('recorder:interaction', interaction);
     }
-  }, true);
+  };
+  document.addEventListener('change', changeHandler, false);
+  listeners.push({ type: 'change', handler: changeHandler });
 
-  console.log('[Recorder] Event listeners registered');
+  // Cleanup function with less obvious name
+  window._evtCleanup = function() {
+    listeners.forEach(({ type, handler }) => {
+      document.removeEventListener(type, handler, false);
+    });
+    window._evtLog = false;
+    delete window._evtCleanup;
+  };
 })();
 `;
 
@@ -436,13 +527,16 @@ export function registerRecorderHandlers(): void {
       // Position the browser view
       // Account for sidebar (256px) and address bar (~85px with padding)
       const SIDEBAR_WIDTH = 256;
-      const ADDRESS_BAR_HEIGHT = 85;
+      const ADDRESS_BAR_HEIGHT = 115; // Account for address bar + saved recipes row
 
       const bounds = mainWindow.getContentBounds();
+      // Account for DevTools if open (docked to right takes ~600px)
+      const devToolsWidth = mainWindow.webContents.isDevToolsOpened() ? 600 : 0;
+
       browserView.setBounds({
         x: SIDEBAR_WIDTH,
         y: ADDRESS_BAR_HEIGHT,
-        width: bounds.width - SIDEBAR_WIDTH,
+        width: bounds.width - SIDEBAR_WIDTH - devToolsWidth,
         height: bounds.height - ADDRESS_BAR_HEIGHT,
       });
 
@@ -450,13 +544,14 @@ export function registerRecorderHandlers(): void {
       const resizeHandler = () => {
         if (browserView && !browserView.webContents.isDestroyed()) {
           const newBounds = mainWindow.getContentBounds();
+          const devToolsWidth = mainWindow.webContents.isDevToolsOpened() ? 600 : 0;
 
           // Only reposition to visible area if browser should be visible
           if (isBrowserVisible) {
             browserView.setBounds({
               x: SIDEBAR_WIDTH,
               y: ADDRESS_BAR_HEIGHT,
-              width: newBounds.width - SIDEBAR_WIDTH,
+              width: newBounds.width - SIDEBAR_WIDTH - devToolsWidth,
               height: newBounds.height - ADDRESS_BAR_HEIGHT,
             });
           } else {
@@ -532,13 +627,14 @@ export function registerRecorderHandlers(): void {
 
         // Restore browser view to correct position
         const SIDEBAR_WIDTH = 256;
-        const ADDRESS_BAR_HEIGHT = 85;
+        const ADDRESS_BAR_HEIGHT = 115; // Account for address bar + saved recipes row
         const bounds = mainWindow.getContentBounds();
+        const devToolsWidth = mainWindow.webContents.isDevToolsOpened() ? 600 : 0;
 
         browserView.setBounds({
           x: SIDEBAR_WIDTH,
           y: ADDRESS_BAR_HEIGHT,
-          width: bounds.width - SIDEBAR_WIDTH,
+          width: bounds.width - SIDEBAR_WIDTH - devToolsWidth,
           height: bounds.height - ADDRESS_BAR_HEIGHT,
         });
 
@@ -647,6 +743,194 @@ export function registerRecorderHandlers(): void {
     } catch (error) {
       console.error('[Browser] Error reloading:', error);
       return { success: false };
+    }
+  });
+
+  ipcMain.handle('browser:start-recording', async () => {
+    try {
+      if (!browserView || browserView.webContents.isDestroyed()) {
+        return { success: false, error: 'Browser view not available' };
+      }
+
+      console.log('[Browser] Starting recording in browser view');
+
+      // Initialize recording state
+      const currentUrl = browserView.webContents.getURL();
+      currentRecording = {
+        url: currentUrl,
+        interactions: [],
+      };
+
+      // Listen for interactions via console messages
+      const consoleListener = (event: any, level: number, message: string) => {
+        if (message.startsWith('debug:evt:') && message.includes('{')) {
+          try {
+            const jsonStart = message.indexOf('{');
+            const jsonStr = message.substring(jsonStart);
+            const interaction = JSON.parse(jsonStr);
+
+            if (currentRecording) {
+              currentRecording.interactions.push(interaction);
+              console.log('[Browser] Captured interaction:', interaction.type);
+            }
+          } catch (e) {
+            // Not valid JSON, ignore
+          }
+        }
+      };
+
+      // Store listener reference for cleanup
+      (browserView as any)._recorderListener = consoleListener;
+      browserView.webContents.on('console-message', consoleListener);
+
+      // Inject the recorder script into the browser view
+      await browserView.webContents.executeJavaScript(getRecorderScript());
+
+      return { success: true };
+    } catch (error) {
+      console.error('[Browser] Error starting recording:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('browser:execute-step', async (_, step: any) => {
+    try {
+      if (!browserView || browserView.webContents.isDestroyed()) {
+        return { success: false, error: 'Browser view not available' };
+      }
+
+      console.log('[Browser] Executing step:', step.type, step.selector);
+
+      // Inject script to execute the step
+      const result = await browserView.webContents.executeJavaScript(`
+        (function() {
+          const step = ${JSON.stringify(step)};
+
+          // Find the element using smart selector matching
+          let element;
+          try {
+            const selector = step.selector;
+
+            // Handle label-based selectors
+            if (selector.startsWith('label:')) {
+              const labelText = selector.substring(6);
+              // Find label with matching text
+              const labels = Array.from(document.querySelectorAll('label'));
+              const label = labels.find(l => l.textContent.trim() === labelText);
+              if (label) {
+                // Get associated input
+                const forAttr = label.getAttribute('for');
+                if (forAttr) {
+                  element = document.getElementById(forAttr);
+                } else {
+                  element = label.querySelector('input, textarea, select');
+                }
+              }
+            }
+            // Handle placeholder-based selectors
+            else if (selector.startsWith('placeholder:')) {
+              const placeholder = selector.substring(12);
+              element = document.querySelector('[placeholder="' + placeholder + '"]');
+            }
+            // Handle aria-label selectors
+            else if (selector.startsWith('aria-label:')) {
+              const ariaLabel = selector.substring(11);
+              element = document.querySelector('[aria-label="' + ariaLabel + '"]');
+            }
+            // Standard CSS selector
+            else {
+              element = document.querySelector(selector);
+            }
+          } catch (e) {
+            return { success: false, error: 'Invalid selector: ' + e.message };
+          }
+
+          if (!element) {
+            return { success: false, error: 'Element not found: ' + step.selector };
+          }
+
+          // Highlight the element
+          const originalOutline = element.style.outline;
+          const originalBackground = element.style.backgroundColor;
+          element.style.outline = '3px solid #f59e0b';
+          element.style.backgroundColor = '#fef3c7';
+
+          // Scroll element into view
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+          // Execute the action after a brief delay for visibility
+          setTimeout(() => {
+            try {
+              if (step.type === 'click') {
+                element.click();
+              } else if (step.type === 'input') {
+                element.value = step.value;
+                element.dispatchEvent(new Event('input', { bubbles: true }));
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+              } else if (step.type === 'select') {
+                element.value = step.value;
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+              }
+
+              // Remove highlight after action
+              setTimeout(() => {
+                element.style.outline = originalOutline;
+                element.style.backgroundColor = originalBackground;
+              }, 500);
+            } catch (e) {
+              return { success: false, error: 'Failed to execute action: ' + e.message };
+            }
+          }, 300);
+
+          return { success: true };
+        })();
+      `);
+
+      return result;
+    } catch (error) {
+      console.error('[Browser] Error executing step:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('browser:stop-recording', async () => {
+    try {
+      if (!browserView || browserView.webContents.isDestroyed()) {
+        return { success: false, error: 'Browser view not available' };
+      }
+
+      console.log('[Browser] Stopping recording in browser view');
+
+      // Remove console message listener
+      const listener = (browserView as any)._recorderListener;
+      if (listener) {
+        browserView.webContents.removeListener('console-message', listener);
+        delete (browserView as any)._recorderListener;
+      }
+
+      // Try to remove the recorder script event listeners (non-blocking)
+      try {
+        await browserView.webContents.executeJavaScript(`
+          if (window._evtCleanup) {
+            window._evtCleanup();
+          }
+        `);
+      } catch (cleanupError) {
+        // Ignore cleanup errors - recording is already captured
+        console.log('[Browser] Cleanup error (non-critical):', cleanupError);
+      }
+
+      // Return the recording
+      const recording = currentRecording;
+      currentRecording = null;
+
+      return {
+        success: true,
+        recording,
+      };
+    } catch (error) {
+      console.error('[Browser] Error stopping recording:', error);
+      return { success: false, error: String(error) };
     }
   });
 
