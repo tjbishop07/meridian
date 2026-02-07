@@ -389,9 +389,10 @@ export default function Bills() {
     }, 0);
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="flex flex-col h-full max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
+      <div className="p-4 flex-shrink-0">
+        <div className="flex justify-between items-center mb-4">
         <div>
           <h1 className="text-3xl font-bold text-base-content">Bills & Subscriptions</h1>
           <p className="text-base-content/70 mt-1">Track recurring bills and never miss a payment</p>
@@ -414,9 +415,12 @@ export default function Bills() {
             Add Bill
           </button>
         </div>
+        </div>
       </div>
 
-      {/* Monthly Summary */}
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        {/* Monthly Summary */}
       {bills.length > 0 && (
         <div className="bg-base-100 rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-center justify-between">
@@ -498,6 +502,7 @@ export default function Bills() {
           )}
         </div>
       )}
+      </div>
 
       {/* Create Modal */}
       <Modal

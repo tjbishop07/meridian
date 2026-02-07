@@ -82,7 +82,7 @@ export default function Analytics() {
 
   if (isLoading) {
     return (
-      <div className="p-8">
+      <div className="p-4">
         <div className="animate-pulse space-y-6">
           <div className="h-8 bg-base-300 rounded w-48"></div>
           <div className="grid grid-cols-4 gap-4">
@@ -97,9 +97,10 @@ export default function Analytics() {
   }
 
   return (
-    <div className="p-8 max-w-7xl mx-auto">
+    <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
+      <div className="p-4 flex-shrink-0">
+        <div className="flex justify-between items-center mb-4">
         <div>
           <h1 className="text-3xl font-bold text-base-content">Analytics</h1>
           <p className="text-base-content/70 mt-1">Detailed financial analysis and trends</p>
@@ -115,9 +116,12 @@ export default function Analytics() {
             <option value={24}>Last 24 months</option>
           </select>
         </div>
+        </div>
       </div>
 
-      {/* Average Stats */}
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        {/* Average Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <div className="bg-base-100 rounded-lg shadow-sm p-5">
           <p className="text-sm text-base-content/70 mb-1">Avg Monthly Income</p>
@@ -344,6 +348,7 @@ export default function Analytics() {
             </tbody>
           </table>
         </div>
+      </div>
       </div>
     </div>
   );

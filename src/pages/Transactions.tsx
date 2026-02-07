@@ -29,6 +29,8 @@ export default function Transactions() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
 
   // Load data on mount
   useEffect(() => {
@@ -96,9 +98,20 @@ export default function Transactions() {
     return true;
   });
 
+  // Pagination
+  const totalPages = Math.ceil(filteredTransactions.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedTransactions = filteredTransactions.slice(startIndex, endIndex);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedMonth, selectedAccountId]);
+
   if (error) {
     return (
-      <div className="p-8">
+      <div>
         <h1 className="text-3xl font-bold text-base-content mb-6">Transactions</h1>
         <div className="bg-red-50 border border-red-200 rounded-lg p-6">
           <p className="text-red-800">{error}</p>
@@ -114,9 +127,9 @@ export default function Transactions() {
   }
 
   return (
-    <div className="p-8">
+    <div>
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center p-4">
         <h1 className="text-3xl font-bold text-base-content">Transactions</h1>
         <button
           onClick={() => setIsCreateModalOpen(true)}
@@ -128,7 +141,7 @@ export default function Transactions() {
       </div>
 
       {/* Filters */}
-      <div className="bg-base-100 rounded-lg shadow-sm p-4 mb-6">
+      <div className="bg-base-100 rounded-lg shadow-sm p-4 mx-4 mb-4">
         <div className="flex gap-4">
           {/* Search */}
           <div className="flex-1 relative">
@@ -192,32 +205,40 @@ export default function Transactions() {
           )}
         </div>
       ) : (
-        <div className="bg-base-100 rounded-lg shadow-sm overflow-hidden">
-          <table className="min-w-full divide-y divide-base-300">
-            <thead className="bg-base-200">
+        <div className="bg-base-100 rounded-lg shadow-sm flex flex-col h-[calc(100vh-10rem)]">
+          {/* Fixed Header */}
+          <div className="overflow-x-auto">
+            <table className="min-w-full table-fixed">
+              <thead className="bg-base-200">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-base-content/60 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-base-content/60 uppercase tracking-wider w-32">
                   Date
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-base-content/60 uppercase tracking-wider">
                   Description
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-base-content/60 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-base-content/60 uppercase tracking-wider w-48">
                   Category
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-base-content/60 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-base-content/60 uppercase tracking-wider w-48">
                   Account
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-base-content/60 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-base-content/60 uppercase tracking-wider w-32">
                   Amount
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-base-content/60 uppercase tracking-wider">
+                <th className="px-6 py-3 text-right text-xs font-medium text-base-content/60 uppercase tracking-wider w-24">
                   Actions
                 </th>
               </tr>
             </thead>
+          </table>
+        </div>
+
+        {/* Scrollable Body */}
+        <div className="flex-1 overflow-y-auto">
+          <table className="min-w-full table-fixed">
             <tbody className="bg-base-100 divide-y divide-base-300">
-              {filteredTransactions.map((transaction) => {
+              {paginatedTransactions.map((transaction) => {
                 const isUncategorized = !transaction.category_id && transaction.type !== 'transfer';
                 return (
                 <tr
@@ -311,6 +332,66 @@ export default function Transactions() {
               })}
             </tbody>
           </table>
+        </div>
+
+        {/* Fixed Pagination Footer */}
+        {filteredTransactions.length > 0 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-base-300 bg-base-100">
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-base-content/60">
+                {startIndex + 1}-{Math.min(endIndex, filteredTransactions.length)} of {filteredTransactions.length}
+              </span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="text-sm px-2 py-1 border border-base-300 rounded bg-base-100 text-base-content"
+              >
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={250}>250</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-sm text-base-content/70 hover:text-base-content disabled:text-base-content/30 disabled:cursor-not-allowed"
+              >
+                ‹‹
+              </button>
+              <button
+                onClick={() => setCurrentPage(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-sm text-base-content/70 hover:text-base-content disabled:text-base-content/30 disabled:cursor-not-allowed"
+              >
+                ‹
+              </button>
+              <span className="px-3 py-1 text-sm text-base-content">
+                {currentPage}/{totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 text-sm text-base-content/70 hover:text-base-content disabled:text-base-content/30 disabled:cursor-not-allowed"
+              >
+                ›
+              </button>
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 text-sm text-base-content/70 hover:text-base-content disabled:text-base-content/30 disabled:cursor-not-allowed"
+              >
+                ››
+              </button>
+            </div>
+          </div>
+        )
+        }
         </div>
       )}
 

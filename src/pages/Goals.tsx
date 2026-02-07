@@ -393,9 +393,10 @@ export default function Goals() {
   };
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="flex flex-col h-full max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
+      <div className="p-4 flex-shrink-0">
+        <div className="flex justify-between items-center mb-4">
         <div>
           <h1 className="text-3xl font-bold text-base-content">Savings Goals</h1>
           <p className="text-base-content/70 mt-1">Track your progress towards financial goals</p>
@@ -418,9 +419,12 @@ export default function Goals() {
             Add Goal
           </button>
         </div>
+        </div>
       </div>
 
-      {/* Goals List */}
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        {/* Goals List */}
       {isLoading ? (
         <div className="bg-base-100 rounded-lg shadow-sm p-6">
           <div className="animate-pulse space-y-4">
@@ -541,6 +545,7 @@ export default function Goals() {
           })}
         </div>
       )}
+      </div>
 
       {/* Create Modal */}
       <Modal

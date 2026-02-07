@@ -258,9 +258,10 @@ export default function Budgets() {
 
 
   return (
-    <div className="p-8 max-w-6xl mx-auto">
+    <div className="flex flex-col h-full max-w-6xl mx-auto">
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
+      <div className="p-4 flex-shrink-0">
+        <div className="flex justify-between items-center mb-4">
         <div>
           <h1 className="text-3xl font-bold text-base-content">Budgets</h1>
           <p className="text-base-content/70 mt-1">Track your spending against monthly budgets</p>
@@ -289,9 +290,12 @@ export default function Budgets() {
             Add Budget
           </button>
         </div>
+        </div>
       </div>
 
-      {/* Overall Progress */}
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        {/* Overall Progress */}
       {progress && budgets.length > 0 && (
         <div className="bg-base-100 rounded-lg shadow-sm p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
@@ -456,6 +460,7 @@ export default function Budgets() {
           isEditing={true}
         />
       </Modal>
+      </div>
     </div>
   );
 }

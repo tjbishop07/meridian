@@ -62,7 +62,7 @@ export default function Sidebar() {
       </nav>
 
       {/* Secondary Navigation */}
-      <div className="px-3 py-4 border-t border-base-300">
+      <div className="px-3 py-3 border-t border-base-300">
         {secondaryNavigation.map((item) => {
           const isActive = location.pathname === item.href;
           return (

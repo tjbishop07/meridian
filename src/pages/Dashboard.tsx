@@ -51,7 +51,7 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="p-8">
+      <div className="p-4">
         <div className="animate-pulse space-y-6">
           <div className="h-8 bg-base-300 rounded w-48"></div>
           <div className="grid grid-cols-3 gap-6">
@@ -67,7 +67,7 @@ export default function Dashboard() {
 
   if (!currentMonth) {
     return (
-      <div className="p-8">
+      <div className="p-4">
         <h1 className="text-3xl font-bold text-base-content mb-6">Dashboard</h1>
         <div className="bg-base-200 rounded-lg p-12 text-center">
           <p className="text-base-content/70">No data available. Import some transactions to get started!</p>
@@ -106,9 +106,9 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="p-8">
+    <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="mb-6">
+      <div className="p-4 flex-shrink-0">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-base-content">Dashboard</h1>
           <div className="text-3xl font-bold text-base-content">
@@ -116,41 +116,32 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Month Timeline */}
-        <ul className="timeline timeline-horizontal w-full">
-          {months.map((month, index) => {
+        {/* Month Steps */}
+        <ul className="steps steps-horizontal w-full">
+          {months.map((month) => {
             const isSelected = month.value === selectedMonth;
             const isPast = month.index < selectedMonthIndex;
-            const isFilled = isPast || isSelected;
+            const isActive = isPast || isSelected;
 
             return (
-              <li key={month.value} className="flex-1">
-                {index > 0 && (
-                  <hr className={isFilled ? 'bg-primary' : 'bg-base-300'} />
-                )}
-                <div className="timeline-start text-xs text-base-content/70 mb-1">{month.label}</div>
-                <div
-                  className={`timeline-middle cursor-pointer transition-all rounded-full ${
-                    isSelected
-                      ? 'bg-primary text-primary scale-125 shadow-lg'
-                      : isFilled
-                      ? 'bg-primary text-primary'
-                      : 'bg-base-300 text-base-300 hover:bg-primary/30 hover:text-primary/30'
-                  }`}
-                  onClick={() => setSelectedMonth(month.value)}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-                    <circle cx="10" cy="10" r="10" />
-                  </svg>
-                </div>
-                <hr className={index < 11 && (month.index < selectedMonthIndex) ? 'bg-primary' : 'bg-base-300'} />
+              <li
+                key={month.value}
+                data-content={isSelected ? '●' : ''}
+                className={`step cursor-pointer transition-colors hover:text-primary ${
+                  isActive ? 'step-primary' : 'step-neutral'
+                } ${isSelected ? 'font-bold text-primary' : ''}`}
+                onClick={() => setSelectedMonth(month.value)}
+              >
+                {month.label}
               </li>
             );
           })}
         </ul>
       </div>
 
-      {/* Summary Cards */}
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {/* Income Card */}
         <div className="bg-base-100 rounded-lg shadow-sm p-6">
@@ -315,6 +306,7 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
+      </div>
       </div>
     </div>
   );

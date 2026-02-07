@@ -464,11 +464,16 @@ export default function Settings() {
   const expenseCategories = categories.filter((c) => c.type === 'expense');
 
   return (
-    <div className="p-8 max-w-5xl mx-auto">
-      <h1 className="text-3xl font-bold text-base-content mb-2">Settings</h1>
-      <p className="text-base-content/70 mb-8">Manage your accounts, categories, and data</p>
+    <div className="flex flex-col h-full max-w-5xl mx-auto">
+      {/* Header */}
+      <div className="p-4 flex-shrink-0">
+        <h1 className="text-3xl font-bold text-base-content mb-2">Settings</h1>
+        <p className="text-base-content/70 mb-4">Manage your accounts, categories, and data</p>
+      </div>
 
-      {/* Appearance Section */}
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        {/* Appearance Section */}
       <div className="bg-base-100 rounded-lg shadow-sm p-6 mb-6">
         <div className="mb-6">
           <h2 className="text-xl font-semibold text-base-content flex items-center gap-2">
@@ -710,6 +715,7 @@ export default function Settings() {
             </div>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Account Modals */}

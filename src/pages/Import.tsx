@@ -156,13 +156,18 @@ export default function Import() {
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold text-base-content mb-2">Import Transactions</h1>
-      <p className="text-base-content/70 mb-8">
-        Import transactions from CSV files exported by your bank
-      </p>
+    <div className="flex flex-col h-full max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="p-4 flex-shrink-0">
+        <h1 className="text-3xl font-bold text-base-content mb-2">Import Transactions</h1>
+        <p className="text-base-content/70 mb-4">
+          Import transactions from CSV files exported by your bank
+        </p>
+      </div>
 
-      {/* Error Display */}
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto px-4 pb-4">
+        {/* Error Display */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
@@ -432,6 +437,7 @@ export default function Import() {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

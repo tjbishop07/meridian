@@ -208,7 +208,7 @@ export default function Browser() {
 
   const promptForSensitiveInput = (label: string): Promise<string> => {
     return new Promise((resolve) => {
-      // Hide browser so modal is visible
+      // Hide browser so dialog is visible
       window.electron.invoke('browser:hide');
 
       setSensitiveInputLabel(label);
@@ -273,31 +273,57 @@ export default function Browser() {
       // Wait for page to load
       await new Promise(resolve => setTimeout(resolve, 3000));
 
+      // Track last sensitive input to avoid duplicates
+      let lastSensitiveValue = '';
+      let lastSensitiveSelector = '';
+
       // Execute steps one by one
       for (let i = 0; i < recipe.steps.length; i++) {
         let step = recipe.steps[i];
 
+        console.log(`[Replay] Processing step ${i + 1}/${recipe.steps.length}:`, {
+          type: step.type,
+          selector: step.selector,
+          isRedacted: step.value === '[REDACTED]'
+        });
+
         // Check if this is a sensitive input that was redacted
         if (step.type === 'input' && step.value === '[REDACTED]') {
-          const userValue = await promptForSensitiveInput(
-            `Enter value for ${step.element} (Step ${i + 1}/${recipe.steps.length})`
-          );
-          // Create a new step with the user-provided value
-          step = { ...step, value: userValue };
+          // Skip if this is a duplicate of the last sensitive input (same selector)
+          if (step.selector === lastSensitiveSelector && lastSensitiveValue) {
+            console.log(`[Replay] Skipping duplicate sensitive input at step ${i + 1}`);
+            step = { ...step, value: lastSensitiveValue };
+          } else {
+            console.log(`[Replay] Prompting for sensitive input at step ${i + 1}:`, step.selector);
+            const userValue = await promptForSensitiveInput(
+              `Step ${i + 1}/${recipe.steps.length}: Enter value for field\n\nSelector: ${step.selector}`
+            );
+            console.log(`[Replay] User provided value, length: ${userValue.length}`);
+            lastSensitiveValue = userValue;
+            lastSensitiveSelector = step.selector;
+            // Create a new step with the user-provided value
+            step = { ...step, value: userValue };
+          }
         }
 
         toast.loading(`Step ${i + 1}/${recipe.steps.length}: ${step.type} on ${step.element}`, {
           duration: 1500,
         });
 
+        console.log(`[Replay] Executing step ${i + 1}`);
         const result = await window.electron.invoke('browser:execute-step', step);
+        console.log(`[Replay] Step ${i + 1} result:`, result);
 
         if (!result.success) {
-          toast.error(`Step ${i + 1} failed: ${result.error}`);
+          const errorMsg = `Step ${i + 1} (${step.type} on ${step.element}) failed\n\nSelector: ${step.selector}\n\nError: ${result.error}`;
+          toast.error(`Step ${i + 1} failed - check console`);
           console.error('Step failed:', step, result.error);
+          console.log('Failed step details:', JSON.stringify(step, null, 2));
+          console.log('Selector that failed:', step.selector);
+          console.log('Element type:', step.element);
 
           // Ask if user wants to continue
-          if (!confirm(`Step ${i + 1} failed: ${result.error}\n\nContinue with remaining steps?`)) {
+          if (!confirm(errorMsg + '\n\nContinue with remaining steps?')) {
             break;
           }
         }
@@ -667,15 +693,19 @@ export default function Browser() {
         </div>
       )}
 
-      {/* Sensitive Input Modal (for replay) */}
+      {/* Sensitive Input Dialog (non-blocking) */}
       {showSensitiveInputModal && (
-        <div className="modal modal-open">
-          <div className="modal-box">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] w-96">
+          <div className="bg-base-100 shadow-2xl rounded-lg border border-base-300 p-6">
             <h3 className="font-bold text-lg mb-4">
               Enter Sensitive Value
             </h3>
 
-            <p className="mb-4 text-sm text-base-content/70">
+            <div className="alert alert-info mb-4 text-xs">
+              <span>If you have separate PIN digit boxes, enter one digit at a time</span>
+            </div>
+
+            <p className="mb-4 text-sm text-base-content/70 whitespace-pre-line">
               {sensitiveInputLabel}
             </p>
 
@@ -683,7 +713,7 @@ export default function Browser() {
               <input
                 type="password"
                 className="input input-bordered"
-                placeholder="Enter value..."
+                placeholder="Enter value (single digit or full value)..."
                 value={sensitiveInputValue}
                 onChange={(e) => setSensitiveInputValue(e.target.value)}
                 onKeyDown={(e) => {
@@ -695,7 +725,7 @@ export default function Browser() {
               />
             </div>
 
-            <div className="modal-action">
+            <div className="flex justify-end">
               <button
                 className="btn btn-primary"
                 onClick={handleSensitiveInputSubmit}

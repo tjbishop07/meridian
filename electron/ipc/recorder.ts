@@ -23,6 +23,7 @@ const getRecorderScript = () => `
   window._evtLog = true;
 
   const listeners = [];
+  let lastInteraction = null;
 
   // Generate a unique CSS selector for an element
   function generateSelector(element) {
@@ -188,6 +189,15 @@ const getRecorderScript = () => `
         timestamp: Date.now()
       };
 
+      // Skip if this is a duplicate of the last interaction (same selector and type within 1 second)
+      if (lastInteraction &&
+          lastInteraction.type === 'input' &&
+          lastInteraction.selector === selector &&
+          (interaction.timestamp - lastInteraction.timestamp) < 1000) {
+        return; // Skip duplicate
+      }
+
+      lastInteraction = interaction;
       console.log('debug:evt:' + JSON.stringify(interaction));
       window.electron?.send?.('recorder:interaction', interaction);
     }
