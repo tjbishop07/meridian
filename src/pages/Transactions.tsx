@@ -7,6 +7,7 @@ import { useCategories } from '../hooks/useCategories';
 import { useStore } from '../store';
 import Modal from '../components/ui/Modal';
 import TransactionForm from '../components/transactions/TransactionForm';
+import PageHeader from '../components/layout/PageHeader';
 import type { Transaction, CreateTransactionInput } from '../types';
 import { format, parseISO } from 'date-fns';
 
@@ -111,37 +112,38 @@ export default function Transactions() {
 
   if (error) {
     return (
-      <div>
-        <h1 className="text-3xl font-bold text-base-content mb-6">Transactions</h1>
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <p className="text-red-800">{error}</p>
-          <button
-            onClick={() => loadTransactions()}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-          >
-            Retry
-          </button>
+      <div className="flex flex-col h-full">
+        <PageHeader title="Transactions" />
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-6">
+            <p className="text-red-800">{error}</p>
+            <button
+              onClick={() => loadTransactions()}
+              className="mt-4 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div>
-      {/* Header */}
-      <div className="flex justify-between items-center p-4">
-        <h1 className="text-3xl font-bold text-base-content">Transactions</h1>
-        <button
-          onClick={() => setIsCreateModalOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-content rounded-lg hover:bg-primary/80 font-medium"
-        >
-          <Plus className="w-5 h-5" />
-          Add Transaction
-        </button>
-      </div>
-
-      {/* Filters */}
-      <div className="bg-base-100 rounded-lg shadow-sm p-4 mx-4 mb-4">
+    <div className="flex flex-col h-full">
+      <PageHeader
+        title="Transactions"
+        action={
+          <button
+            onClick={() => setIsCreateModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-content rounded-lg hover:bg-primary/80 font-medium"
+          >
+            <Plus className="w-5 h-5" />
+            Add Transaction
+          </button>
+        }
+      >
+        {/* Filters */}
         <div className="flex gap-4">
           {/* Search */}
           <div className="flex-1 relative">
@@ -177,11 +179,13 @@ export default function Transactions() {
             ))}
           </select>
         </div>
-      </div>
+      </PageHeader>
 
-      {/* Transaction List */}
-      {isLoading ? (
-        <div className="bg-base-100 rounded-lg shadow-sm p-6">
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {/* Transaction List */}
+        {isLoading ? (
+          <div className="bg-base-100 rounded-lg shadow-sm p-6">
           <div className="animate-pulse space-y-4">
             {[...Array(5)].map((_, i) => (
               <div key={i} className="h-16 bg-base-300 rounded"></div>
@@ -336,7 +340,7 @@ export default function Transactions() {
 
         {/* Fixed Pagination Footer */}
         {filteredTransactions.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-base-300 bg-base-100">
+          <div className="flex items-center justify-between px-4 pt-3 pb-4 border-t border-base-300 bg-base-200">
             <div className="flex items-center gap-3">
               <span className="text-sm text-base-content/60">
                 {startIndex + 1}-{Math.min(endIndex, filteredTransactions.length)} of {filteredTransactions.length}
@@ -393,7 +397,8 @@ export default function Transactions() {
         )
         }
         </div>
-      )}
+        )}
+      </div>
 
       {/* Create Modal */}
       <Modal

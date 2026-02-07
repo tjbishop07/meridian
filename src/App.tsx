@@ -17,11 +17,17 @@ function App() {
     const loadTheme = async () => {
       try {
         const theme = await window.electron.invoke('settings:get', 'theme');
-        if (theme) {
-          document.documentElement.setAttribute('data-theme', theme);
+        const selectedTheme = theme || 'dark';
+        document.documentElement.setAttribute('data-theme', selectedTheme);
+
+        // Save default theme if none exists
+        if (!theme) {
+          await window.electron.invoke('settings:set', { key: 'theme', value: 'dark' });
         }
       } catch (err) {
         console.error('Failed to load theme:', err);
+        // Fallback to dark theme if loading fails
+        document.documentElement.setAttribute('data-theme', 'dark');
       }
     };
     loadTheme();

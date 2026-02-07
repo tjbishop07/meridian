@@ -282,7 +282,7 @@ export default function Settings() {
     setCurrentTheme(theme);
     document.documentElement.setAttribute('data-theme', theme);
     try {
-      await window.electron.invoke('settings:set', 'theme', theme);
+      await window.electron.invoke('settings:set', { key: 'theme', value: theme });
     } catch (err) {
       console.error('Failed to save theme:', err);
     }
