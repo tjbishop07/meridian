@@ -226,13 +226,15 @@ const getRecorderScript = () => `
   document.addEventListener('change', changeHandler, false);
   listeners.push({ type: 'change', handler: changeHandler });
 
-  // Cleanup function with less obvious name
-  window._evtCleanup = function() {
-    listeners.forEach(({ type, handler }) => {
-      document.removeEventListener(type, handler, false);
-    });
-    window._evtLog = false;
-    delete window._evtCleanup;
+  // Cleanup function
+  window[Symbol.for('__rec_cleanup__')] = function() {
+    try {
+      listeners.forEach(({ type, handler }) => {
+        document.removeEventListener(type, handler, false);
+      });
+      delete window._evtLog;
+      delete window[Symbol.for('__rec_cleanup__')];
+    } catch (err) {}
   };
 })();
 `;
@@ -796,6 +798,30 @@ export function registerRecorderHandlers(): void {
       // Inject the recorder script into the browser view
       await browserView.webContents.executeJavaScript(getRecorderScript());
 
+      // Re-inject script on page loads to maintain recording across navigations
+      const didFinishLoadListener = () => {
+        if (currentRecording && browserView && !browserView.webContents.isDestroyed()) {
+          console.log('[Browser] Page loaded during recording, re-injecting script');
+          browserView.webContents.executeJavaScript(getRecorderScript())
+            .catch(err => console.error('[Browser] Failed to re-inject script:', err));
+        }
+      };
+
+      const didNavigateListener = () => {
+        if (currentRecording && browserView && !browserView.webContents.isDestroyed()) {
+          console.log('[Browser] Page navigated during recording, re-injecting script');
+          browserView.webContents.executeJavaScript(getRecorderScript())
+            .catch(err => console.error('[Browser] Failed to re-inject script:', err));
+        }
+      };
+
+      // Store navigation listeners for cleanup
+      (browserView as any)._recorderDidFinishLoadListener = didFinishLoadListener;
+      (browserView as any)._recorderDidNavigateListener = didNavigateListener;
+
+      browserView.webContents.on('did-finish-load', didFinishLoadListener);
+      browserView.webContents.on('did-navigate-in-page', didNavigateListener);
+
       return { success: true };
     } catch (error) {
       console.error('[Browser] Error starting recording:', error);
@@ -811,52 +837,71 @@ export function registerRecorderHandlers(): void {
 
       console.log('[Browser] Executing step:', step.type, step.selector);
 
-      // Inject script to execute the step
+      // Inject script to execute the step with retry logic
       const result = await browserView.webContents.executeJavaScript(`
-        (function() {
+        (async function() {
           const step = ${JSON.stringify(step)};
 
-          // Find the element using smart selector matching
-          let element;
-          try {
-            const selector = step.selector;
+          // Helper function to wait
+          const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-            // Handle label-based selectors
-            if (selector.startsWith('label:')) {
-              const labelText = selector.substring(6);
-              // Find label with matching text
-              const labels = Array.from(document.querySelectorAll('label'));
-              const label = labels.find(l => l.textContent.trim() === labelText);
-              if (label) {
-                // Get associated input
-                const forAttr = label.getAttribute('for');
-                if (forAttr) {
-                  element = document.getElementById(forAttr);
-                } else {
-                  element = label.querySelector('input, textarea, select');
+          // Helper function to find element with retry
+          const findElement = async (retries = 3) => {
+            for (let i = 0; i < retries; i++) {
+              let element;
+              try {
+                const selector = step.selector;
+
+                // Handle label-based selectors
+                if (selector.startsWith('label:')) {
+                  const labelText = selector.substring(6);
+                  const labels = Array.from(document.querySelectorAll('label'));
+                  const label = labels.find(l => l.textContent.trim() === labelText);
+                  if (label) {
+                    const forAttr = label.getAttribute('for');
+                    if (forAttr) {
+                      element = document.getElementById(forAttr);
+                    } else {
+                      element = label.querySelector('input, textarea, select');
+                    }
+                  }
                 }
+                // Handle placeholder-based selectors
+                else if (selector.startsWith('placeholder:')) {
+                  const placeholder = selector.substring(12);
+                  element = document.querySelector('[placeholder="' + placeholder + '"]');
+                }
+                // Handle aria-label selectors
+                else if (selector.startsWith('aria-label:')) {
+                  const ariaLabel = selector.substring(11);
+                  element = document.querySelector('[aria-label="' + ariaLabel + '"]');
+                }
+                // Standard CSS selector
+                else {
+                  element = document.querySelector(selector);
+                }
+
+                if (element) {
+                  return element;
+                }
+              } catch (e) {
+                console.log('[Recorder] Selector error on attempt ' + (i + 1) + ':', e.message);
+              }
+
+              // Wait before retry (increasing wait time)
+              if (i < retries - 1) {
+                await wait(1000 * (i + 1)); // 1s, 2s, 3s
+                console.log('[Recorder] Retrying element search, attempt ' + (i + 2));
               }
             }
-            // Handle placeholder-based selectors
-            else if (selector.startsWith('placeholder:')) {
-              const placeholder = selector.substring(12);
-              element = document.querySelector('[placeholder="' + placeholder + '"]');
-            }
-            // Handle aria-label selectors
-            else if (selector.startsWith('aria-label:')) {
-              const ariaLabel = selector.substring(11);
-              element = document.querySelector('[aria-label="' + ariaLabel + '"]');
-            }
-            // Standard CSS selector
-            else {
-              element = document.querySelector(selector);
-            }
-          } catch (e) {
-            return { success: false, error: 'Invalid selector: ' + e.message };
-          }
+            return null;
+          };
+
+          // Find element with retries
+          const element = await findElement();
 
           if (!element) {
-            return { success: false, error: 'Element not found: ' + step.selector };
+            return { success: false, error: 'Element not found after retries: ' + step.selector };
           }
 
           // Highlight the element
@@ -865,36 +910,74 @@ export function registerRecorderHandlers(): void {
           element.style.outline = '3px solid #f59e0b';
           element.style.backgroundColor = '#fef3c7';
 
-          // Scroll element into view
+          // Scroll element into view and wait for scroll to complete
           element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          await wait(500); // Wait for scroll animation
 
-          // Execute the action after a brief delay for visibility
-          setTimeout(() => {
-            try {
-              if (step.type === 'click') {
-                element.click();
-              } else if (step.type === 'input') {
-                element.value = step.value;
-                element.dispatchEvent(new Event('input', { bubbles: true }));
-                element.dispatchEvent(new Event('change', { bubbles: true }));
-              } else if (step.type === 'select') {
-                element.value = step.value;
-                element.dispatchEvent(new Event('change', { bubbles: true }));
-              }
+          // Execute the action
+          try {
+            if (step.type === 'click') {
+              element.click();
+              // Wait longer after clicks to allow page navigation/updates
+              await wait(1500);
+            } else if (step.type === 'input') {
+              // Focus the element first
+              element.focus();
+              await wait(200);
 
-              // Remove highlight after action
-              setTimeout(() => {
-                element.style.outline = originalOutline;
-                element.style.backgroundColor = originalBackground;
-              }, 500);
-            } catch (e) {
-              return { success: false, error: 'Failed to execute action: ' + e.message };
+              // Clear existing value using React/framework-friendly method
+              const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                window.HTMLInputElement.prototype,
+                'value'
+              ).set;
+
+              nativeInputValueSetter.call(element, '');
+              element.dispatchEvent(new Event('input', { bubbles: true }));
+              await wait(100);
+
+              // Set new value using native setter (works with React/Vue/Angular)
+              nativeInputValueSetter.call(element, step.value);
+
+              // Dispatch comprehensive events for framework compatibility
+              // InputEvent with data (for React)
+              element.dispatchEvent(new InputEvent('input', {
+                bubbles: true,
+                cancelable: true,
+                data: step.value,
+                inputType: 'insertText'
+              }));
+
+              // Standard events
+              element.dispatchEvent(new Event('change', { bubbles: true }));
+              element.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
+              element.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+              element.dispatchEvent(new KeyboardEvent('keypress', { bubbles: true }));
+
+              // Blur to trigger validation
+              await wait(200);
+              element.blur();
+
+              // Wait for UI to update after input
+              await wait(1000);
+            } else if (step.type === 'select') {
+              element.value = step.value;
+              element.dispatchEvent(new Event('change', { bubbles: true }));
+              await wait(500);
             }
-          }, 300);
 
-          return { success: true };
+            // Remove highlight
+            element.style.outline = originalOutline;
+            element.style.backgroundColor = originalBackground;
+
+            return { success: true };
+          } catch (e) {
+            return { success: false, error: 'Failed to execute action: ' + e.message };
+          }
         })();
       `);
+
+      // Add additional wait time on the main process side to ensure page is fully loaded
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       return result;
     } catch (error) {
@@ -918,12 +1001,24 @@ export function registerRecorderHandlers(): void {
         delete (browserView as any)._recorderListener;
       }
 
+      // Remove navigation listeners
+      const didFinishLoadListener = (browserView as any)._recorderDidFinishLoadListener;
+      if (didFinishLoadListener) {
+        browserView.webContents.removeListener('did-finish-load', didFinishLoadListener);
+        delete (browserView as any)._recorderDidFinishLoadListener;
+      }
+
+      const didNavigateListener = (browserView as any)._recorderDidNavigateListener;
+      if (didNavigateListener) {
+        browserView.webContents.removeListener('did-navigate-in-page', didNavigateListener);
+        delete (browserView as any)._recorderDidNavigateListener;
+      }
+
       // Try to remove the recorder script event listeners (non-blocking)
       try {
         await browserView.webContents.executeJavaScript(`
-          if (window._evtCleanup) {
-            window._evtCleanup();
-          }
+          const cleanup = window[Symbol.for('__rec_cleanup__')];
+          if (cleanup) cleanup();
         `);
       } catch (cleanupError) {
         // Ignore cleanup errors - recording is already captured
@@ -933,6 +1028,8 @@ export function registerRecorderHandlers(): void {
       // Return the recording
       const recording = currentRecording;
       currentRecording = null;
+
+      console.log('[Browser] Recording stopped with', recording?.interactions?.length || 0, 'interactions');
 
       return {
         success: true,

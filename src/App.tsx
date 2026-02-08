@@ -9,7 +9,7 @@ import Goals from './pages/Goals';
 import Bills from './pages/Bills';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
-import Browser from './pages/Browser';
+import { Automation } from './pages/Automation';
 import Toaster from './components/ui/Toaster';
 
 function App() {
@@ -42,7 +42,7 @@ function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="transactions" element={<Transactions />} />
           <Route path="import" element={<Import />} />
-          <Route path="browser" element={<Browser />} />
+          <Route path="automation" element={<Automation />} />
           <Route path="budgets" element={<Budgets />} />
           <Route path="goals" element={<Goals />} />
           <Route path="bills" element={<Bills />} />

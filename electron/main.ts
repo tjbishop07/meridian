@@ -14,6 +14,7 @@ import { registerBillHandlers } from './ipc/bills';
 import { registerSettingsHandlers } from './ipc/settings';
 import { registerRecorderHandlers } from './ipc/recorder';
 import { registerExportRecipeHandlers } from './ipc/export-recipes';
+import { registerAutomationHandlers, setMainWindow } from './ipc/automation';
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -59,10 +60,10 @@ function createWindow() {
 }
 
 // Initialize app
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   try {
     // Initialize database
-    initDatabase();
+    const db = initDatabase();
 
     // Register IPC handlers
     registerTransactionHandlers();
@@ -77,6 +78,10 @@ app.whenReady().then(() => {
     registerRecorderHandlers();
     registerExportRecipeHandlers();
 
+    console.log('[Main] Registering automation handlers...');
+    registerAutomationHandlers();
+    console.log('[Main] Automation handlers registered');
+
     // File dialog handler
     ipcMain.handle('dialog:open-file', async (_, options) => {
       const result = await dialog.showOpenDialog(mainWindow!, {
@@ -89,6 +94,11 @@ app.whenReady().then(() => {
 
     // Create main window
     createWindow();
+
+    // Set main window reference for automation handlers
+    if (mainWindow) {
+      setMainWindow(mainWindow);
+    }
 
     app.on('activate', () => {
       // On macOS it's common to re-create a window when the dock icon is clicked

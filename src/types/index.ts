@@ -287,6 +287,27 @@ export interface SpendingTrend {
   net: number;
 }
 
+// Export Recipe/Automation Types
+
+export interface RecordingStep {
+  type: 'click' | 'type' | 'select' | 'navigate' | 'wait';
+  selector?: string;
+  value?: string;
+  url?: string;
+  delay?: number;
+  description?: string;
+}
+
+export interface ExportRecipe {
+  id: string;
+  name: string;
+  institution: string | null;
+  url: string;
+  steps: RecordingStep[];
+  created_at: string;
+  updated_at: string;
+}
+
 // Electron IPC API
 
 export interface ElectronAPI {
@@ -362,12 +383,28 @@ export interface ElectronAPI {
   invoke(channel: 'browser:forward'): Promise<{ success: boolean }>;
   invoke(channel: 'browser:reload'): Promise<{ success: boolean }>;
 
+  // Automation
+  invoke(channel: 'automation:start-recording', startUrl?: string): Promise<void>;
+  invoke(channel: 'automation:save-recording', data: { name: string; institution: string | null; url: string; steps: string }): Promise<void>;
+  invoke(channel: 'automation:play-recording', recipeId: string): Promise<void>;
+  invoke(channel: 'automation:provide-sensitive-input', value: string): Promise<void>;
+
+  // Export Recipes
+  invoke(channel: 'export-recipes:get-all'): Promise<ExportRecipe[]>;
+  invoke(channel: 'export-recipes:get-by-id', id: string): Promise<ExportRecipe | null>;
+  invoke(channel: 'export-recipes:create', data: { name: string; institution: string | null; url: string; steps: string }): Promise<ExportRecipe>;
+  invoke(channel: 'export-recipes:update', data: { id: string; name?: string; institution?: string | null }): Promise<void>;
+  invoke(channel: 'export-recipes:delete', id: string): Promise<void>;
+
   // Event listeners
   on(channel: 'csv:downloaded', callback: (data: { filePath: string; fileName: string }) => void): void;
   on(channel: 'recorder:interaction', callback: (interaction: any) => void): void;
   on(channel: 'browser:loading', callback: (isLoading: boolean) => void): void;
   on(channel: 'browser:url-changed', callback: (url: string) => void): void;
   on(channel: 'browser:error', callback: (error: { code: number; description: string; url: string }) => void): void;
+  on(channel: 'automation:recording-saved', callback: () => void): void;
+  on(channel: 'automation:playback-complete', callback: () => void): void;
+  on(channel: 'automation:playback-needs-input', callback: (data: { stepNumber: number; totalSteps: number; fieldLabel: string }) => void): void;
   removeListener(channel: string, callback: (...args: any[]) => void): void;
 }
 

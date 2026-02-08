@@ -99,6 +99,15 @@ const electronAPI: ElectronAPI = {
       'export-recipes:update',
       'export-recipes:delete',
 
+      // Automation
+      'automation:start-recording',
+      'automation:stop-recording-window',
+      'automation:save-recording',
+      'automation:play-recording',
+      'automation:provide-sensitive-input',
+      'automation:start-recording-mode',
+      'automation:get-current-recording',
+
       // File operations
       'dialog:open-file',
     ];
@@ -118,6 +127,9 @@ const electronAPI: ElectronAPI = {
       'browser:loading',
       'browser:url-changed',
       'browser:error',
+      'automation:recording-saved',
+      'automation:playback-complete',
+      'automation:playback-needs-input',
     ];
 
     if (validReceiveChannels.includes(channel)) {
@@ -134,6 +146,9 @@ const electronAPI: ElectronAPI = {
       'browser:loading',
       'browser:url-changed',
       'browser:error',
+      'automation:recording-saved',
+      'automation:playback-complete',
+      'automation:playback-needs-input',
     ];
 
     if (validReceiveChannels.includes(channel)) {
