@@ -18,8 +18,10 @@ const getRecorderScript = () => `
 (function() {
   // Prevent duplicate injection using a less obvious flag
   if (window._evtLog) {
+    console.log('[Recorder] Script already active, skipping re-injection');
     return;
   }
+  console.log('[Recorder] Initializing recorder script on:', window.location.href);
   window._evtLog = true;
 
   const listeners = [];
@@ -167,6 +169,7 @@ const getRecorderScript = () => `
     };
 
     // Send interaction data via console (looks like debug info)
+    console.log('[Recorder] Captured click:', interaction.selector);
     console.log('debug:evt:' + JSON.stringify(interaction));
 
     // Send to main process
@@ -198,6 +201,7 @@ const getRecorderScript = () => `
       }
 
       lastInteraction = interaction;
+      console.log('[Recorder] Captured interaction:', interaction.type, 'on', interaction.selector);
       console.log('debug:evt:' + JSON.stringify(interaction));
       window.electron?.send?.('recorder:interaction', interaction);
     }
@@ -219,6 +223,7 @@ const getRecorderScript = () => `
         timestamp: Date.now()
       };
 
+      console.log('[Recorder] Captured select change:', interaction.selector, '=', interaction.value);
       console.log('debug:evt:' + JSON.stringify(interaction));
       window.electron?.send?.('recorder:interaction', interaction);
     }
@@ -354,15 +359,29 @@ export function registerRecorderHandlers(): void {
       });
 
       // Inject the recorder script after page loads
-      recorderWindow.webContents.on('did-finish-load', () => {
-        console.log('[Recorder] Page loaded, injecting script');
+      recorderWindow.webContents.on('did-finish-load', async () => {
+        console.log('[Recorder] Page loaded, waiting for DOM ready...');
+        // Wait a bit for the page to be fully interactive
+        await new Promise(resolve => setTimeout(resolve, 500));
+        console.log('[Recorder] Injecting recorder script');
+        recorderWindow?.webContents.executeJavaScript(getRecorderScript())
+          .catch(err => console.error('[Recorder] Failed to inject script:', err));
+      });
+
+      // Handle full page navigation
+      recorderWindow.webContents.on('did-navigate', async (event, url) => {
+        console.log('[Recorder] Full navigation detected:', url);
+        // Wait for page to be ready
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log('[Recorder] Re-injecting recorder script after navigation');
         recorderWindow?.webContents.executeJavaScript(getRecorderScript())
           .catch(err => console.error('[Recorder] Failed to inject script:', err));
       });
 
       // Also inject on frame navigation (for SPAs)
-      recorderWindow.webContents.on('did-navigate-in-page', () => {
-        console.log('[Recorder] Page navigated, re-injecting script');
+      recorderWindow.webContents.on('did-navigate-in-page', async () => {
+        console.log('[Recorder] SPA navigation detected, re-injecting script');
+        await new Promise(resolve => setTimeout(resolve, 300));
         recorderWindow?.webContents.executeJavaScript(getRecorderScript())
           .catch(err => console.error('[Recorder] Failed to inject script:', err));
       });
@@ -782,8 +801,26 @@ export function registerRecorderHandlers(): void {
             const interaction = JSON.parse(jsonStr);
 
             if (currentRecording) {
-              currentRecording.interactions.push(interaction);
-              console.log('[Browser] Captured interaction:', interaction.type);
+              // Filter out app UI interactions
+              const isAppUI =
+                interaction.selector?.includes('e.g., Download') ||
+                interaction.selector?.includes('recording-name-input') ||
+                interaction.selector?.includes('recipe-name') ||
+                interaction.selector?.includes('modal') ||
+                interaction.selector?.includes('Stop Recording') ||
+                interaction.selector?.includes('Save Recording') ||
+                interaction.selector?.includes('stop-recording') ||
+                interaction.selector?.includes('save-recording') ||
+                interaction.text?.includes('Stop Recording') ||
+                interaction.text?.includes('Save Recording') ||
+                interaction.text?.includes('Save') && interaction.text?.includes('Cancel');
+
+              if (isAppUI) {
+                console.log('[Browser] Filtered out app UI interaction:', interaction.selector || interaction.text);
+              } else {
+                currentRecording.interactions.push(interaction);
+                console.log('[Browser] Captured interaction:', interaction.type);
+              }
             }
           } catch (e) {
             // Not valid JSON, ignore
@@ -865,6 +902,16 @@ export function registerRecorderHandlers(): void {
                       element = label.querySelector('input, textarea, select');
                     }
                   }
+                }
+                // Handle text-based selectors (format: text:ClassName:Text Content)
+                else if (selector.startsWith('text:')) {
+                  const parts = selector.substring(5).split(':', 2);
+                  const className = parts[0];
+                  const textContent = parts[1] || parts[0];
+
+                  const cssSelector = className.startsWith('.') ? className : '.' + className;
+                  const elements = Array.from(document.querySelectorAll(cssSelector));
+                  element = elements.find(el => el.textContent?.trim() === textContent);
                 }
                 // Handle placeholder-based selectors
                 else if (selector.startsWith('placeholder:')) {
@@ -983,6 +1030,232 @@ export function registerRecorderHandlers(): void {
     } catch (error) {
       console.error('[Browser] Error executing step:', error);
       return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('browser:prompt-sensitive-input', async (_, label: string, stepNumber: number, totalSteps: number): Promise<string> => {
+    try {
+      if (!browserView || browserView.webContents.isDestroyed()) {
+        throw new Error('Browser view not available');
+      }
+
+      console.log('[Browser] Showing sensitive input prompt');
+
+      const promptCode = `
+        (function() {
+          return new Promise((resolve) => {
+            // Remove existing prompt if present
+            const existing = document.getElementById('sensitive-input-overlay');
+            if (existing) existing.remove();
+
+            const overlay = document.createElement('div');
+            overlay.id = 'sensitive-input-overlay';
+            overlay.innerHTML = \`
+              <style>
+                #sensitive-input-overlay {
+                  position: fixed;
+                  top: 0;
+                  left: 0;
+                  right: 0;
+                  bottom: 0;
+                  z-index: 2147483647;
+                  background: rgba(0, 0, 0, 0.8);
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                  animation: fadeIn 0.2s ease-out;
+                }
+
+                @keyframes fadeIn {
+                  from { opacity: 0; }
+                  to { opacity: 1; }
+                }
+
+                #sensitive-input-box {
+                  background: white;
+                  border-radius: 12px;
+                  padding: 32px;
+                  max-width: 500px;
+                  width: 90%;
+                  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+                  animation: slideUp 0.3s ease-out;
+                }
+
+                @keyframes slideUp {
+                  from {
+                    opacity: 0;
+                    transform: translateY(20px);
+                  }
+                  to {
+                    opacity: 1;
+                    transform: translateY(0);
+                  }
+                }
+
+                #sensitive-input-box h2 {
+                  margin: 0 0 8px 0;
+                  font-size: 24px;
+                  color: #1f2937;
+                  display: flex;
+                  align-items: center;
+                  gap: 12px;
+                }
+
+                #sensitive-input-box .step-info {
+                  color: #6b7280;
+                  font-size: 14px;
+                  margin-bottom: 20px;
+                }
+
+                #sensitive-input-box .field-label {
+                  color: #374151;
+                  font-size: 15px;
+                  margin-bottom: 16px;
+                  padding: 12px;
+                  background: #f3f4f6;
+                  border-radius: 6px;
+                  border-left: 3px solid #3b82f6;
+                }
+
+                #sensitive-input-box .alert {
+                  background: #dbeafe;
+                  border: 1px solid #93c5fd;
+                  color: #1e40af;
+                  padding: 12px;
+                  border-radius: 6px;
+                  margin-bottom: 20px;
+                  font-size: 13px;
+                  display: flex;
+                  gap: 8px;
+                }
+
+                #sensitive-input-box input {
+                  width: 100%;
+                  padding: 14px;
+                  border: 2px solid #d1d5db;
+                  border-radius: 8px;
+                  font-size: 16px;
+                  box-sizing: border-box;
+                  margin-bottom: 20px;
+                  transition: border-color 0.2s;
+                }
+
+                #sensitive-input-box input:focus {
+                  outline: none;
+                  border-color: #3b82f6;
+                  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+                }
+
+                #sensitive-input-box button {
+                  width: 100%;
+                  padding: 14px 24px;
+                  background: #3b82f6;
+                  color: white;
+                  border: none;
+                  border-radius: 8px;
+                  font-size: 16px;
+                  font-weight: 600;
+                  cursor: pointer;
+                  transition: all 0.2s;
+                }
+
+                #sensitive-input-box button:hover:not(:disabled) {
+                  background: #2563eb;
+                  transform: translateY(-1px);
+                  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+                }
+
+                #sensitive-input-box button:active:not(:disabled) {
+                  transform: translateY(0);
+                }
+
+                #sensitive-input-box button:disabled {
+                  background: #9ca3af;
+                  cursor: not-allowed;
+                }
+
+                .lock-icon {
+                  display: inline-block;
+                  width: 28px;
+                  height: 28px;
+                  background: #fbbf24;
+                  border-radius: 50%;
+                  position: relative;
+                }
+
+                .lock-icon::before {
+                  content: '🔒';
+                  position: absolute;
+                  top: 50%;
+                  left: 50%;
+                  transform: translate(-50%, -50%);
+                  font-size: 14px;
+                }
+              </style>
+
+              <div id="sensitive-input-box">
+                <h2>
+                  <span class="lock-icon"></span>
+                  Sensitive Input Required
+                </h2>
+                <div class="step-info">Step ${stepNumber} of ${totalSteps}</div>
+                <div class="field-label">${label.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                <div class="alert">
+                  <span>ℹ️</span>
+                  <div>
+                    <strong>Privacy Note:</strong> This value is not stored and only used for this playback session.
+                    ${label.toLowerCase().includes('pin') ? '<br><strong>For separate PIN boxes:</strong> Enter one digit at a time.' : ''}
+                  </div>
+                </div>
+                <input
+                  type="password"
+                  id="sensitive-value-input"
+                  placeholder="Enter value..."
+                  autocomplete="off"
+                />
+                <button id="submit-sensitive-value" disabled>Continue</button>
+              </div>
+            \`;
+
+            document.body.appendChild(overlay);
+
+            const input = document.getElementById('sensitive-value-input');
+            const button = document.getElementById('submit-sensitive-value');
+
+            // Focus input
+            setTimeout(() => input.focus(), 100);
+
+            // Enable button when input has value
+            input.addEventListener('input', () => {
+              button.disabled = !input.value.trim();
+            });
+
+            // Handle submit
+            function submit() {
+              const value = input.value.trim();
+              if (value) {
+                overlay.remove();
+                resolve(value);
+              }
+            }
+
+            button.addEventListener('click', submit);
+            input.addEventListener('keypress', (e) => {
+              if (e.key === 'Enter') {
+                submit();
+              }
+            });
+          });
+        })();
+      `;
+
+      const value = await browserView.webContents.executeJavaScript(promptCode);
+      console.log('[Browser] Received sensitive input, length:', (value as string).length);
+      return value as string;
+    } catch (error) {
+      console.error('[Browser] Error prompting for sensitive input:', error);
+      throw error;
     }
   });
 

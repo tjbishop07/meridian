@@ -99,12 +99,13 @@ export function Automation() {
     }
   };
 
-  const handleEditRecording = async (id: string, name: string, institution: string) => {
+  const handleEditRecording = async (id: string, name: string, institution: string, steps?: any[]) => {
     try {
       await window.electron.invoke('export-recipes:update', {
         id,
         name,
-        institution: institution || null
+        institution: institution || null,
+        steps: steps
       });
       await loadRecordings();
       showToast('Recording updated successfully', 'success');

@@ -91,6 +91,7 @@ const electronAPI: ElectronAPI = {
       'browser:start-recording',
       'browser:stop-recording',
       'browser:execute-step',
+      'browser:prompt-sensitive-input',
 
       // Export recipes
       'export-recipes:get-all',

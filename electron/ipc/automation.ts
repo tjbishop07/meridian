@@ -443,6 +443,230 @@ async function showErrorNotification(window: BrowserWindow, errorMessage: string
   }
 }
 
+// Inject sensitive input prompt
+async function injectSensitiveInputPrompt(window: BrowserWindow, label: string, stepNumber: number, totalSteps: number): Promise<string> {
+  if (!window || window.isDestroyed()) {
+    throw new Error('Window is destroyed');
+  }
+
+  const promptCode = `
+    (function() {
+      return new Promise((resolve) => {
+        // Remove existing prompt if present
+        const existing = document.getElementById('sensitive-input-overlay');
+        if (existing) existing.remove();
+
+        const overlay = document.createElement('div');
+        overlay.id = 'sensitive-input-overlay';
+        overlay.innerHTML = \`
+          <style>
+            #sensitive-input-overlay {
+              position: fixed;
+              top: 0;
+              left: 0;
+              right: 0;
+              bottom: 0;
+              z-index: 2147483647;
+              background: rgba(0, 0, 0, 0.8);
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+              animation: fadeIn 0.2s ease-out;
+            }
+
+            @keyframes fadeIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+
+            #sensitive-input-box {
+              background: white;
+              border-radius: 12px;
+              padding: 32px;
+              max-width: 500px;
+              width: 90%;
+              box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+              animation: slideUp 0.3s ease-out;
+            }
+
+            @keyframes slideUp {
+              from {
+                opacity: 0;
+                transform: translateY(20px);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+
+            #sensitive-input-box h2 {
+              margin: 0 0 8px 0;
+              font-size: 24px;
+              color: #1f2937;
+              display: flex;
+              align-items: center;
+              gap: 12px;
+            }
+
+            #sensitive-input-box .step-info {
+              color: #6b7280;
+              font-size: 14px;
+              margin-bottom: 20px;
+            }
+
+            #sensitive-input-box .field-label {
+              color: #374151;
+              font-size: 15px;
+              margin-bottom: 16px;
+              padding: 12px;
+              background: #f3f4f6;
+              border-radius: 6px;
+              border-left: 3px solid #3b82f6;
+            }
+
+            #sensitive-input-box .alert {
+              background: #dbeafe;
+              border: 1px solid #93c5fd;
+              color: #1e40af;
+              padding: 12px;
+              border-radius: 6px;
+              margin-bottom: 20px;
+              font-size: 13px;
+              display: flex;
+              gap: 8px;
+            }
+
+            #sensitive-input-box input {
+              width: 100%;
+              padding: 14px;
+              border: 2px solid #d1d5db;
+              border-radius: 8px;
+              font-size: 16px;
+              box-sizing: border-box;
+              margin-bottom: 20px;
+              transition: border-color 0.2s;
+            }
+
+            #sensitive-input-box input:focus {
+              outline: none;
+              border-color: #3b82f6;
+              box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            }
+
+            #sensitive-input-box button {
+              width: 100%;
+              padding: 14px 24px;
+              background: #3b82f6;
+              color: white;
+              border: none;
+              border-radius: 8px;
+              font-size: 16px;
+              font-weight: 600;
+              cursor: pointer;
+              transition: all 0.2s;
+            }
+
+            #sensitive-input-box button:hover:not(:disabled) {
+              background: #2563eb;
+              transform: translateY(-1px);
+              box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+            }
+
+            #sensitive-input-box button:active:not(:disabled) {
+              transform: translateY(0);
+            }
+
+            #sensitive-input-box button:disabled {
+              background: #9ca3af;
+              cursor: not-allowed;
+            }
+
+            .lock-icon {
+              display: inline-block;
+              width: 28px;
+              height: 28px;
+              background: #fbbf24;
+              border-radius: 50%;
+              position: relative;
+            }
+
+            .lock-icon::before {
+              content: '🔒';
+              position: absolute;
+              top: 50%;
+              left: 50%;
+              transform: translate(-50%, -50%);
+              font-size: 14px;
+            }
+          </style>
+
+          <div id="sensitive-input-box">
+            <h2>
+              <span class="lock-icon"></span>
+              Sensitive Input Required
+            </h2>
+            <div class="step-info">Step ${stepNumber} of ${totalSteps}</div>
+            <div class="field-label">${label.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+            <div class="alert">
+              <span>ℹ️</span>
+              <div>
+                <strong>Privacy Note:</strong> This value is not stored and only used for this playback session.
+                ${label.toLowerCase().includes('pin') ? '<br><strong>For separate PIN boxes:</strong> Enter one digit at a time.' : ''}
+              </div>
+            </div>
+            <input
+              type="password"
+              id="sensitive-value-input"
+              placeholder="Enter value..."
+              autocomplete="off"
+            />
+            <button id="submit-sensitive-value" disabled>Continue</button>
+          </div>
+        \`;
+
+        document.body.appendChild(overlay);
+
+        const input = document.getElementById('sensitive-value-input');
+        const button = document.getElementById('submit-sensitive-value');
+
+        // Focus input
+        setTimeout(() => input.focus(), 100);
+
+        // Enable button when input has value
+        input.addEventListener('input', () => {
+          button.disabled = !input.value.trim();
+        });
+
+        // Handle submit
+        function submit() {
+          const value = input.value.trim();
+          if (value) {
+            overlay.remove();
+            resolve(value);
+          }
+        }
+
+        button.addEventListener('click', submit);
+        input.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            submit();
+          }
+        });
+      });
+    })();
+  `;
+
+  try {
+    const value = await window.webContents.executeJavaScript(promptCode);
+    return value as string;
+  } catch (error) {
+    console.error('[Automation] Failed to inject sensitive input prompt:', error);
+    throw error;
+  }
+}
+
 // Inject playback progress overlay
 // Show save dialog in recording window
 async function showSaveDialog(window: BrowserWindow) {
@@ -1054,6 +1278,24 @@ export function registerAutomationHandlers(): void {
         } else if (message.startsWith('debug:evt:')) {
           try {
             const interaction = JSON.parse(message.substring(10));
+
+            // Filter out interactions from save dialogs or app UI
+            // These will have selectors that match our app's UI elements
+            const isAppUI = interaction.selector?.includes('e.g., Download USAA Transactions') ||
+                           interaction.selector?.includes('recording-name-input') ||
+                           interaction.selector?.includes('recording-institution-input') ||
+                           interaction.selector?.includes('modal') ||
+                           interaction.selector?.includes('btn btn-') ||
+                           interaction.selector?.startsWith('#recording-') ||
+                           interaction.selector?.startsWith('#save-') ||
+                           interaction.selector?.startsWith('#nav-') ||
+                           interaction.selector?.startsWith('#sensitive-');
+
+            if (isAppUI) {
+              console.log('[Automation] Filtered out app UI interaction:', interaction.selector);
+              return;
+            }
+
             if (currentRecording) {
               currentRecording.steps.push(interaction);
               console.log('[Automation] Captured interaction:', interaction.type, interaction.selector);
@@ -1110,12 +1352,21 @@ export function registerAutomationHandlers(): void {
 
       // Inject recording controls overlay after every page load
       recordingWindow.webContents.on('did-finish-load', async () => {
+        const currentUrl = recordingWindow!.webContents.getURL();
+
+        // Only inject on actual web pages, not internal pages
+        if (!currentUrl.startsWith('http://') && !currentUrl.startsWith('https://')) {
+          console.log('[Automation] Skipping injection on non-web page:', currentUrl);
+          return;
+        }
+
         const isRecording = currentRecording?.isRecording || false;
         await injectRecordingControls(recordingWindow!, isRecording);
 
         // Re-inject recorder script if currently recording
         if (currentRecording && currentRecording.isRecording) {
           try {
+            console.log('[Automation] Re-injecting recorder script for:', currentUrl);
             await recordingWindow!.webContents.executeJavaScript(getRecorderScript());
             console.log('[Automation] Re-injected recorder script on page navigation');
           } catch (error) {
@@ -1125,7 +1376,13 @@ export function registerAutomationHandlers(): void {
       });
 
       // Also inject on navigation within the same page
-      recordingWindow.webContents.on('did-navigate-in-page', async () => {
+      recordingWindow.webContents.on('did-navigate-in-page', async (_, url) => {
+        // Only inject on actual web pages
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+          console.log('[Automation] Skipping injection on non-web page:', url);
+          return;
+        }
+
         const isRecording = currentRecording?.isRecording || false;
         await injectRecordingControls(recordingWindow!, isRecording);
       });
@@ -1288,56 +1545,277 @@ export function registerAutomationHandlers(): void {
         const step = steps[i];
         playbackState.currentStep = i + 1;
 
-        console.log(`[Automation] Executing step ${i + 1}/${steps.length}:`, step.type, step.selector);
+        console.log(`\n[Automation] ======================================`);
+        console.log(`[Automation] Step ${i + 1}/${steps.length}`);
+        console.log(`[Automation] Type: ${step.type}`);
+        console.log(`[Automation] Selector: ${step.selector}`);
+        console.log(`[Automation] Element: ${step.element}`);
+        if (step.type === 'input') {
+          console.log(`[Automation] Value: ${step.value === '[REDACTED]' ? '[REDACTED]' : `${step.value.length} characters`}`);
+        }
+        console.log(`[Automation] ======================================\n`);
 
         // Update progress overlay
         if (playbackWindow && !playbackWindow.isDestroyed()) {
-          await playbackWindow.webContents.executeJavaScript(`
-            if (window.updatePlaybackProgress) {
-              window.updatePlaybackProgress(${i + 1}, ${steps.length}, ${JSON.stringify(step)});
-            }
-          `);
+          try {
+            await playbackWindow.webContents.executeJavaScript(`
+              if (window.updatePlaybackProgress) {
+                window.updatePlaybackProgress(${i + 1}, ${steps.length}, ${JSON.stringify(step)});
+              }
+            `);
+          } catch (err) {
+            console.log('[Automation] Could not update progress overlay (non-critical)');
+          }
         }
 
         // Check if this step needs sensitive input
         if (step.type === 'input' && step.value === '[REDACTED]') {
-          // Request input from main window
-          playbackState.awaitingInput = true;
+          console.log('[Automation] Requesting sensitive input for step', i + 1);
 
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('automation:playback-needs-input', {
-              stepNumber: i + 1,
-              totalSteps: steps.length,
-              fieldLabel: step.fieldLabel || step.selector
-            });
+          // Show input prompt directly in the playback window
+          try {
+            const userInput = await injectSensitiveInputPrompt(
+              playbackWindow!,
+              step.fieldLabel || step.selector,
+              i + 1,
+              steps.length
+            );
+
+            console.log('[Automation] Received sensitive input, length:', userInput.length);
+            step.value = userInput;
+
+            // Verify overlay is completely removed
+            await playbackWindow!.webContents.executeJavaScript(`
+              (function() {
+                const overlay = document.getElementById('sensitive-input-overlay');
+                if (overlay) {
+                  overlay.remove();
+                  console.log('[Automation] Force-removed lingering overlay');
+                }
+              })()
+            `);
+
+            // Wait for overlay to be fully removed and page to be interactive
+            await new Promise(resolve => setTimeout(resolve, 800));
+          } catch (error) {
+            console.error('[Automation] Failed to get sensitive input:', error);
+            throw new Error('Failed to get sensitive input from user');
           }
-
-          // Wait for input
-          const userInput = await new Promise<string>((resolve) => {
-            playbackState!.inputResolver = resolve;
-          });
-
-          step.value = userInput;
-          playbackState.awaitingInput = false;
-          playbackState.inputResolver = null;
         }
 
-        // Execute the step
-        await executeStep(playbackWindow, step);
+        // Get current URL before executing step
+        const urlBefore = playbackWindow.webContents.getURL();
+
+        // Execute the step with error handling
+        try {
+          await executeStep(playbackWindow, step);
+        } catch (error) {
+          console.error(`[Automation] Step ${i + 1} failed:`, error instanceof Error ? error.message : String(error));
+
+          // Show error in playback window and ask user what to do
+          const userChoice = await playbackWindow.webContents.executeJavaScript(`
+            (function() {
+              return new Promise((resolve) => {
+                // Remove any existing error dialog
+                const existing = document.getElementById('step-error-dialog');
+                if (existing) existing.remove();
+
+                const dialog = document.createElement('div');
+                dialog.id = 'step-error-dialog';
+                dialog.innerHTML = \`
+                  <style>
+                    #step-error-dialog {
+                      position: fixed;
+                      top: 0;
+                      left: 0;
+                      right: 0;
+                      bottom: 0;
+                      z-index: 2147483648;
+                      background: rgba(0, 0, 0, 0.9);
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                    }
+
+                    #step-error-box {
+                      background: white;
+                      border-radius: 12px;
+                      padding: 32px;
+                      max-width: 600px;
+                      width: 90%;
+                      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+                    }
+
+                    #step-error-box h2 {
+                      margin: 0 0 16px 0;
+                      font-size: 24px;
+                      color: #dc2626;
+                    }
+
+                    #step-error-box .error-details {
+                      background: #fef2f2;
+                      border: 1px solid #fecaca;
+                      padding: 16px;
+                      border-radius: 8px;
+                      margin: 16px 0;
+                      font-size: 13px;
+                      color: #991b1b;
+                      max-height: 200px;
+                      overflow-y: auto;
+                    }
+
+                    #step-error-box .button-group {
+                      display: flex;
+                      gap: 12px;
+                      margin-top: 24px;
+                    }
+
+                    #step-error-box button {
+                      flex: 1;
+                      padding: 12px 24px;
+                      border: none;
+                      border-radius: 8px;
+                      font-size: 16px;
+                      font-weight: 600;
+                      cursor: pointer;
+                      transition: all 0.2s;
+                    }
+
+                    #skip-btn {
+                      background: #f59e0b;
+                      color: white;
+                    }
+
+                    #skip-btn:hover {
+                      background: #d97706;
+                    }
+
+                    #abort-btn {
+                      background: #dc2626;
+                      color: white;
+                    }
+
+                    #abort-btn:hover {
+                      background: #b91c1c;
+                    }
+                  </style>
+
+                  <div id="step-error-box">
+                    <h2>⚠️ Step Failed</h2>
+                    <p>Step ${i + 1} of ${steps.length} failed to execute.</p>
+                    <div class="error-details">
+                      <strong>Element:</strong> ${JSON.stringify(step.selector).slice(1, -1)}<br>
+                      <strong>Action:</strong> ${step.type}<br>
+                      <strong>Error:</strong> ${(error instanceof Error ? error.message : String(error)).replace(/</g, '&lt;')}
+                    </div>
+                    <p><strong>What would you like to do?</strong></p>
+                    <div class="button-group">
+                      <button id="skip-btn">Skip & Continue</button>
+                      <button id="abort-btn">Abort Playback</button>
+                    </div>
+                  </div>
+                \`;
+
+                document.body.appendChild(dialog);
+
+                document.getElementById('skip-btn').addEventListener('click', () => {
+                  dialog.remove();
+                  resolve('skip');
+                });
+
+                document.getElementById('abort-btn').addEventListener('click', () => {
+                  dialog.remove();
+                  resolve('abort');
+                });
+              });
+            })()
+          `);
+
+          if (userChoice === 'abort') {
+            throw error; // Re-throw to stop playback
+          } else {
+            console.log(`[Automation] User chose to skip step ${i + 1}, continuing...`);
+            // Continue to next step
+          }
+        }
+
+        // Check if navigation occurred (especially after clicks)
+        if (step.type === 'click') {
+          // Wait a bit to see if navigation starts
+          await new Promise(resolve => setTimeout(resolve, 1000));
+
+          const urlAfter = playbackWindow.webContents.getURL();
+          if (urlBefore !== urlAfter) {
+            console.log('[Automation] Navigation detected:', urlBefore, '->', urlAfter);
+
+            // Wait for page to fully load
+            await new Promise((resolve) => {
+              const checkLoading = () => {
+                if (!playbackWindow.webContents.isLoading()) {
+                  resolve(null);
+                } else {
+                  setTimeout(checkLoading, 100);
+                }
+              };
+              checkLoading();
+            });
+
+            console.log('[Automation] Page load complete, waiting for content to render...');
+
+            // Wait for document.readyState to be complete
+            await new Promise((resolve) => {
+              const checkReadyState = async () => {
+                const isComplete = await playbackWindow.webContents.executeJavaScript(
+                  'document.readyState === "complete"'
+                );
+                if (isComplete) {
+                  resolve(null);
+                } else {
+                  setTimeout(checkReadyState, 100);
+                }
+              };
+              checkReadyState();
+            });
+
+            // Wait additional time for JavaScript/AJAX to execute and render dynamic content
+            console.log('[Automation] Document ready, waiting for dynamic content...');
+            await new Promise(resolve => setTimeout(resolve, 3500));
+
+            // Re-inject playback controls
+            console.log('[Automation] Re-injecting playback controls after navigation');
+            await injectPlaybackControls(playbackWindow);
+
+            console.log('[Automation] Navigation complete, continuing playback');
+          }
+        }
 
         // Wait between steps
         await new Promise(resolve => setTimeout(resolve, 500));
       }
 
-      console.log('[Automation] Playback complete');
+      console.log(`[Automation] Playback complete! Successfully executed all ${steps.length} steps.`);
+
+      // Update progress one last time
+      if (playbackWindow && !playbackWindow.isDestroyed()) {
+        await playbackWindow.webContents.executeJavaScript(`
+          if (window.updatePlaybackProgress) {
+            const status = document.getElementById('playback-status');
+            if (status) {
+              status.textContent = 'Playback Complete! ✓';
+              status.style.color = '#10b981';
+            }
+          }
+        `).catch(() => {});
+      }
 
       // Notify main window
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('automation:playback-complete');
       }
 
-      // Keep window open for 2 seconds to show completion
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Keep window open for 3 seconds to show completion
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       if (playbackWindow && !playbackWindow.isDestroyed()) {
         playbackWindow.close();
@@ -1349,6 +1827,10 @@ export function registerAutomationHandlers(): void {
       return { success: true };
     } catch (error) {
       console.error('[Automation] Playback failed:', error);
+      console.error('[Automation] Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
 
       if (playbackWindow && !playbackWindow.isDestroyed()) {
         playbackWindow.close();
@@ -1379,12 +1861,16 @@ async function executeStep(window: BrowserWindow, step: any): Promise<void> {
   }
 
   const selector = step.selector;
-  let retries = 3;
+  let retries = 5; // Increased from 3 to 5 retries
   let lastError = null;
+
+  console.log(`[executeStep] Starting execution for: ${selector} (${step.type})`);
 
   while (retries > 0) {
     try {
       let element = null;
+      const retryNumber = 6 - retries;
+      console.log(`[executeStep] Attempt ${retryNumber}/5 for: ${selector}`);
 
       // Try different selector strategies
       if (selector.startsWith('label:')) {
@@ -1417,16 +1903,52 @@ async function executeStep(window: BrowserWindow, step: any): Promise<void> {
             `);
           } else if (step.type === 'input') {
             await window.webContents.executeJavaScript(`
-              (function() {
+              (async function() {
+                const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
                 const labels = Array.from(document.querySelectorAll('label'));
                 const label = labels.find(l => l.textContent.trim() === ${JSON.stringify(labelText)});
                 if (label) {
                   const input = label.querySelector('input, textarea') ||
                                (label.getAttribute('for') && document.getElementById(label.getAttribute('for')));
                   if (input) {
-                    input.value = ${JSON.stringify(step.value)};
+                    // Focus first
+                    input.focus();
+                    await wait(200);
+
+                    // Use native setter for framework compatibility
+                    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                      window.HTMLInputElement.prototype,
+                      'value'
+                    ).set;
+                    const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
+                      window.HTMLTextAreaElement.prototype,
+                      'value'
+                    ).set;
+
+                    const setter = input.tagName === 'TEXTAREA' ? nativeTextAreaValueSetter : nativeInputValueSetter;
+
+                    // Clear first
+                    setter.call(input, '');
                     input.dispatchEvent(new Event('input', { bubbles: true }));
+                    await wait(100);
+
+                    // Set new value
+                    setter.call(input, ${JSON.stringify(step.value)});
+
+                    // Dispatch comprehensive events
+                    input.dispatchEvent(new InputEvent('input', {
+                      bubbles: true,
+                      cancelable: true,
+                      data: ${JSON.stringify(step.value)},
+                      inputType: 'insertText'
+                    }));
                     input.dispatchEvent(new Event('change', { bubbles: true }));
+                    input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
+                    input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+
+                    await wait(200);
+                    input.blur();
+                    await wait(300);
                   }
                 }
               })()
@@ -1434,20 +1956,94 @@ async function executeStep(window: BrowserWindow, step: any): Promise<void> {
           }
           return;
         }
+      } else if (selector.startsWith('text:')) {
+        // Find element by text content (format: text:ClassName:Text Content)
+        const parts = selector.substring(5).split(':', 2);
+        const className = parts[0];
+        const textContent = parts[1] || parts[0]; // If no colon, treat whole thing as text
+
+        const found = await window.webContents.executeJavaScript(`
+          (async function() {
+            const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+            // Find all elements with the class (if specified)
+            const selector = ${JSON.stringify(className.startsWith('.') ? className : '.' + className)};
+            const elements = Array.from(document.querySelectorAll(selector));
+
+            // Find the one with matching text content
+            const element = elements.find(el => el.textContent?.trim() === ${JSON.stringify(textContent)});
+
+            if (element) {
+              if (${JSON.stringify(step.type)} === 'click') {
+                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                await wait(500);
+                element.click();
+                await wait(500);
+              }
+              return true;
+            }
+            return false;
+          })()
+        `);
+
+        if (found) {
+          return;
+        }
       } else if (selector.startsWith('placeholder:')) {
         const placeholder = selector.substring(12);
         if (step.type === 'input') {
-          await window.webContents.executeJavaScript(`
-            (function() {
+          const found = await window.webContents.executeJavaScript(`
+            (async function() {
+              const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
               const input = document.querySelector('[placeholder=${JSON.stringify(placeholder)}]');
               if (input) {
-                input.value = ${JSON.stringify(step.value)};
+                // Focus first
+                input.focus();
+                await wait(200);
+
+                // Use native setter for framework compatibility
+                const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                  window.HTMLInputElement.prototype,
+                  'value'
+                ).set;
+                const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
+                  window.HTMLTextAreaElement.prototype,
+                  'value'
+                ).set;
+
+                const setter = input.tagName === 'TEXTAREA' ? nativeTextAreaValueSetter : nativeInputValueSetter;
+
+                // Clear first
+                setter.call(input, '');
                 input.dispatchEvent(new Event('input', { bubbles: true }));
+                await wait(100);
+
+                // Set new value
+                setter.call(input, ${JSON.stringify(step.value)});
+
+                // Dispatch comprehensive events
+                input.dispatchEvent(new InputEvent('input', {
+                  bubbles: true,
+                  cancelable: true,
+                  data: ${JSON.stringify(step.value)},
+                  inputType: 'insertText'
+                }));
                 input.dispatchEvent(new Event('change', { bubbles: true }));
+                input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
+                input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+
+                await wait(200);
+                input.blur();
+                await wait(300);
+
+                return true;
               }
+              return false;
             })()
           `);
-          return;
+          if (found) {
+            return;
+          }
         }
       } else {
         // Standard CSS selector
@@ -1462,12 +2058,48 @@ async function executeStep(window: BrowserWindow, step: any): Promise<void> {
             `);
           } else if (step.type === 'input') {
             await window.webContents.executeJavaScript(`
-              (function() {
+              (async function() {
+                const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
                 const el = document.querySelector(${JSON.stringify(selector)});
                 if (el) {
-                  el.value = ${JSON.stringify(step.value)};
+                  // Focus first
+                  el.focus();
+                  await wait(200);
+
+                  // Use native setter for framework compatibility
+                  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                    window.HTMLInputElement.prototype,
+                    'value'
+                  ).set;
+                  const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
+                    window.HTMLTextAreaElement.prototype,
+                    'value'
+                  ).set;
+
+                  const setter = el.tagName === 'TEXTAREA' ? nativeTextAreaValueSetter : nativeInputValueSetter;
+
+                  // Clear first
+                  setter.call(el, '');
                   el.dispatchEvent(new Event('input', { bubbles: true }));
+                  await wait(100);
+
+                  // Set new value
+                  setter.call(el, ${JSON.stringify(step.value)});
+
+                  // Dispatch comprehensive events
+                  el.dispatchEvent(new InputEvent('input', {
+                    bubbles: true,
+                    cancelable: true,
+                    data: ${JSON.stringify(step.value)},
+                    inputType: 'insertText'
+                  }));
                   el.dispatchEvent(new Event('change', { bubbles: true }));
+                  el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
+                  el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
+
+                  await wait(200);
+                  el.blur();
+                  await wait(300);
                 }
               })()
             `);
@@ -1486,15 +2118,83 @@ async function executeStep(window: BrowserWindow, step: any): Promise<void> {
         }
       }
 
-      throw new Error('Element not found');
+      // Log diagnostic information about what's on the page
+      const diagnostics = await window.webContents.executeJavaScript(`
+        (function() {
+          const inputs = Array.from(document.querySelectorAll('input, textarea'));
+          const selects = Array.from(document.querySelectorAll('select'));
+          const buttons = Array.from(document.querySelectorAll('button, input[type="submit"]'));
+
+          return {
+            url: window.location.href,
+            title: document.title,
+            readyState: document.readyState,
+            totalInputs: inputs.length,
+            visibleInputs: inputs.filter(el => el.offsetParent !== null).length,
+            totalSelects: selects.length,
+            visibleSelects: selects.filter(el => el.offsetParent !== null).length,
+            totalButtons: buttons.length,
+            inputs: inputs.slice(0, 5).map(el => ({
+              type: el.type,
+              name: el.name,
+              placeholder: el.placeholder,
+              id: el.id,
+              visible: el.offsetParent !== null
+            })),
+            selects: selects.map(el => ({
+              name: el.name,
+              id: el.id,
+              options: el.options.length,
+              visible: el.offsetParent !== null,
+              disabled: el.disabled
+            })),
+            buttons: buttons.slice(0, 5).map(el => ({
+              text: el.textContent?.trim().substring(0, 30),
+              type: el.type,
+              id: el.id,
+              visible: el.offsetParent !== null
+            }))
+          };
+        })()
+      `);
+
+      console.log('[Automation] Page diagnostics:');
+      console.log('  URL:', diagnostics.url);
+      console.log('  Title:', diagnostics.title);
+      console.log('  Ready State:', diagnostics.readyState);
+      console.log('  Inputs:', diagnostics.totalInputs, '(', diagnostics.visibleInputs, 'visible)');
+      console.log('  Selects:', diagnostics.totalSelects, '(', diagnostics.visibleSelects, 'visible)');
+      console.log('  Buttons:', diagnostics.totalButtons);
+      if (diagnostics.selects.length > 0) {
+        console.log('  Available select elements:', diagnostics.selects);
+      }
+      if (diagnostics.inputs.length > 0) {
+        console.log('  Sample inputs:', diagnostics.inputs);
+      }
+      throw new Error(`Element not found: ${selector} (type: ${step.type})`);
     } catch (error) {
       lastError = error;
       retries--;
+      const attemptNum = 6 - retries;
+      console.log(`[Automation] Step execution failed, retry ${attemptNum}/5:`, {
+        selector: step.selector,
+        type: step.type,
+        error: error instanceof Error ? error.message : String(error)
+      });
       if (retries > 0) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Increase wait time progressively: 1s, 1.5s, 2s, 2.5s, 3s
+        const waitTime = 1000 + (attemptNum * 500);
+        console.log(`[Automation] Waiting ${waitTime}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
       }
     }
   }
 
-  throw new Error(`Failed to execute step after 3 retries: ${lastError}`);
+  console.error('[Automation] Step execution failed after all retries:', {
+    selector: step.selector,
+    type: step.type,
+    element: step.element,
+    error: lastError instanceof Error ? lastError.message : String(lastError)
+  });
+  throw new Error(`Failed to execute step after 5 retries: ${lastError}`);
 }

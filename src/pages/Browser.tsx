@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, ArrowRight, RotateCw, Home, Download, FileText, Circle, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, RotateCw, Home, Download, FileText, Circle, Trash2, Edit } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useStore } from '../store';
 import { useNavigate } from 'react-router-dom';
+import { EditRecipeModal } from '../components/automation/EditRecipeModal';
 
 export default function Browser() {
   const [url, setUrl] = useState('');
@@ -18,10 +19,7 @@ export default function Browser() {
   const [recordingToSave, setRecordingToSave] = useState<any>(null);
   const [recipeName, setRecipeName] = useState('');
   const [recipeInstitution, setRecipeInstitution] = useState('');
-  const [showSensitiveInputModal, setShowSensitiveInputModal] = useState(false);
-  const [sensitiveInputValue, setSensitiveInputValue] = useState('');
-  const [sensitiveInputLabel, setSensitiveInputLabel] = useState('');
-  const [sensitiveInputResolver, setSensitiveInputResolver] = useState<((value: string) => void) | null>(null);
+  const [editingRecipe, setEditingRecipe] = useState<any>(null);
   const processedDownloads = useRef<Set<string>>(new Set());
   const isProcessingDownload = useRef(false);
 
@@ -206,27 +204,57 @@ export default function Browser() {
     handleNavigate('https://google.com');
   };
 
-  const promptForSensitiveInput = (label: string): Promise<string> => {
-    return new Promise((resolve) => {
-      // Hide browser so dialog is visible
-      window.electron.invoke('browser:hide');
-
-      setSensitiveInputLabel(label);
-      setSensitiveInputValue('');
-      setShowSensitiveInputModal(true);
-      setSensitiveInputResolver(() => resolve);
-    });
+  const promptForSensitiveInput = async (label: string, stepNumber: number, totalSteps: number): Promise<string> => {
+    try {
+      // Use the new browser prompt that injects directly into the browser view
+      const value = await window.electron.invoke('browser:prompt-sensitive-input', label, stepNumber, totalSteps);
+      return value;
+    } catch (error) {
+      console.error('Failed to prompt for sensitive input:', error);
+      throw error;
+    }
   };
 
-  const handleSensitiveInputSubmit = () => {
-    if (sensitiveInputResolver) {
-      sensitiveInputResolver(sensitiveInputValue);
-      setSensitiveInputResolver(null);
-      setShowSensitiveInputModal(false);
-      setSensitiveInputValue('');
+  const handleEditRecipe = async () => {
+    if (!selectedRecipe) {
+      toast.error('Please select a recipe to edit');
+      return;
+    }
 
-      // Show browser again
-      window.electron.invoke('browser:show');
+    try {
+      const recipe = await window.electron.invoke('export-recipes:get-by-id', selectedRecipe);
+      if (!recipe) {
+        toast.error('Recipe not found');
+        return;
+      }
+
+      // Parse steps if they're a string
+      const parsedRecipe = {
+        ...recipe,
+        steps: typeof recipe.steps === 'string' ? JSON.parse(recipe.steps) : recipe.steps
+      };
+
+      setEditingRecipe(parsedRecipe);
+    } catch (error) {
+      console.error('Failed to load recipe for editing:', error);
+      toast.error('Failed to load recipe');
+    }
+  };
+
+  const handleSaveEditedRecipe = async (updatedSteps: any[]) => {
+    if (!editingRecipe) return;
+
+    try {
+      await window.electron.invoke('export-recipes:update', {
+        id: editingRecipe.id,
+        steps: updatedSteps
+      });
+      toast.success('Recipe updated successfully');
+      setEditingRecipe(null);
+      loadSavedRecipes();
+    } catch (error) {
+      console.error('Failed to save recipe:', error);
+      toast.error('Failed to save recipe');
     }
   };
 
@@ -296,13 +324,18 @@ export default function Browser() {
           } else {
             console.log(`[Replay] Prompting for sensitive input at step ${i + 1}:`, step.selector);
             const userValue = await promptForSensitiveInput(
-              `Step ${i + 1}/${recipe.steps.length}: Enter value for field\n\nSelector: ${step.selector}`
+              step.selector,
+              i + 1,
+              recipe.steps.length
             );
             console.log(`[Replay] User provided value, length: ${userValue.length}`);
             lastSensitiveValue = userValue;
             lastSensitiveSelector = step.selector;
             // Create a new step with the user-provided value
             step = { ...step, value: userValue };
+
+            // Wait for overlay to be fully removed and page to be interactive
+            await new Promise(resolve => setTimeout(resolve, 500));
           }
         }
 
@@ -543,6 +576,14 @@ export default function Browser() {
               Replay
             </button>
             <button
+              className="btn btn-sm btn-ghost"
+              onClick={handleEditRecipe}
+              disabled={!selectedRecipe}
+              title="Edit selected recipe"
+            >
+              <Edit className="w-4 h-4" />
+            </button>
+            <button
               className="btn btn-sm btn-error btn-outline"
               onClick={handleDeleteRecipe}
               disabled={!selectedRecipe}
@@ -693,49 +734,13 @@ export default function Browser() {
         </div>
       )}
 
-      {/* Sensitive Input Dialog (non-blocking) */}
-      {showSensitiveInputModal && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[99999] w-96">
-          <div className="bg-base-100 shadow-2xl rounded-lg border border-base-300 p-6">
-            <h3 className="font-bold text-lg mb-4">
-              Enter Sensitive Value
-            </h3>
-
-            <div className="alert alert-info mb-4 text-xs">
-              <span>If you have separate PIN digit boxes, enter one digit at a time</span>
-            </div>
-
-            <p className="mb-4 text-sm text-base-content/70 whitespace-pre-line">
-              {sensitiveInputLabel}
-            </p>
-
-            <div className="form-control mb-6">
-              <input
-                type="password"
-                className="input input-bordered"
-                placeholder="Enter value (single digit or full value)..."
-                value={sensitiveInputValue}
-                onChange={(e) => setSensitiveInputValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && sensitiveInputValue) {
-                    handleSensitiveInputSubmit();
-                  }
-                }}
-                autoFocus
-              />
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                className="btn btn-primary"
-                onClick={handleSensitiveInputSubmit}
-                disabled={!sensitiveInputValue}
-              >
-                Continue
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Edit Recipe Modal */}
+      {editingRecipe && (
+        <EditRecipeModal
+          recipe={editingRecipe}
+          onClose={() => setEditingRecipe(null)}
+          onSave={handleSaveEditedRecipe}
+        />
       )}
     </div>
   );

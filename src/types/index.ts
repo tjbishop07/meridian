@@ -382,6 +382,10 @@ export interface ElectronAPI {
   invoke(channel: 'browser:back'): Promise<{ success: boolean }>;
   invoke(channel: 'browser:forward'): Promise<{ success: boolean }>;
   invoke(channel: 'browser:reload'): Promise<{ success: boolean }>;
+  invoke(channel: 'browser:start-recording'): Promise<{ success: boolean }>;
+  invoke(channel: 'browser:stop-recording'): Promise<{ success: boolean; recording?: any }>;
+  invoke(channel: 'browser:execute-step', step: any): Promise<{ success: boolean; error?: string }>;
+  invoke(channel: 'browser:prompt-sensitive-input', label: string, stepNumber: number, totalSteps: number): Promise<string>;
 
   // Automation
   invoke(channel: 'automation:start-recording', startUrl?: string): Promise<void>;
@@ -393,7 +397,7 @@ export interface ElectronAPI {
   invoke(channel: 'export-recipes:get-all'): Promise<ExportRecipe[]>;
   invoke(channel: 'export-recipes:get-by-id', id: string): Promise<ExportRecipe | null>;
   invoke(channel: 'export-recipes:create', data: { name: string; institution: string | null; url: string; steps: string }): Promise<ExportRecipe>;
-  invoke(channel: 'export-recipes:update', data: { id: string; name?: string; institution?: string | null }): Promise<void>;
+  invoke(channel: 'export-recipes:update', data: { id: string | number; name?: string; institution?: string | null; steps?: any[] }): Promise<void>;
   invoke(channel: 'export-recipes:delete', id: string): Promise<void>;
 
   // Event listeners
