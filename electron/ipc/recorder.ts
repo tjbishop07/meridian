@@ -158,6 +158,20 @@ const getRecorderScript = () => `
   // Track clicks
   const clickHandler = function(e) {
     const target = e.target;
+
+    // Ignore clicks on recording/playback control elements
+    if (target.closest('#recording-controls') ||
+        target.closest('#playback-controls') ||
+        target.id === 'stop-btn' ||
+        target.id === 'start-btn' ||
+        target.id === 'pause-btn' ||
+        target.id === 'skip-btn' ||
+        target.id === 'continue-btn' ||
+        target.classList?.contains('control-btn')) {
+      console.log('[Recorder] Ignored click on control element:', target.id || target.className);
+      return;
+    }
+
     const selector = generateSelector(target);
 
     const interaction = {
@@ -181,6 +195,13 @@ const getRecorderScript = () => `
   // Track input changes
   const inputHandler = function(e) {
     const target = e.target;
+
+    // Ignore inputs on recording/playback control elements
+    if (target.closest('#recording-controls') ||
+        target.closest('#playback-controls')) {
+      return;
+    }
+
     if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') {
       const selector = generateSelector(target);
 
@@ -212,6 +233,13 @@ const getRecorderScript = () => `
   // Track select changes
   const changeHandler = function(e) {
     const target = e.target;
+
+    // Ignore selects in recording/playback control elements
+    if (target.closest('#recording-controls') ||
+        target.closest('#playback-controls')) {
+      return;
+    }
+
     if (target.tagName === 'SELECT') {
       const selector = generateSelector(target);
 

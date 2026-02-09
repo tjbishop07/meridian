@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import PageHeader from '../components/layout/PageHeader';
 import { RecordingCard } from '../components/automation/RecordingCard';
@@ -23,6 +24,7 @@ interface SensitiveInputRequest {
 }
 
 export function Automation() {
+  const navigate = useNavigate();
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState<string | null>(null);

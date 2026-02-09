@@ -1,8 +1,10 @@
-import { ipcMain, BrowserWindow, dialog } from 'electron';
+import { ipcMain, BrowserWindow, BrowserView, dialog } from 'electron';
 import path from 'path';
 import { getDatabase } from '../db';
+import { registerRecordingHandlers, setMainWindow as setRecordingMainWindow } from './automation-browserview';
 
 let recordingWindow: BrowserWindow | null = null;
+let recordingBrowserView: BrowserView | null = null;
 let playbackWindow: BrowserWindow | null = null;
 let mainWindow: BrowserWindow | null = null;
 
@@ -24,6 +26,7 @@ let playbackState: {
 
 export function setMainWindow(window: BrowserWindow) {
   mainWindow = window;
+  setRecordingMainWindow(window);
 }
 
 // Inject recording controls overlay into recording window
@@ -1048,6 +1051,42 @@ export const getRecorderScript = () => `
       const t = e.target;
       if (!t?.tagName) return;
 
+      // Ignore clicks on ALL injected UI elements
+      // Check for parent containers first (using closest if available)
+      if (t.closest) {
+        if (t.closest('#recording-controls') ||
+            t.closest('#playback-controls') ||
+            t.closest('#save-modal')) {
+          return;
+        }
+      }
+
+      // Check specific IDs and classes
+      if (t.id === 'stop-btn' ||
+          t.id === 'start-btn' ||
+          t.id === 'pause-btn' ||
+          t.id === 'skip-btn' ||
+          t.id === 'continue-btn' ||
+          t.id === 'go-btn' ||
+          t.id === 'reload-btn' ||
+          t.id === 'back-btn' ||
+          t.id === 'forward-btn' ||
+          t.id === 'url-input' ||
+          t.id === 'confirm-save-btn' ||
+          t.id === 'cancel-save-btn' ||
+          t.id === 'recording-name-input' ||
+          t.id === 'recording-institution-input' ||
+          t.id === 'recording-controls' ||
+          t.id === 'playback-controls' ||
+          t.id === 'save-modal') {
+        return;
+      }
+
+      // Check classes
+      if (t.classList && (t.classList.contains('control-btn') || t.classList.contains('nav-btn'))) {
+        return;
+      }
+
       const tag = t.tagName;
       let type = null;
       let data = null;
@@ -1113,12 +1152,15 @@ export const getRecorderScript = () => `
 `;
 
 export function registerAutomationHandlers(): void {
-  // Start recording in a new standalone window
-  ipcMain.handle('automation:start-recording', async (_, startUrl?: string) => {
+  // Register new BrowserView-based recording handlers
+  registerRecordingHandlers();
+
+  // OLD IMPLEMENTATION BELOW - Will be removed after testing
+  // Start recording in a new standalone window with BrowserView
+  ipcMain.handle('automation:start-recording-OLD', async (_, startUrl?: string) => {
     try {
-      // Always start with Google - it's fast and reliable
-      const url = 'https://www.google.com';
-      console.log('[Automation] Starting recording window');
+      const url = startUrl || 'https://www.google.com';
+      console.log('[Automation] Starting recording window with BrowserView');
 
       if (recordingWindow && !recordingWindow.isDestroyed()) {
         recordingWindow.close();
@@ -1360,7 +1402,12 @@ export function registerAutomationHandlers(): void {
           return;
         }
 
+        // Wait a bit for page to stabilize
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
         const isRecording = currentRecording?.isRecording || false;
+        console.log('[Automation] Page loaded, isRecording:', isRecording, 'URL:', currentUrl);
+
         await injectRecordingControls(recordingWindow!, isRecording);
 
         // Re-inject recorder script if currently recording
@@ -1368,23 +1415,11 @@ export function registerAutomationHandlers(): void {
           try {
             console.log('[Automation] Re-injecting recorder script for:', currentUrl);
             await recordingWindow!.webContents.executeJavaScript(getRecorderScript());
-            console.log('[Automation] Re-injected recorder script on page navigation');
+            console.log('[Automation] ✓ Recorder script re-injected successfully');
           } catch (error) {
-            console.error('[Automation] Failed to re-inject recorder script:', error);
+            console.error('[Automation] ✗ Failed to re-inject recorder script:', error);
           }
         }
-      });
-
-      // Also inject on navigation within the same page
-      recordingWindow.webContents.on('did-navigate-in-page', async (_, url) => {
-        // Only inject on actual web pages
-        if (!url.startsWith('http://') && !url.startsWith('https://')) {
-          console.log('[Automation] Skipping injection on non-web page:', url);
-          return;
-        }
-
-        const isRecording = currentRecording?.isRecording || false;
-        await injectRecordingControls(recordingWindow!, isRecording);
       });
 
       // Load Google initially - it's fast and always works

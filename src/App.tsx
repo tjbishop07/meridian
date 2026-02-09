@@ -10,6 +10,7 @@ import Bills from './pages/Bills';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import { Automation } from './pages/Automation';
+import Browser from './pages/Browser';
 import Toaster from './components/ui/Toaster';
 
 function App() {
@@ -43,6 +44,7 @@ function App() {
           <Route path="transactions" element={<Transactions />} />
           <Route path="import" element={<Import />} />
           <Route path="automation" element={<Automation />} />
+          <Route path="browser" element={<Browser />} />
           <Route path="budgets" element={<Budgets />} />
           <Route path="goals" element={<Goals />} />
           <Route path="bills" element={<Bills />} />
