@@ -1565,14 +1565,47 @@ export function registerAutomationHandlers(): void {
         playbackState = null;
       });
 
+      // Set up automatic re-injection on ALL navigation events
+      const autoInjectControls = async () => {
+        if (!playbackWindow || playbackWindow.isDestroyed()) return;
+
+        // Wait for DOM to be ready
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        try {
+          await injectPlaybackControls(playbackWindow);
+          console.log('[Automation] Auto-injected playback controls after navigation');
+
+          // Restore progress if we're in the middle of playback
+          if (playbackState && playbackState.currentStep > 0) {
+            const currentStep = playbackState.currentStep;
+            const totalSteps = steps.length;
+            await playbackWindow.webContents.executeJavaScript(`
+              if (window.updatePlaybackProgress) {
+                const statusEl = document.getElementById('playback-status');
+                if (statusEl) {
+                  statusEl.textContent = 'Step ${currentStep} of ${totalSteps}: Waiting for page...';
+                }
+              }
+            `);
+            console.log('[Automation] Restored progress indicator');
+          }
+        } catch (error) {
+          console.error('[Automation] Failed to auto-inject controls:', error);
+        }
+      };
+
+      // Listen for ALL navigation events and re-inject controls
+      playbackWindow.webContents.on('did-navigate', autoInjectControls);
+      playbackWindow.webContents.on('did-navigate-in-page', autoInjectControls);
+      playbackWindow.webContents.on('did-finish-load', autoInjectControls);
+      playbackWindow.webContents.on('dom-ready', autoInjectControls);
+
+      console.log('[Automation] Set up automatic control re-injection on navigation events');
+
       await playbackWindow.loadURL(recipe.url);
 
-      // Inject playback controls after page loads
-      playbackWindow.webContents.once('did-finish-load', async () => {
-        await injectPlaybackControls(playbackWindow!);
-      });
-
-      // Wait for page to load
+      // Wait for initial page to load
       await new Promise(resolve => setTimeout(resolve, 2000));
 
       // Execute steps
@@ -1586,7 +1619,10 @@ export function registerAutomationHandlers(): void {
         console.log(`[Automation] Selector: ${step.selector}`);
         console.log(`[Automation] Element: ${step.element}`);
         if (step.type === 'input') {
-          console.log(`[Automation] Value: ${step.value === '[REDACTED]' ? '[REDACTED]' : `${step.value.length} characters`}`);
+          const valuePreview = step.isSensitive ? '[SENSITIVE]' : step.value;
+          console.log(`[Automation] Value: "${step.value}" (${step.value?.length || 0} chars) ${step.isSensitive ? '🔒' : ''}`);
+          console.log(`[Automation] Value type: ${typeof step.value}`);
+          console.log(`[Automation] Value preview: ${valuePreview}`);
         }
         console.log(`[Automation] ======================================\n`);
 
@@ -1604,7 +1640,23 @@ export function registerAutomationHandlers(): void {
         }
 
         // Check if this step needs sensitive input
-        if (step.type === 'input' && step.value === '[REDACTED]') {
+        console.log('[Automation] Checking if step needs sensitive input:', {
+          type: step.type,
+          value: step.value,
+          valueType: typeof step.value,
+          isRedacted: step.value === '[REDACTED]',
+          isEmpty: !step.value || step.value === '',
+          fieldLabel: step.fieldLabel
+        });
+
+        const needsSensitiveInput = step.type === 'input' && (
+          step.value === '[REDACTED]' ||
+          step.value === '' ||
+          step.value === null ||
+          step.value === undefined
+        );
+
+        if (needsSensitiveInput) {
           console.log('[Automation] Requesting sensitive input for step', i + 1);
 
           // Show input prompt directly in the playback window
@@ -1641,14 +1693,29 @@ export function registerAutomationHandlers(): void {
         // Get current URL before executing step
         const urlBefore = playbackWindow.webContents.getURL();
 
+        // Track if step execution succeeded
+        let stepSucceeded = false;
+
         // Execute the step with error handling
         try {
           await executeStep(playbackWindow, step);
+          stepSucceeded = true;
         } catch (error) {
           console.error(`[Automation] Step ${i + 1} failed:`, error instanceof Error ? error.message : String(error));
 
-          // Show error in playback window and ask user what to do
-          const userChoice = await playbackWindow.webContents.executeJavaScript(`
+          // Check if navigation occurred during step execution (click succeeded, just interrupted)
+          const urlAfterError = playbackWindow.webContents.getURL();
+          if (urlBefore !== urlAfterError) {
+            console.log(`[Automation] Navigation detected during step execution - treating as success`);
+            console.log(`[Automation] ${urlBefore} -> ${urlAfterError}`);
+            stepSucceeded = true;
+            // Don't show error dialog, continue to navigation handling below
+          }
+
+          // Only show error dialog if step truly failed (no navigation occurred)
+          if (!stepSucceeded) {
+            // Show error in playback window and ask user what to do
+            const userChoice = await playbackWindow.webContents.executeJavaScript(`
             (function() {
               return new Promise((resolve) => {
                 // Remove any existing error dialog
@@ -1767,40 +1834,52 @@ export function registerAutomationHandlers(): void {
             })()
           `);
 
-          if (userChoice === 'abort') {
-            throw error; // Re-throw to stop playback
-          } else {
-            console.log(`[Automation] User chose to skip step ${i + 1}, continuing...`);
-            // Continue to next step
+            if (userChoice === 'abort') {
+              throw error; // Re-throw to stop playback
+            } else {
+              console.log(`[Automation] User chose to skip step ${i + 1}, continuing...`);
+              // Continue to next step
+            }
           }
         }
 
-        // Check if navigation occurred (especially after clicks)
-        if (step.type === 'click') {
+        // Check if navigation occurred after ANY step (not just clicks)
+        // Only check if we haven't already detected navigation during step execution
+        if (stepSucceeded) {
           // Wait a bit to see if navigation starts
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 1500));
 
           const urlAfter = playbackWindow.webContents.getURL();
           if (urlBefore !== urlAfter) {
-            console.log('[Automation] Navigation detected:', urlBefore, '->', urlAfter);
+            console.log('[Automation] Navigation detected after', step.type, ':', urlBefore, '->', urlAfter);
 
-            // Wait for page to fully load
-            await new Promise((resolve) => {
-              const checkLoading = () => {
-                if (!playbackWindow.webContents.isLoading()) {
-                  resolve(null);
-                } else {
-                  setTimeout(checkLoading, 100);
-                }
-              };
-              checkLoading();
-            });
+          // Wait for page to fully load
+          console.log('[Automation] Waiting for page to stop loading...');
+          await new Promise((resolve) => {
+            const checkLoading = () => {
+              if (!playbackWindow || playbackWindow.isDestroyed()) {
+                resolve(null);
+                return;
+              }
+              if (!playbackWindow.webContents.isLoading()) {
+                resolve(null);
+              } else {
+                setTimeout(checkLoading, 100);
+              }
+            };
+            checkLoading();
+          });
 
-            console.log('[Automation] Page load complete, waiting for content to render...');
+          console.log('[Automation] Page load complete, waiting for content to render...');
 
-            // Wait for document.readyState to be complete
-            await new Promise((resolve) => {
-              const checkReadyState = async () => {
+          // Wait for document.readyState to be complete
+          await new Promise((resolve) => {
+            const checkReadyState = async () => {
+              if (!playbackWindow || playbackWindow.isDestroyed()) {
+                resolve(null);
+                return;
+              }
+              try {
                 const isComplete = await playbackWindow.webContents.executeJavaScript(
                   'document.readyState === "complete"'
                 );
@@ -1809,17 +1888,32 @@ export function registerAutomationHandlers(): void {
                 } else {
                   setTimeout(checkReadyState, 100);
                 }
-              };
-              checkReadyState();
-            });
+              } catch (err) {
+                resolve(null);
+              }
+            };
+            checkReadyState();
+          });
 
-            // Wait additional time for JavaScript/AJAX to execute and render dynamic content
-            console.log('[Automation] Document ready, waiting for dynamic content...');
-            await new Promise(resolve => setTimeout(resolve, 3500));
+          // Wait additional time for JavaScript/AJAX to execute and render dynamic content
+          console.log('[Automation] Document ready, waiting for dynamic content...');
+          await new Promise(resolve => setTimeout(resolve, 3500));
 
-            // Re-inject playback controls
-            console.log('[Automation] Re-injecting playback controls after navigation');
-            await injectPlaybackControls(playbackWindow);
+          // Re-inject playback controls
+          console.log('[Automation] Re-injecting playback controls after navigation');
+          await injectPlaybackControls(playbackWindow);
+
+          // Re-update progress after re-injection
+          try {
+            await playbackWindow.webContents.executeJavaScript(`
+              if (window.updatePlaybackProgress) {
+                window.updatePlaybackProgress(${i + 1}, ${steps.length}, ${JSON.stringify(step)});
+              }
+            `);
+            console.log('[Automation] Progress updated after re-injection');
+          } catch (err) {
+            console.log('[Automation] Could not update progress after re-injection');
+          }
 
             console.log('[Automation] Navigation complete, continuing playback');
           }
@@ -1907,6 +2001,22 @@ async function executeStep(window: BrowserWindow, step: any): Promise<void> {
       const retryNumber = 6 - retries;
       console.log(`[executeStep] Attempt ${retryNumber}/5 for: ${selector}`);
 
+      // Wait for page to be ready before attempting
+      if (window.webContents.isLoading()) {
+        console.log(`[executeStep] Page is loading, waiting...`);
+        await new Promise((resolve) => {
+          const checkLoading = () => {
+            if (!window || window.isDestroyed() || !window.webContents.isLoading()) {
+              resolve(null);
+            } else {
+              setTimeout(checkLoading, 100);
+            }
+          };
+          checkLoading();
+        });
+        console.log(`[executeStep] Page loaded, continuing...`);
+      }
+
       // Try different selector strategies
       if (selector.startsWith('label:')) {
         const labelText = selector.substring(6);
@@ -1992,37 +2102,76 @@ async function executeStep(window: BrowserWindow, step: any): Promise<void> {
           return;
         }
       } else if (selector.startsWith('text:')) {
-        // Find element by text content (format: text:ClassName:Text Content)
+        // Find element by text content (format: text:ClassNameOrTag:Text Content)
         const parts = selector.substring(5).split(':', 2);
-        const className = parts[0];
+        const classOrTag = parts[0];
         const textContent = parts[1] || parts[0]; // If no colon, treat whole thing as text
 
-        const found = await window.webContents.executeJavaScript(`
+        console.log(`[executeStep] Parsing text selector: class/tag="${classOrTag}", text="${textContent}"`);
+
+        // Add timeout to prevent hanging
+        const executeWithTimeout = (promise: Promise<any>, timeoutMs: number) => {
+          return Promise.race([
+            promise,
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('executeJavaScript timeout')), timeoutMs)
+            )
+          ]);
+        };
+
+        let result;
+        try {
+          result = await executeWithTimeout(
+            window.webContents.executeJavaScript(`
           (async function() {
             const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-            // Find all elements with the class (if specified)
-            const selector = ${JSON.stringify(className.startsWith('.') ? className : '.' + className)};
+            // Determine if it's a tag name or class name
+            const isTagName = ${JSON.stringify(['button', 'a', 'div', 'span', 'input', 'select', 'textarea'].includes(classOrTag.toLowerCase()))};
+            const selector = isTagName ? ${JSON.stringify(classOrTag)} : ${JSON.stringify(classOrTag.startsWith('.') ? classOrTag : '.' + classOrTag)};
+
+            console.log('[executeStep-page] Looking for selector:', selector);
             const elements = Array.from(document.querySelectorAll(selector));
+            console.log('[executeStep-page] Found', elements.length, 'elements with selector');
+
+            // Log what we found
+            if (elements.length > 0) {
+              console.log('[executeStep-page] Element texts:', elements.map(el => el.textContent?.trim().substring(0, 50)));
+            }
 
             // Find the one with matching text content
             const element = elements.find(el => el.textContent?.trim() === ${JSON.stringify(textContent)});
 
             if (element) {
+              console.log('[executeStep-page] Found matching element!');
               if (${JSON.stringify(step.type)} === 'click') {
+                console.log('[executeStep-page] Scrolling element into view...');
                 element.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 await wait(500);
+                console.log('[executeStep-page] Clicking element...');
                 element.click();
+                console.log('[executeStep-page] Click completed!');
                 await wait(500);
               }
-              return true;
+              return { success: true };
             }
-            return false;
+            console.log('[executeStep-page] No element found with exact text match:', ${JSON.stringify(textContent)});
+            return { success: false, elementCount: elements.length };
           })()
-        `);
+        `),
+            10000  // 10 second timeout (increased from 5)
+          );
+        } catch (error) {
+          console.error(`[executeStep] executeJavaScript failed:`, error instanceof Error ? error.message : error);
+          result = { success: false, elementCount: 0 };
+        }
 
-        if (found) {
+        console.log(`[executeStep] Result:`, result);
+
+        if (result.success) {
           return;
+        } else {
+          console.log(`[executeStep] Failed: found ${result.elementCount} elements with class/tag, but none matched text`);
         }
       } else if (selector.startsWith('placeholder:')) {
         const placeholder = selector.substring(12);
@@ -2082,6 +2231,37 @@ async function executeStep(window: BrowserWindow, step: any): Promise<void> {
         }
       } else {
         // Standard CSS selector
+
+        // Special handling: if selector points to an option element, extract value and select on parent
+        if (selector.includes('option')) {
+          console.log('[executeStep] Detected option selector, extracting value...');
+          const result = await window.webContents.executeJavaScript(`
+            (function() {
+              const option = document.querySelector(${JSON.stringify(selector)});
+              if (!option) return { found: false };
+
+              const select = option.closest('select');
+              if (!select) return { found: false };
+
+              // Set the select to this option's value
+              select.value = option.value;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+
+              return {
+                found: true,
+                selectId: select.id,
+                optionValue: option.value,
+                optionText: option.textContent.trim()
+              };
+            })()
+          `);
+
+          if (result.found) {
+            console.log(`[executeStep] Selected option: "${result.optionText}" (value: ${result.optionValue}) in select#${result.selectId}`);
+            return;
+          }
+        }
+
         const exists = await window.webContents.executeJavaScript(`
           document.querySelector(${JSON.stringify(selector)}) !== null
         `);

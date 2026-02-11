@@ -44,8 +44,14 @@ export function registerExportRecipeHandlers(): void {
   });
 
   // Update recipe
-  ipcMain.handle('export-recipes:update', async (_, id: number, input: Partial<ExportRecipeInput>) => {
+  ipcMain.handle('export-recipes:update', async (_, data: { id: string | number; name?: string; institution?: string | null; steps?: any[] }) => {
     try {
+      const id = typeof data.id === 'string' ? parseInt(data.id) : data.id;
+      const input: Partial<ExportRecipeInput> = {};
+      if (data.name !== undefined) input.name = data.name;
+      if (data.institution !== undefined) input.institution = data.institution || undefined;
+      if (data.steps !== undefined) input.steps = data.steps;
+
       exportRecipeQueries.update(id, input);
       return { success: true };
     } catch (error) {

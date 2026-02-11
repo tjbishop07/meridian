@@ -388,7 +388,7 @@ export interface ElectronAPI {
   invoke(channel: 'browser:prompt-sensitive-input', label: string, stepNumber: number, totalSteps: number): Promise<string>;
 
   // Automation
-  invoke(channel: 'automation:start-recording', startUrl?: string): Promise<void>;
+  invoke(channel: 'automation:start-recording', startUrl?: string): Promise<{ success: boolean }>;
   invoke(channel: 'automation:save-recording', data: { name: string; institution: string | null; url: string; steps: string }): Promise<void>;
   invoke(channel: 'automation:play-recording', recipeId: string): Promise<void>;
   invoke(channel: 'automation:provide-sensitive-input', value: string): Promise<void>;
@@ -400,6 +400,34 @@ export interface ElectronAPI {
   invoke(channel: 'export-recipes:update', data: { id: string | number; name?: string; institution?: string | null; steps?: any[] }): Promise<void>;
   invoke(channel: 'export-recipes:delete', id: string): Promise<void>;
 
+  // Puppeteer Scraper
+  invoke(channel: 'puppeteer:find-chrome'): Promise<{ found: boolean; path?: string; error?: string }>;
+  invoke(channel: 'puppeteer:start-browser', options: { startUrl: string; chromePath?: string; useUserProfile?: boolean }): Promise<{ success: boolean; error?: string }>;
+  invoke(channel: 'puppeteer:start-recording'): Promise<{ success: boolean; url?: string; error?: string }>;
+  invoke(channel: 'puppeteer:stop-recording'): Promise<{ success: boolean; steps?: any[]; error?: string }>;
+  invoke(channel: 'puppeteer:execute-recipe', recipe: { steps: any[]; extractionScript?: string }): Promise<{ success: boolean; transactions?: any[]; count?: number; error?: string }>;
+  invoke(channel: 'puppeteer:extract-transactions'): Promise<{ success: boolean; transactions?: any[]; count?: number; error?: string }>;
+  invoke(channel: 'puppeteer:close-browser'): Promise<{ success: boolean; error?: string }>;
+
+  // Ollama
+  invoke(channel: 'ollama:check-status'): Promise<{ installed: boolean; running: boolean; hasVisionModel: boolean; availableModels: string[]; error?: string }>;
+  invoke(channel: 'ollama:check-homebrew'): Promise<{ installed: boolean }>;
+  invoke(channel: 'ollama:open-homebrew-install'): Promise<void>;
+  invoke(channel: 'ollama:install'): Promise<{ success: boolean; error?: string }>;
+  invoke(channel: 'ollama:start-server'): Promise<{ success: boolean; error?: string }>;
+  invoke(channel: 'ollama:pull-model', modelName: string): Promise<{ success: boolean; error?: string }>;
+  invoke(channel: 'ollama:open-download-page'): Promise<void>;
+  invoke(channel: 'ollama:generate', data: { model: string; prompt: string; stream?: boolean }): Promise<{ success: boolean; response?: string; error?: string }>;
+
+  // AI Scraper
+  invoke(channel: 'ai-scraper:check-model'): Promise<{ installed: boolean }>;
+  invoke(channel: 'ai-scraper:open-browser', options: { accountId: number; startUrl: string }): Promise<{ success: boolean; error?: string }>;
+  invoke(channel: 'ai-scraper:execute', accountId: number): Promise<{ success: boolean; transactions?: any[]; error?: string }>;
+  invoke(channel: 'ai-scraper:execute-html', accountId: number): Promise<{ success: boolean; transactions?: any[]; error?: string }>;
+
+  // Scraper
+  invoke(channel: 'scraper:open-browser', options: { accountId: number; startUrl: string }): Promise<{ success: boolean; error?: string }>;
+
   // Event listeners
   on(channel: 'csv:downloaded', callback: (data: { filePath: string; fileName: string }) => void): void;
   on(channel: 'recorder:interaction', callback: (interaction: any) => void): void;
@@ -409,6 +437,9 @@ export interface ElectronAPI {
   on(channel: 'automation:recording-saved', callback: () => void): void;
   on(channel: 'automation:playback-complete', callback: () => void): void;
   on(channel: 'automation:playback-needs-input', callback: (data: { stepNumber: number; totalSteps: number; fieldLabel: string }) => void): void;
+  on(channel: 'scraper:transactions-found', callback: (data: { accountId: number; transactions: any[] }) => void): void;
+  on(channel: 'ollama:pull-progress', callback: (data: string) => void): void;
+  on(channel: 'ollama:install-progress', callback: (data: string) => void): void;
   removeListener(channel: string, callback: (...args: any[]) => void): void;
 }
 

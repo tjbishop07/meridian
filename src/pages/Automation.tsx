@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, Zap, Play } from 'lucide-react';
+import toast from 'react-hot-toast';
 import PageHeader from '../components/layout/PageHeader';
 import { RecordingCard } from '../components/automation/RecordingCard';
 import { EmptyState } from '../components/automation/EmptyState';
@@ -31,19 +32,23 @@ export function Automation() {
   const [editingRecording, setEditingRecording] = useState<Recording | null>(null);
   const [sensitiveInputRequest, setSensitiveInputRequest] = useState<SensitiveInputRequest | null>(null);
 
+  // New recording modal
+  const [showNewRecordingModal, setShowNewRecordingModal] = useState(false);
+  const [startUrl, setStartUrl] = useState('https://www.usaa.com');
+
   useEffect(() => {
     loadRecordings();
 
     // Listen for recording saved events
     const handleRecordingSaved = () => {
       loadRecordings();
-      showToast('Recording saved successfully', 'success');
+      toast.success('Recording saved successfully');
     };
 
     // Listen for playback complete events
     const handlePlaybackComplete = () => {
       setPlayingId(null);
-      showToast('Automation completed successfully', 'success');
+      toast.success('Automation completed successfully');
     };
 
     // Listen for sensitive input requests
@@ -74,29 +79,48 @@ export function Automation() {
       setRecordings(parsedRecipes);
     } catch (error) {
       console.error('Failed to load recordings:', error);
-      showToast('Failed to load recordings', 'error');
+      toast.error('Failed to load recordings');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleNewRecording = async () => {
+  const handleNewRecording = () => {
+    setShowNewRecordingModal(true);
+  };
+
+  const handleStartRecording = async () => {
     try {
-      // Open window with Google as starting page - user can navigate from there
-      await window.electron.invoke('automation:start-recording', 'https://www.google.com');
+      setShowNewRecordingModal(false);
+      toast.loading('Opening recording browser...', { duration: 1000 });
+
+      const result = await window.electron.invoke('automation:start-recording', startUrl);
+
+      if (result.success) {
+        toast.success('Recording browser opened! Navigate, interact, then click "Start Recording".');
+      } else {
+        toast.error('Failed to open recording browser');
+      }
     } catch (error) {
       console.error('Failed to start recording:', error);
-      showToast('Failed to start recording', 'error');
+      toast.error('Failed to start recording');
     }
   };
 
   const handlePlayRecording = async (id: string) => {
+    const recording = recordings.find(r => r.id === id);
+    if (!recording) return;
+
     try {
       setPlayingId(id);
+      toast.loading('Starting playback...', { duration: 1000 });
+
       await window.electron.invoke('automation:play-recording', id);
+
+      toast.success('Playback started! Watch the automation window.');
     } catch (error) {
       console.error('Failed to play recording:', error);
-      showToast('Failed to play recording', 'error');
+      toast.error('Failed to play recording');
       setPlayingId(null);
     }
   };
@@ -110,10 +134,10 @@ export function Automation() {
         steps: steps
       });
       await loadRecordings();
-      showToast('Recording updated successfully', 'success');
+      toast.success('Recording updated successfully');
     } catch (error) {
       console.error('Failed to update recording:', error);
-      showToast('Failed to update recording', 'error');
+      toast.error('Failed to update recording');
     }
   };
 
@@ -124,10 +148,10 @@ export function Automation() {
     try {
       await window.electron.invoke('export-recipes:delete', id);
       await loadRecordings();
-      showToast('Recording deleted successfully', 'success');
+      toast.success('Recording deleted successfully');
     } catch (error) {
       console.error('Failed to delete recording:', error);
-      showToast('Failed to delete recording', 'error');
+      toast.error('Failed to delete recording');
     }
   };
 
@@ -143,10 +167,10 @@ export function Automation() {
         steps: JSON.stringify(original.steps)
       });
       await loadRecordings();
-      showToast('Recording duplicated successfully', 'success');
+      toast.success('Recording duplicated successfully');
     } catch (error) {
       console.error('Failed to duplicate recording:', error);
-      showToast('Failed to duplicate recording', 'error');
+      toast.error('Failed to duplicate recording');
     }
   };
 
@@ -156,7 +180,7 @@ export function Automation() {
       setSensitiveInputRequest(null);
     } catch (error) {
       console.error('Failed to provide sensitive input:', error);
-      showToast('Failed to provide input', 'error');
+      toast.error('Failed to provide input');
     }
   };
 
@@ -166,20 +190,11 @@ export function Automation() {
     // TODO: Send cancel signal to playback window
   };
 
-  const showToast = (message: string, type: 'success' | 'error') => {
-    // Simple toast implementation - could be enhanced with a proper toast library
-    const toast = document.createElement('div');
-    toast.className = `alert alert-${type === 'success' ? 'success' : 'error'} fixed bottom-4 right-4 w-auto shadow-lg z-50`;
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-  };
-
   return (
     <div className="flex flex-col h-full">
       <PageHeader
         title="Automation"
-        subtitle="Record and replay browser interactions"
+        subtitle="Record and replay browser interactions with real browser (undetectable)"
         action={
           <button className="btn btn-primary gap-2" onClick={handleNewRecording}>
             <Plus className="w-4 h-4" />
@@ -227,6 +242,76 @@ export function Automation() {
         onSubmit={handleSensitiveInputSubmit}
         onCancel={handleSensitiveInputCancel}
       />
+
+      {/* New Recording Modal */}
+      {showNewRecordingModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-base-100 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
+            <h3 className="text-xl font-bold text-base-content mb-4">Start New Recording</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-base-content/80 mb-2">
+                  Starting URL
+                </label>
+                <input
+                  type="url"
+                  value={startUrl}
+                  onChange={(e) => setStartUrl(e.target.value)}
+                  placeholder="https://www.usaa.com"
+                  className="w-full px-4 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+                  autoFocus
+                />
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-blue-900 font-medium text-sm mb-2">How it works:</p>
+                <ol className="text-blue-700 text-xs space-y-1 list-decimal list-inside">
+                  <li>Opens a real browser window (undetectable by banks)</li>
+                  <li>Navigate to your bank and log in manually</li>
+                  <li>Click "Start Recording" when ready</li>
+                  <li>Perform your actions (navigate, click, type)</li>
+                  <li>Click "Stop & Save" when done</li>
+                  <li>Your recording can be replayed anytime!</li>
+                </ol>
+              </div>
+
+              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                <p className="text-green-800 text-sm">
+                  <strong>✓ Uses real Chromium browser</strong>
+                </p>
+                <p className="text-green-700 text-xs mt-1">
+                  Cookies and sessions persist between recordings, so you stay logged in!
+                </p>
+              </div>
+
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                <p className="text-purple-800 text-sm">
+                  <strong>🔒 PINs & Passwords Auto-Saved</strong>
+                </p>
+                <p className="text-purple-700 text-xs mt-1">
+                  Enter your PIN/password once during recording - it'll be saved and automatically entered during playback! Look for the "🔒 Saved" indicator.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowNewRecordingModal(false)}
+                className="flex-1 px-4 py-2 bg-base-200 text-base-content/80 rounded-lg hover:bg-base-300 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleStartRecording}
+                className="flex-1 px-4 py-2 bg-primary text-primary-content rounded-lg hover:bg-primary/80 font-medium"
+              >
+                Open Recording Browser
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

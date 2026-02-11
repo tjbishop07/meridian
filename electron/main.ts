@@ -15,6 +15,10 @@ import { registerSettingsHandlers } from './ipc/settings';
 import { registerRecorderHandlers } from './ipc/recorder';
 import { registerExportRecipeHandlers } from './ipc/export-recipes';
 import { registerAutomationHandlers, setMainWindow } from './ipc/automation';
+import { registerScraperHandlers, setMainWindow as setScraperMainWindow } from './ipc/scraper';
+import { registerAIScraperHandlers, setMainWindow as setAIScraperMainWindow } from './ipc/ai-scraper';
+import { registerOllamaHandlers, setMainWindow as setOllamaMainWindow } from './ipc/ollama';
+import { registerPuppeteerScraperHandlers, setMainWindow as setPuppeteerMainWindow } from './ipc/puppeteer-scraper';
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -391,7 +395,11 @@ app.whenReady().then(async () => {
 
     console.log('[Main] Registering automation handlers...');
     registerAutomationHandlers();
-    console.log('[Main] Automation handlers registered');
+    registerScraperHandlers();
+    registerAIScraperHandlers();
+    registerOllamaHandlers();
+    registerPuppeteerScraperHandlers();
+    console.log('[Main] Automation, scraper, Ollama, and Puppeteer handlers registered');
 
     // File dialog handler
     ipcMain.handle('dialog:open-file', async (_, options) => {
@@ -406,9 +414,13 @@ app.whenReady().then(async () => {
     // Create main window (will be shown after splash)
     createWindow();
 
-    // Set main window reference for automation handlers
+    // Set main window reference for automation and scraper handlers
     if (mainWindow) {
       setMainWindow(mainWindow);
+      setScraperMainWindow(mainWindow);
+      setAIScraperMainWindow(mainWindow);
+      setOllamaMainWindow(mainWindow);
+      setPuppeteerMainWindow(mainWindow);
     }
 
     app.on('activate', () => {

@@ -15,7 +15,12 @@ export default defineConfig({
           build: {
             outDir: 'dist-electron',
             rollupOptions: {
-              external: ['better-sqlite3']
+              external: [
+                'better-sqlite3',
+                'puppeteer-core',
+                'bufferutil',
+                'utf-8-validate'
+              ]
             }
           }
         }

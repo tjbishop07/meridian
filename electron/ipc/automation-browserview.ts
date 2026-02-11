@@ -13,6 +13,9 @@ let currentRecording: {
   isRecording: boolean;
 } | null = null;
 
+// Re-injection interval
+let reinjectionInterval: NodeJS.Timeout | null = null;
+
 // Simplified recorder script - NO UI filtering needed!
 const getRecorderScript = () => `
 (function() {
@@ -22,8 +25,58 @@ const getRecorderScript = () => `
 
   const state = window[stateKey];
 
+  // Timer for debounced input emission
+  let inputTimers = {};
+
   function getSelector(el) {
     if (!el || el.nodeType !== 1) return '';
+
+    // Helper to check if ID looks dynamic (long hex, UUIDs, etc.)
+    function isDynamicId(id) {
+      if (!id) return false;
+      // Check for long hex strings, UUIDs, timestamps, etc.
+      return /^[0-9a-f]{20,}/.test(id) || // Long hex
+             /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}/.test(id) || // UUID-like
+             /^[0-9]{10,}/.test(id); // Timestamp-like
+    }
+
+    // For clickable elements (buttons, links), prefer text-based selectors
+    if (el.matches?.('button,a') || el.getAttribute?.('role') === 'button') {
+      const text = el.textContent?.trim();
+      if (text && text.length > 0 && text.length < 100) {
+        // Try to find the most meaningful class - check this element first
+        let bestClass = null;
+
+        if (el.className && typeof el.className === 'string') {
+          const classes = el.className.trim().split(/\\s+/).filter(c => c && !c.startsWith('rds-') && !c.includes('layout'));
+          bestClass = classes.find(c => c.includes('button') || c.includes('link') || c.includes('btn') || c.includes('product') || c.includes('name')) || classes[0];
+        }
+
+        // If no good class on the link, look for a meaningful class in children that contain the text
+        if (!bestClass || bestClass.length > 50) {
+          const textNodes = [];
+          const walker = document.createTreeWalker(el, NodeFilter.SHOW_ELEMENT, null);
+          let node;
+          while (node = walker.nextNode()) {
+            if (node.textContent?.trim() === text && node.className && typeof node.className === 'string') {
+              const childClasses = node.className.trim().split(/\\s+/).filter(c => c && !c.startsWith('rds-') && !c.includes('layout') && !c.includes('wrapper'));
+              const meaningfulClass = childClasses.find(c => c.includes('name') || c.includes('label') || c.includes('text') || c.includes('product'));
+              if (meaningfulClass && meaningfulClass.length < 50) {
+                bestClass = meaningfulClass;
+                break;
+              }
+            }
+          }
+        }
+
+        if (bestClass) {
+          return 'text:' + bestClass + ':' + text;
+        }
+
+        // Fallback to tag with text
+        return 'text:' + el.tagName.toLowerCase() + ':' + text;
+      }
+    }
 
     // For form elements, prefer semantic attributes
     if (el.matches?.('input,textarea,select')) {
@@ -33,18 +86,30 @@ const getRecorderScript = () => `
       }
       if (el.placeholder) return 'placeholder:' + el.placeholder;
       if (el.getAttribute?.('aria-label')) return 'aria-label:' + el.getAttribute('aria-label');
-      if (el.id) {
+      if (el.id && !isDynamicId(el.id)) {
         const lbl = document.querySelector('label[for="' + CSS.escape(el.id) + '"]');
         if (lbl?.textContent) return 'label:' + lbl.textContent.trim();
       }
     }
 
-    // Fallback: simple path
+    // Try to find a unique class-based selector (avoiding dynamic IDs)
+    if (el.className && typeof el.className === 'string') {
+      const classes = el.className.trim().split(/\\s+/);
+      // Try each class to see if it's unique
+      for (const cls of classes) {
+        const sel = '.' + CSS.escape(cls);
+        if (document.querySelectorAll(sel).length === 1) {
+          return sel;
+        }
+      }
+    }
+
+    // Fallback: simple path (skip dynamic IDs)
     const path = [];
     let curr = el;
     for (let i = 0; i < 3 && curr && curr.nodeType === 1; i++) {
       let part = curr.tagName.toLowerCase();
-      if (curr.id) {
+      if (curr.id && !isDynamicId(curr.id)) {
         part += '#' + CSS.escape(curr.id);
         path.unshift(part);
         break;
@@ -65,37 +130,94 @@ const getRecorderScript = () => `
       const t = e.target;
       if (!t?.tagName) return;
 
-      const tag = t.tagName;
       let type = null;
       let data = null;
 
-      if (e.type === 'click' && (tag === 'BUTTON' || tag === 'A' || t.type === 'submit')) {
-        type = 'click';
-        data = { selector: getSelector(t), element: tag };
-      } else if (e.type === 'input' && (tag === 'INPUT' || tag === 'TEXTAREA')) {
-        type = 'input';
-        const val = t.type === 'password' ? '[REDACTED]' : t.value;
-        const sel = getSelector(t);
+      if (e.type === 'click') {
+        // Find the actual clickable element (might be a parent of what was clicked)
+        let clickTarget = t;
 
-        if (state.last?.type === 'input' && state.last?.selector === sel &&
-            Date.now() - state.last.timestamp < 800) return;
+        // Check if clicked element or any parent (up to 5 levels) is clickable
+        for (let i = 0; i < 5 && clickTarget; i++) {
+          const tag = clickTarget.tagName;
+          const isClickable = tag === 'BUTTON' ||
+                             tag === 'A' ||
+                             clickTarget.type === 'submit' ||
+                             clickTarget.getAttribute?.('role') === 'button';
 
-        data = {
-          selector: sel,
-          element: tag,
-          value: val,
-          fieldLabel: t.placeholder || t.name || t.getAttribute('aria-label') || ''
-        };
-      } else if (e.type === 'change' && tag === 'SELECT') {
-        type = 'select';
-        data = { selector: getSelector(t), element: tag, value: t.value };
+          if (isClickable) {
+            type = 'click';
+            data = { selector: getSelector(clickTarget), element: tag };
+            break;
+          }
+
+          clickTarget = clickTarget.parentElement;
+        }
+
+        // If no clickable parent found, just record the direct target
+        if (!data && (t.tagName === 'BUTTON' || t.tagName === 'A' || t.type === 'submit')) {
+          type = 'click';
+          data = { selector: getSelector(t), element: t.tagName };
+        }
+      } else if (e.type === 'input' && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) {
+        // For input events, just track the value - don't emit yet
+        // Wait for the change/blur event to capture the final value
+        return;
+      } else if (e.type === 'change' || e.type === 'blur') {
+        if (t.tagName === 'SELECT') {
+          type = 'select';
+          data = { selector: getSelector(t), element: t.tagName, value: t.value };
+        } else if (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA') {
+          // Change event = final value when field loses focus
+          const sel = getSelector(t);
+
+          // Clear any pending timer for this field
+          if (inputTimers[sel]) {
+            clearTimeout(inputTimers[sel]);
+            delete inputTimers[sel];
+          }
+
+          const isSensitive = t.type === 'password' ||
+                             t.autocomplete === 'current-password' ||
+                             t.autocomplete === 'new-password' ||
+                             t.name?.toLowerCase().includes('pin') ||
+                             t.name?.toLowerCase().includes('password') ||
+                             t.placeholder?.toLowerCase().includes('pin') ||
+                             t.placeholder?.toLowerCase().includes('password');
+
+          // Skip if we just recorded this exact value via timer or previous change
+          if (state.last?.type === 'input' &&
+              state.last?.selector === sel &&
+              state.last?.value === t.value &&
+              Date.now() - state.last.timestamp < 2000) return;
+
+          type = 'input';
+          data = {
+            selector: sel,
+            element: t.tagName,
+            value: t.value,
+            isSensitive: isSensitive,
+            fieldLabel: t.placeholder || t.name || t.getAttribute('aria-label') || ''
+          };
+        }
       }
 
       if (type && data) {
         data.type = type;
         data.timestamp = Date.now();
         state.last = data;
+
+        // Log actual value for debugging
         console.log('__INTERACTION__:' + JSON.stringify(data));
+
+        // Show visual feedback for sensitive inputs
+        if (data.isSensitive) {
+          const indicator = document.createElement('div');
+          indicator.textContent = '🔒 Saved: ' + data.value.length + ' chars';
+          indicator.style.cssText = 'position:fixed;top:10px;right:10px;background:#10b981;color:white;padding:8px 16px;border-radius:6px;font-size:14px;font-weight:500;z-index:999999;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+          document.body.appendChild(indicator);
+          setTimeout(() => indicator.remove(), 1500);
+        }
       }
     } catch (err) {}
   }
@@ -104,6 +226,7 @@ const getRecorderScript = () => `
   document.addEventListener('click', capture, opts);
   document.addEventListener('input', capture, opts);
   document.addEventListener('change', capture, opts);
+  document.addEventListener('blur', capture, opts);
 })();
 `;
 
@@ -444,6 +567,11 @@ export function createRecordingWindow(startUrl: string = 'https://www.google.com
 
       // Listen for interactions from BrowserView
       recordingBrowserView.webContents.on('console-message', (_, level, message) => {
+        // Log all [RECORDER] debug messages
+        if (message.startsWith('[RECORDER]')) {
+          console.log(message);
+        }
+
         if (message.startsWith('__INTERACTION__:')) {
           try {
             const interaction = JSON.parse(message.substring(16));
@@ -455,25 +583,73 @@ export function createRecordingWindow(startUrl: string = 'https://www.google.com
         }
       });
 
-      // Handle navigation events in BrowserView
-      recordingBrowserView.webContents.on('did-finish-load', async () => {
-        const url = recordingBrowserView!.webContents.getURL();
-        if (url.startsWith('http://') || url.startsWith('https://')) {
-          // Re-inject recorder script if recording
-          if (currentRecording && currentRecording.isRecording) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            try {
-              await recordingBrowserView!.webContents.executeJavaScript(getRecorderScript());
-              console.log('[Recorder] Script injected after navigation:', url);
-            } catch (error) {
-              console.error('[Recorder] Failed to inject script:', error);
-            }
-          }
+      // Helper function to inject recorder script
+      const injectRecorderScript = async (eventName: string) => {
+        console.log(`[Recorder] ${eventName} event fired`);
+
+        if (!recordingBrowserView || recordingBrowserView.webContents.isDestroyed()) {
+          console.log('[Recorder] BrowserView is destroyed, skipping injection');
+          return;
         }
+
+        const url = recordingBrowserView.webContents.getURL();
+        console.log(`[Recorder] Current URL: ${url}`);
+
+        if (!url.startsWith('http://') && !url.startsWith('https://')) {
+          console.log('[Recorder] Not an HTTP(S) URL, skipping injection');
+          return;
+        }
+
+        // Only inject if currently recording
+        if (!currentRecording) {
+          console.log('[Recorder] No current recording, skipping injection');
+          return;
+        }
+
+        if (!currentRecording.isRecording) {
+          console.log('[Recorder] Not currently recording, skipping injection');
+          return;
+        }
+
+        console.log(`[Recorder] Attempting to inject script after ${eventName}...`);
+
+        // Small delay to let page stabilize
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        try {
+          await recordingBrowserView.webContents.executeJavaScript(getRecorderScript());
+          console.log(`[Recorder] ✓ Script successfully injected after ${eventName}:`, url);
+        } catch (error) {
+          console.error(`[Recorder] ✗ Failed to inject script after ${eventName}:`, error);
+        }
+      };
+
+      // Handle all navigation events to ensure script is always injected
+      recordingBrowserView.webContents.on('did-finish-load', () => {
+        injectRecorderScript('did-finish-load');
+      });
+
+      recordingBrowserView.webContents.on('did-navigate', () => {
+        injectRecorderScript('did-navigate');
+      });
+
+      recordingBrowserView.webContents.on('did-navigate-in-page', () => {
+        injectRecorderScript('did-navigate-in-page');
+      });
+
+      recordingBrowserView.webContents.on('dom-ready', () => {
+        injectRecorderScript('dom-ready');
       });
 
       // Clean up on close
       recordingWindow.on('closed', () => {
+        // Clear periodic re-injection interval
+        if (reinjectionInterval) {
+          clearInterval(reinjectionInterval);
+          reinjectionInterval = null;
+          console.log('[Recorder] Periodic re-injection timer cleared on window close');
+        }
+
         if (recordingBrowserView && !recordingBrowserView.webContents.isDestroyed()) {
           (recordingBrowserView.webContents as any).destroy();
         }
@@ -539,10 +715,37 @@ export function registerRecordingHandlers() {
     // Inject recorder script
     try {
       await recordingBrowserView!.webContents.executeJavaScript(getRecorderScript());
-      console.log('[Recorder] Recording started');
+      console.log('[Recorder] Recording started, initial script injected');
     } catch (error) {
       console.error('[Recorder] Failed to start recording:', error);
     }
+
+    // Set up periodic re-injection (every 3 seconds as a safety net)
+    if (reinjectionInterval) {
+      clearInterval(reinjectionInterval);
+    }
+
+    reinjectionInterval = setInterval(async () => {
+      if (!currentRecording?.isRecording || !recordingBrowserView || recordingBrowserView.webContents.isDestroyed()) {
+        if (reinjectionInterval) {
+          clearInterval(reinjectionInterval);
+          reinjectionInterval = null;
+        }
+        return;
+      }
+
+      try {
+        const url = recordingBrowserView.webContents.getURL();
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          await recordingBrowserView.webContents.executeJavaScript(getRecorderScript());
+          console.log('[Recorder] Periodic re-injection completed');
+        }
+      } catch (error) {
+        console.error('[Recorder] Periodic re-injection failed:', error);
+      }
+    }, 3000);
+
+    console.log('[Recorder] Periodic re-injection timer started (every 3 seconds)');
 
     // Update UI
     recordingWindow!.webContents.send('recording:state-changed', true);
@@ -572,6 +775,16 @@ export function registerRecordingHandlers() {
 
   // Save recording
   ipcMain.on('recording:save', (_, data: { name: string; institution: string }) => {
+    // Stop recording and clear interval
+    if (currentRecording) {
+      currentRecording.isRecording = false;
+    }
+    if (reinjectionInterval) {
+      clearInterval(reinjectionInterval);
+      reinjectionInterval = null;
+      console.log('[Recorder] Periodic re-injection timer stopped');
+    }
+
     if (!currentRecording || currentRecording.steps.length === 0) {
       console.log('[Recorder] No steps to save');
       recordingWindow?.close();
@@ -579,14 +792,52 @@ export function registerRecordingHandlers() {
     }
 
     try {
+      // Log all recorded steps for debugging
+      console.log('[Recorder] All recorded steps:');
+      currentRecording.steps.forEach((step, i) => {
+        if (step.type === 'input') {
+          console.log(`  ${i}: ${step.type} -> ${step.selector} = "${step.value}" (${step.value?.length || 0} chars) ${step.isSensitive ? '🔒' : ''}`);
+        } else {
+          console.log(`  ${i}: ${step.type} -> ${step.selector}`);
+        }
+      });
+
+      // Deduplicate consecutive input steps to the same field
+      // Keep only the last value for each consecutive group
+      const deduplicatedSteps = [];
+      for (let i = 0; i < currentRecording.steps.length; i++) {
+        const step = currentRecording.steps[i];
+        const nextStep = currentRecording.steps[i + 1];
+
+        // If this is an input step and the next step is also input to the same field, skip this one
+        if (step.type === 'input' &&
+            nextStep?.type === 'input' &&
+            step.selector === nextStep.selector) {
+          console.log(`[Recorder] ❌ Skipping duplicate: ${step.selector} = "${step.value}" (keeping next: "${nextStep.value}")`);
+          continue; // Skip intermediate values
+        }
+
+        deduplicatedSteps.push(step);
+      }
+
+      console.log(`[Recorder] Deduplicated: ${currentRecording.steps.length} -> ${deduplicatedSteps.length} steps`);
+      console.log('[Recorder] Final steps to save:');
+      deduplicatedSteps.forEach((step, i) => {
+        if (step.type === 'input') {
+          console.log(`  ${i}: ${step.type} -> ${step.selector} = "${step.value}" (${step.value?.length || 0} chars) ${step.isSensitive ? '🔒' : ''}`);
+        } else {
+          console.log(`  ${i}: ${step.type} -> ${step.selector}`);
+        }
+      });
+
       const db = getDatabase();
-      const stepsJson = JSON.stringify(currentRecording.steps);
+      const stepsJson = JSON.stringify(deduplicatedSteps);
       const result = db.prepare(
         `INSERT INTO export_recipes (name, institution, url, steps)
          VALUES (?, ?, ?, ?)`
       ).run(data.name, data.institution || null, currentRecording.url, stepsJson);
 
-      console.log('[Recorder] Saved recording:', result.lastInsertRowid, 'with', currentRecording.steps.length, 'steps');
+      console.log('[Recorder] Saved recording:', result.lastInsertRowid, 'with', deduplicatedSteps.length, 'steps');
 
       // Notify main window
       if (mainWindow && !mainWindow.isDestroyed()) {

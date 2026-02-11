@@ -109,6 +109,34 @@ const electronAPI: ElectronAPI = {
       'automation:start-recording-mode',
       'automation:get-current-recording',
 
+      // Scraper
+      'scraper:open-browser',
+
+      // AI Scraper
+      'ai-scraper:check-model',
+      'ai-scraper:open-browser',
+      'ai-scraper:execute',
+      'ai-scraper:execute-html',
+
+      // Ollama
+      'ollama:check-status',
+      'ollama:check-homebrew',
+      'ollama:open-homebrew-install',
+      'ollama:install',
+      'ollama:start-server',
+      'ollama:pull-model',
+      'ollama:open-download-page',
+      'ollama:generate',
+
+      // Puppeteer Scraper
+      'puppeteer:find-chrome',
+      'puppeteer:start-browser',
+      'puppeteer:start-recording',
+      'puppeteer:stop-recording',
+      'puppeteer:execute-recipe',
+      'puppeteer:extract-transactions',
+      'puppeteer:close-browser',
+
       // File operations
       'dialog:open-file',
     ];
@@ -131,6 +159,9 @@ const electronAPI: ElectronAPI = {
       'automation:recording-saved',
       'automation:playback-complete',
       'automation:playback-needs-input',
+      'scraper:transactions-found',
+      'ollama:pull-progress',
+      'ollama:install-progress',
     ];
 
     if (validReceiveChannels.includes(channel)) {
@@ -150,6 +181,9 @@ const electronAPI: ElectronAPI = {
       'automation:recording-saved',
       'automation:playback-complete',
       'automation:playback-needs-input',
+      'scraper:transactions-found',
+      'ollama:pull-progress',
+      'ollama:install-progress',
     ];
 
     if (validReceiveChannels.includes(channel)) {
