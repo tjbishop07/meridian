@@ -958,62 +958,74 @@ async function injectPlaybackControls(window: BrowserWindow) {
             top: 0;
             left: 0;
             right: 0;
-            z-index: 999999;
-            background: linear-gradient(to bottom, rgba(59,130,246,0.95), rgba(59,130,246,0.85), transparent);
-            padding: 20px 20px 40px 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            pointer-events: none;
-          }
-
-          #playback-controls * {
-            pointer-events: auto;
+            bottom: 0;
+            z-index: 2147483647;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: all;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
           }
 
           #playback-controls-inner {
-            max-width: 1200px;
-            margin: 0 auto;
-          }
-
-          #playback-header {
             display: flex;
-            justify-content: space-between;
+            flex-direction: column;
             align-items: center;
-            margin-bottom: 12px;
+            gap: 24px;
+            padding: 40px;
+            max-width: 600px;
           }
 
           #playback-status {
-            color: white;
+            color: #ffffff;
             font-weight: 600;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            font-size: 15px;
-          }
-
-          #cancel-playback {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            padding: 6px 14px;
-            border-radius: 6px;
-            cursor: pointer;
-            border: 1px solid rgba(255,255,255,0.3);
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            font-size: 13px;
-            font-weight: 500;
+            font-size: 18px;
+            text-align: center;
+            line-height: 1.5;
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
           }
 
           #progress-bar-container {
-            width: 100%;
-            height: 10px;
-            background: rgba(255,255,255,0.25);
-            border-radius: 5px;
+            width: 400px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
             overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
           }
 
           #progress-bar {
             height: 100%;
-            background: white;
-            border-radius: 5px;
+            background: linear-gradient(90deg, #3b82f6, #60a5fa);
+            border-radius: 4px;
             transition: width 0.3s ease;
             width: 0%;
+            box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
+          }
+
+          #cancel-playback {
+            background: rgba(239, 68, 68, 0.9);
+            color: white;
+            padding: 12px 32px;
+            border-radius: 8px;
+            cursor: pointer;
+            border: none;
+            font-size: 15px;
+            font-weight: 600;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+          }
+
+          #cancel-playback:hover {
+            background: rgba(239, 68, 68, 1);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(239, 68, 68, 0.4);
+          }
+
+          #cancel-playback:active {
+            transform: translateY(0);
           }
 
           .element-highlight {
@@ -1024,13 +1036,11 @@ async function injectPlaybackControls(window: BrowserWindow) {
         </style>
 
         <div id="playback-controls-inner">
-          <div id="playback-header">
-            <div id="playback-status">Starting playback...</div>
-            <button id="cancel-playback">Cancel</button>
-          </div>
+          <div id="playback-status">Starting...</div>
           <div id="progress-bar-container">
             <div id="progress-bar"></div>
           </div>
+          <button id="cancel-playback">Cancel Automation</button>
         </div>
       \`;
 
@@ -1046,15 +1056,7 @@ async function injectPlaybackControls(window: BrowserWindow) {
         const progressBar = document.getElementById('progress-bar');
 
         if (statusEl) {
-          const action = step.type === 'click' ? 'Clicking' :
-                         step.type === 'input' ? 'Typing in' :
-                         step.type === 'select' ? 'Selecting' : 'Executing';
-
-          let target = step.selector;
-          if (target.startsWith('label:')) target = target.substring(6);
-          if (target.startsWith('placeholder:')) target = target.substring(12);
-
-          statusEl.textContent = \`Step \${currentStep} of \${totalSteps}: \${action} "\${target.substring(0, 50)}\${target.length > 50 ? '...' : ''}"\`;
+          statusEl.textContent = \`\${currentStep} of \${totalSteps}\`;
         }
 
         if (progressBar) {
