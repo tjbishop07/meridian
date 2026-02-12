@@ -70,11 +70,20 @@ export function Automation() {
         return;
       }
 
-      console.log('[Automation] Setting scraped transactions:', data.transactions.length);
-      setScrapedTransactions(data.transactions);
+      console.log('[Automation] Scraped transactions:', data.transactions.length);
 
       if (data.count > 0) {
-        toast.success(`Scraped ${data.count} transactions!`);
+        toast.success(`Scraped ${data.count} transactions! Opening import preview...`);
+
+        // Automatically navigate to Import page with scraped data
+        setTimeout(() => {
+          navigate('/import', {
+            state: {
+              scrapedTransactions: data.transactions,
+              source: 'automation'
+            }
+          });
+        }, 1000); // Brief delay so user sees the success message
       } else {
         toast('No transactions found on page', { icon: 'ℹ️' });
       }
@@ -319,8 +328,14 @@ export function Automation() {
               </button>
               <button
                 onClick={() => {
-                  // TODO: Import to database
-                  toast.info('Import feature coming soon!');
+                  // Navigate to Import page with scraped transactions
+                  navigate('/import', {
+                    state: {
+                      scrapedTransactions: scrapedTransactions,
+                      source: 'automation'
+                    }
+                  });
+                  setScrapedTransactions(null); // Close modal
                 }}
                 className="flex-1 px-4 py-2 bg-primary text-primary-content rounded-lg hover:bg-primary/80 font-medium"
               >

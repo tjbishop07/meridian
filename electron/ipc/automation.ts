@@ -2044,195 +2044,196 @@ export function registerAutomationHandlers(): void {
             }
           `).catch(() => {});
 
-          // Get the HTML of the current page
-          console.log('[Automation] Getting page HTML...');
-          const pageHtml = await playbackWindow.webContents.executeJavaScript(`
-            document.documentElement.outerHTML
-          `);
+          // Extract transactions directly using JavaScript in the browser (more reliable than AI)
+          console.log('[Automation] Extracting transactions directly from DOM...');
 
-          console.log('[Automation] HTML length:', pageHtml.length, 'chars');
-
-          // Try to find transaction table/container to reduce HTML size
-          const transactionHtml = await playbackWindow.webContents.executeJavaScript(`
+          const scrapedTransactions = await playbackWindow.webContents.executeJavaScript(`
             (function() {
-              // Look for common transaction containers
-              const selectors = [
-                'table tbody',
-                '[class*="transaction"]',
-                '[class*="activity"]',
-                '[id*="transaction"]',
-                'table',
-                'main',
-                '[role="table"]'
+              const transactions = [];
+
+              // Try multiple selector strategies for different bank websites
+              const strategies = [
+                // Strategy 1: data-testid attributes (USAA, modern banks)
+                {
+                  name: 'data-testid',
+                  rowSelector: 'tr[data-testid*="transaction-row"]',
+                  extract: (row) => {
+                    const cells = row.querySelectorAll('td');
+                    let date = '', description = '', amount = '', balance = '', category = '';
+
+                    // Look for date in various places
+                    const dateCell = row.querySelector('[class*="date"]') || cells[0];
+                    const timeEl = dateCell?.querySelector('time');
+                    date = timeEl?.textContent?.trim() || dateCell?.textContent?.trim() || '';
+
+                    // Look for description (usually in a cell with class containing "description" or "merchant")
+                    const descCell = row.querySelector('[class*="description"], [class*="merchant"], [class*="payee"]');
+                    description = descCell?.textContent?.trim() || cells[1]?.textContent?.trim() || '';
+
+                    // Look for amount (cell with $ or number)
+                    const amountCell = row.querySelector('[class*="amount"]');
+                    amount = amountCell?.textContent?.trim() || '';
+                    if (!amount) {
+                      // Search all cells for amount pattern
+                      for (const cell of cells) {
+                        const text = cell.textContent?.trim() || '';
+                        if (text.match(/^-?\\$?[\\d,]+\\.\\d{2}$/)) {
+                          amount = text;
+                          break;
+                        }
+                      }
+                    }
+
+                    // Look for balance
+                    const balanceCell = row.querySelector('[class*="balance"]');
+                    balance = balanceCell?.textContent?.trim() || '';
+                    if (!balance) {
+                      // Check last few cells for balance
+                      for (let i = cells.length - 1; i >= Math.max(0, cells.length - 3); i--) {
+                        const text = cells[i]?.textContent?.trim() || '';
+                        if (text.match(/^\\$?[\\d,]+\\.\\d{2}$/) && text !== amount) {
+                          balance = text;
+                          break;
+                        }
+                      }
+                    }
+
+                    // Look for category
+                    const categoryCell = row.querySelector('[class*="category"]');
+                    category = categoryCell?.textContent?.trim() || '';
+
+                    return { date, description, amount, balance, category };
+                  }
+                },
+
+                // Strategy 2: Generic table rows with money amounts
+                {
+                  name: 'generic-table',
+                  rowSelector: 'table tbody tr',
+                  extract: (row) => {
+                    const cells = Array.from(row.querySelectorAll('td'));
+                    if (cells.length < 2) return null;
+
+                    let date = '', description = '', amount = '', balance = '', category = '';
+
+                    // First cell is usually date
+                    date = cells[0]?.textContent?.trim() || '';
+
+                    // Find cells with dollar amounts
+                    const moneyCells = cells.filter(cell => {
+                      const text = cell.textContent?.trim() || '';
+                      return text.match(/\\$?[\\d,]+\\.\\d{2}/);
+                    });
+
+                    // Second cell is usually description
+                    description = cells[1]?.textContent?.trim() || '';
+
+                    // Amount is usually the first money cell
+                    if (moneyCells[0]) {
+                      amount = moneyCells[0].textContent?.trim() || '';
+                    }
+
+                    // Balance is usually the second money cell
+                    if (moneyCells[1]) {
+                      balance = moneyCells[1].textContent?.trim() || '';
+                    }
+
+                    return { date, description, amount, balance, category };
+                  }
+                }
               ];
 
-              for (const selector of selectors) {
-                const el = document.querySelector(selector);
-                if (el && el.textContent.includes('$')) {
-                  console.log('[Scraper] Found container:', selector);
-                  return el.outerHTML;
+              // Try each strategy
+              for (const strategy of strategies) {
+                console.log('[Scraper] Trying strategy:', strategy.name);
+                const rows = document.querySelectorAll(strategy.rowSelector);
+                console.log('[Scraper] Found', rows.length, 'rows with selector:', strategy.rowSelector);
+
+                if (rows.length === 0) continue;
+
+                let successCount = 0;
+                for (const row of rows) {
+                  try {
+                    // Skip header rows
+                    if (row.querySelector('th') || row.classList.contains('header') ||
+                        row.getAttribute('data-testid')?.includes('header')) {
+                      continue;
+                    }
+
+                    const data = strategy.extract(row);
+                    if (!data || !data.date || !data.amount) continue;
+
+                    // Clean up description
+                    let cleanDesc = data.description
+                      .replace(/pending/gi, '')
+                      .replace(/posted/gi, '')
+                      .replace(/Opens? popup/gi, '')
+                      .replace(/\\s+/g, ' ')
+                      .trim();
+
+                    // Clean amount (remove $ and commas, keep negative sign)
+                    let cleanAmount = data.amount.replace(/[$,]/g, '').trim();
+
+                    // Clean balance
+                    let cleanBalance = data.balance.replace(/[$,]/g, '').trim();
+
+                    // Infer category from description if not provided
+                    let category = data.category || '';
+                    if (!category && cleanDesc) {
+                      const desc = cleanDesc.toLowerCase();
+                      if (desc.includes('restaurant') || desc.includes('shack') || desc.includes('cafe') || desc.includes('pizza')) {
+                        category = 'Restaurants & Dining';
+                      } else if (desc.includes('gas') || desc.includes('fuel') || desc.includes('shell') || desc.includes('chevron')) {
+                        category = 'Gas & Fuel';
+                      } else if (desc.includes('grocery') || desc.includes('market') || desc.includes('safeway') || desc.includes('whole foods')) {
+                        category = 'Groceries';
+                      } else if (desc.includes('amazon') || desc.includes('target') || desc.includes('walmart')) {
+                        category = 'Shopping';
+                      } else if (desc.includes('netflix') || desc.includes('spotify') || desc.includes('hulu')) {
+                        category = 'Entertainment';
+                      }
+                    }
+
+                    transactions.push({
+                      date: data.date,
+                      description: cleanDesc,
+                      amount: cleanAmount,
+                      balance: cleanBalance,
+                      category: category,
+                      index: transactions.length + 1,
+                      confidence: 95
+                    });
+
+                    successCount++;
+                  } catch (err) {
+                    console.warn('[Scraper] Failed to extract row:', err);
+                  }
+                }
+
+                // If we got transactions, use this strategy
+                if (successCount > 0) {
+                  console.log('[Scraper] Strategy', strategy.name, 'extracted', successCount, 'transactions');
+                  break;
                 }
               }
 
-              // Fallback to body
-              return document.body.outerHTML;
+              console.log('[Scraper] Total extracted:', transactions.length, 'transactions');
+              return transactions;
             })()
           `);
 
-          const htmlToSend = transactionHtml.substring(0, 100000); // Increased to 100k
-          console.log('[Automation] Sending', htmlToSend.length, 'chars to Ollama...');
+          console.log('[Automation] Direct extraction complete! Found', scrapedTransactions?.length || 0, 'transactions');
 
-          // Use Ollama to extract transactions from HTML
-          const ollamaResponse = await fetch('http://localhost:11434/api/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              model: 'llama3.2',
-              prompt: `You are extracting bank transactions from HTML. Extract EVERY transaction with complete accuracy.
-
-HTML:
-${htmlToSend}
-
-CRITICAL INSTRUCTIONS:
-1. Find ALL transaction rows in the HTML (tables, lists, or divs)
-2. For EACH transaction, extract these fields EXACTLY as they appear:
-   - date: The transaction date (keep original format)
-   - description: The merchant/description (remove "pending", "posted", "Opens popup", status text)
-   - amount: The transaction amount (negative for debits/expenses, positive for credits/income)
-   - balance: The account balance AFTER this transaction (running balance, ending balance)
-   - category: The SPENDING CATEGORY using these rules:
-     * First, look for explicit category labels in the HTML (e.g., category column, tags, labels)
-     * If explicit category found, use it (e.g., "Dining", "Shopping", "Gas")
-     * If NO explicit category, infer from merchant name:
-       - Restaurants/food: "Restaurants & Dining"
-       - Gas stations: "Gas & Fuel"
-       - Grocery stores: "Groceries"
-       - Online shopping (Amazon, etc): "Shopping"
-       - Utilities/bills: "Bills & Utilities"
-       - Entertainment (Netflix, etc): "Entertainment"
-     * Do NOT use status as category (ignore "pending", "posted", "completed")
-     * If truly unknown, use empty string ""
-
-3. Extract ALL transactions on the page, not just a sample
-4. Be ACCURATE - extract values exactly as shown
-5. For balance: Look for "Balance", "Running Balance", "Ending Balance" in each row
-
-Example output format (valid JSON only):
-[
-  {
-    "date": "Feb 10, 2026",
-    "description": "SQ *SHAKE SHACK 021026",
-    "amount": "-31.60",
-    "balance": "1529.97",
-    "category": "Restaurants"
-  },
-  {
-    "date": "Feb 09, 2026",
-    "description": "SHELL GAS STATION",
-    "amount": "-45.00",
-    "balance": "1561.57",
-    "category": "Gas & Fuel"
-  },
-  {
-    "date": "Feb 08, 2026",
-    "description": "NETFLIX.COM",
-    "amount": "-15.99",
-    "balance": "1606.57",
-    "category": ""
-  }
-]
-
-Note: Categories are spending types (Restaurants, Shopping, Bills, etc.), NOT status (pending/posted). Many banks don't show categories - if missing, use empty string "".`
-
-VALIDATION RULES:
-- Amount: Must be a number with optional negative sign and decimal (e.g., "-31.60", "500.00")
-- Balance: Account balance after transaction (e.g., "1529.97")
-- Description: Clean text, max 100 chars, remove UI elements
-- Date: Keep as-is from HTML
-- Category: Extract if visible, else ""
-
-Return ONLY the JSON array. No explanations, no markdown, just the array.`,
-              stream: false,
-              options: {
-                num_predict: 16000,
-                temperature: 0.05, // Lower temp for more accuracy
-              },
-            }),
-          });
-
-          let scrapedTransactions = [];
-
-          if (ollamaResponse.ok) {
-            const data = await ollamaResponse.json();
-            console.log('[Automation] Ollama response received');
-            console.log('[Automation] Response length:', data.response?.length, 'chars');
-
-            // Parse JSON from response
-            let responseText = data.response;
-            console.log('[Automation] Response preview:', responseText.substring(0, 500));
-            console.log('[Automation] Response end:', responseText.substring(responseText.length - 200));
-
-            // Extract JSON array
-            const jsonMatch = responseText.match(/\[\s*\{[\s\S]*\}\s*\]/);
-            if (jsonMatch) {
-              responseText = jsonMatch[0];
-            }
-
-            // Remove markdown code blocks
-            responseText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-
-            try {
-              scrapedTransactions = JSON.parse(responseText);
-              if (!Array.isArray(scrapedTransactions)) {
-                scrapedTransactions = [];
-              }
-
-              // Clean and validate transactions
-              scrapedTransactions = scrapedTransactions.map((txn, index) => {
-                // Clean amount (remove $ and commas)
-                let amount = String(txn.amount || '').replace(/[$,]/g, '').trim();
-
-                // Clean balance (remove $ and commas)
-                let balance = String(txn.balance || '').replace(/[$,]/g, '').trim();
-
-                // Clean description (limit length, remove extra whitespace)
-                let description = String(txn.description || '')
-                  .replace(/\s+/g, ' ')
-                  .trim()
-                  .substring(0, 200);
-
-                return {
-                  date: String(txn.date || '').trim(),
-                  description: description,
-                  amount: amount,
-                  balance: balance,
-                  category: String(txn.category || '').trim(),
-                  index: index + 1,
-                  confidence: 95 // High confidence for AI extraction
-                };
-              });
-
-              // Filter out invalid transactions (must have at least date and amount)
-              scrapedTransactions = scrapedTransactions.filter(txn =>
-                txn.date && txn.amount
-              );
-
-              console.log('[Automation] Successfully parsed', scrapedTransactions.length, 'transactions');
-              console.log('[Automation] First transaction:', scrapedTransactions[0]);
-              console.log('[Automation] Last transaction:', scrapedTransactions[scrapedTransactions.length - 1]);
-            } catch (parseError) {
-              console.error('[Automation] Failed to parse Ollama response:', parseError);
-              console.error('[Automation] Attempted to parse:', responseText.substring(0, 500));
-              scrapedTransactions = [];
-            }
-          } else {
-            console.error('[Automation] Ollama request failed:', ollamaResponse.status);
-          }
-
-          console.log('[Automation] AI extraction complete! Found', scrapedTransactions?.length || 0, 'transactions');
+          console.log('[Automation] Extraction complete! Found', scrapedTransactions?.length || 0, 'transactions');
 
           // Ensure we have a valid array
           const validTransactions = Array.isArray(scrapedTransactions) ? scrapedTransactions : [];
+
+          // Log sample transactions
+          if (validTransactions.length > 0) {
+            console.log('[Automation] First transaction:', validTransactions[0]);
+            console.log('[Automation] Last transaction:', validTransactions[validTransactions.length - 1]);
+          }
 
           // Send scraped data to main window
           if (mainWindow && !mainWindow.isDestroyed()) {
@@ -2260,13 +2261,19 @@ Return ONLY the JSON array. No explanations, no markdown, just the array.`,
 
           // Update status based on results
           if (validTransactions.length > 0) {
+            const statusText = transactionCount > 0 && validTransactions.length < transactionCount
+              ? `Found ${validTransactions.length}/${transactionCount} transactions ⚠️`
+              : `Found ${validTransactions.length} transactions! ✓`;
+            const statusColor = transactionCount > 0 && validTransactions.length < transactionCount
+              ? '#f59e0b' // Warning orange
+              : '#10b981'; // Success green
 
             await playbackWindow.webContents.executeJavaScript(`
               if (window.updatePlaybackProgress) {
                 const status = document.getElementById('playback-status');
                 if (status) {
-                  status.textContent = 'Found ${validTransactions.length} transactions! ✓';
-                  status.style.color = '#10b981';
+                  status.textContent = '${statusText}';
+                  status.style.color = '${statusColor}';
                 }
               }
             `).catch(() => {});
@@ -2290,10 +2297,12 @@ Return ONLY the JSON array. No explanations, no markdown, just the array.`,
         }
       }
 
-      // Keep window open for 3 seconds to show completion
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Keep window open briefly to show completion message
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
+      // Close the playback window after scraping
       if (playbackWindow && !playbackWindow.isDestroyed()) {
+        console.log('[Automation] Closing playback window...');
         playbackWindow.close();
       }
 

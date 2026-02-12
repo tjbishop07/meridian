@@ -15,6 +15,8 @@ interface LocationState {
   filePath?: string;
   accountId?: number;
   format?: CSVFormat;
+  scrapedTransactions?: any[];
+  source?: string;
 }
 
 export default function Import() {
@@ -72,6 +74,33 @@ export default function Import() {
       autoPreview();
     }
   }, [state]);
+
+  // Handle scraped transactions from automation
+  useEffect(() => {
+    if (state?.scrapedTransactions && state?.source === 'automation') {
+      console.log('[Import] Received scraped transactions from automation:', state.scrapedTransactions.length);
+
+      // Convert scraped transactions to preview format
+      const previewData: ImportPreview = {
+        format: 'usaa' as CSVFormat, // Default format
+        rows: state.scrapedTransactions.map((txn: any) => ({
+          date: txn.date,
+          description: txn.description,
+          original_description: txn.description,
+          category: txn.category || '',
+          amount: parseFloat(txn.amount) || 0,
+          status: 'Posted',
+        })),
+        duplicates: [], // No duplicates for now
+        errors: [], // No errors for AI-scraped data
+      };
+
+      setPreview(previewData);
+      setStep('preview');
+      setImportMethod('ai-scrape');
+      toast.success(`Loaded ${state.scrapedTransactions.length} scraped transactions!`);
+    }
+  }, [state?.scrapedTransactions]);
 
   // Listen for scraped transactions
   useEffect(() => {
