@@ -167,6 +167,23 @@ export function createTransaction(data: CreateTransactionInput): Transaction {
   }
 
   // Regular income/expense transaction
+
+  // Check for duplicates before inserting
+  const duplicates = findDuplicateTransactions(
+    data.account_id,
+    data.date,
+    data.amount,
+    data.description
+  );
+
+  if (duplicates.length > 0) {
+    console.log('[Transactions] Duplicate transaction detected:', {
+      incoming: { account_id: data.account_id, date: data.date, amount: data.amount, description: data.description },
+      existing: duplicates[0]
+    });
+    throw new Error('Duplicate transaction: A similar transaction already exists');
+  }
+
   const stmt = db.prepare(`
     INSERT INTO transactions (
       account_id, category_id, date, description, original_description,
@@ -472,7 +489,27 @@ export function bulkCreateTransactions(transactions: CreateTransactionInput[]): 
 
   const insertMany = db.transaction((txns: CreateTransactionInput[]) => {
     let count = 0;
+    let skipped = 0;
+
     for (const txn of txns) {
+      // Check for duplicates before inserting
+      const duplicates = findDuplicateTransactions(
+        txn.account_id,
+        txn.date,
+        txn.amount,
+        txn.description
+      );
+
+      if (duplicates.length > 0) {
+        console.log('[Transactions] Skipping duplicate transaction:', {
+          description: txn.description,
+          date: txn.date,
+          amount: txn.amount
+        });
+        skipped++;
+        continue;
+      }
+
       try {
         stmt.run(
           txn.account_id,
@@ -487,12 +524,18 @@ export function bulkCreateTransactions(transactions: CreateTransactionInput[]): 
         );
         count++;
       } catch (error) {
-        // Skip duplicates (UNIQUE constraint violation)
+        // Skip duplicates (UNIQUE constraint violation - fallback)
         if (!(error as Error).message.includes('UNIQUE constraint')) {
           throw error;
         }
+        skipped++;
       }
     }
+
+    if (skipped > 0) {
+      console.log(`[Transactions] Skipped ${skipped} duplicate transactions, created ${count} new transactions`);
+    }
+
     return count;
   });
 
