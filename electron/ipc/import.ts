@@ -88,11 +88,16 @@ export function registerImportHandlers(): void {
 
         // Map categories
         const categories = db
-          .prepare('SELECT id, name FROM categories')
-          .all() as Array<{ id: number; name: string }>;
+          .prepare('SELECT id, name, type FROM categories')
+          .all() as Array<{ id: number; name: string; type: string }>;
 
         const categoryMap = new Map(
           categories.map((c) => [c.name.toLowerCase(), c.id])
+        );
+
+        // Find default income category
+        const incomeCategory = categories.find(
+          c => c.type === 'income' && (c.name.toLowerCase() === 'income' || c.name.toLowerCase().includes('income'))
         );
 
         // Prepare insert statement
@@ -119,6 +124,11 @@ export function registerImportHandlers(): void {
               if (row.category) {
                 const categoryName = row.category.toLowerCase();
                 categoryId = categoryMap.get(categoryName) || null;
+              }
+
+              // Auto-assign income category for positive amounts if no category was matched
+              if (type === 'income' && !categoryId && incomeCategory) {
+                categoryId = incomeCategory.id;
               }
 
               const result = insertStmt.run(

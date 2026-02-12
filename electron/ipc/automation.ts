@@ -2163,6 +2163,13 @@ export function registerAutomationHandlers(): void {
                     const data = strategy.extract(row);
                     if (!data || !data.date || !data.amount) continue;
 
+                    // Skip pending transactions
+                    if (data.description.toLowerCase().includes('pending') ||
+                        data.category?.toLowerCase().includes('pending')) {
+                      console.log('[Scraper] Skipping pending transaction:', data.description);
+                      continue;
+                    }
+
                     // Clean up description
                     let cleanDesc = data.description
                       .replace(/pending/gi, '')
@@ -2170,6 +2177,11 @@ export function registerAutomationHandlers(): void {
                       .replace(/Opens? popup/gi, '')
                       .replace(/\\s+/g, ' ')
                       .trim();
+
+                    // Simplify description - take part before comma if present
+                    if (cleanDesc.includes(',')) {
+                      cleanDesc = cleanDesc.split(',')[0].trim();
+                    }
 
                     // Clean amount (remove $ and commas, keep negative sign)
                     let cleanAmount = data.amount.replace(/[$,]/g, '').trim();

@@ -54,6 +54,13 @@ function parseRow(row: any, format: CSVFormat): ParsedCSVRow | null {
     return null;
   }
 
+  // Skip pending transactions
+  if (description.toLowerCase().includes('pending') ||
+      category?.toLowerCase().includes('pending')) {
+    console.log('[CSV Parser] Skipping pending transaction:', description);
+    return null;
+  }
+
   // Parse date
   let date: string;
   try {
@@ -72,13 +79,16 @@ function parseRow(row: any, format: CSVFormat): ParsedCSVRow | null {
     return null;
   }
 
-  // Clean up description
-  const cleanDescription = description.trim();
+  // Clean up description - take part before comma for simplified display
+  const fullDescription = description.trim();
+  const cleanDescription = fullDescription.includes(',')
+    ? fullDescription.split(',')[0].trim()
+    : fullDescription;
 
   return {
     date,
     description: cleanDescription,
-    original_description: row['Original Description']?.trim() || cleanDescription,
+    original_description: row['Original Description']?.trim() || fullDescription,
     amount: amount, // Keep the sign! Negative = expense, Positive = income
     category: category?.trim(),
     status: normalizeStatus(status),

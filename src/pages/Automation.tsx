@@ -6,6 +6,7 @@ import PageHeader from '../components/layout/PageHeader';
 import { RecordingCard } from '../components/automation/RecordingCard';
 import { EmptyState } from '../components/automation/EmptyState';
 import { EditRecordingModal } from '../components/automation/EditRecordingModal';
+import { useCategories } from '../hooks/useCategories';
 
 interface Recording {
   id: string;
@@ -20,6 +21,7 @@ interface Recording {
 
 export function Automation() {
   const navigate = useNavigate();
+  const { categories, loadCategories } = useCategories();
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -36,6 +38,7 @@ export function Automation() {
   useEffect(() => {
     loadRecordings();
     loadAccounts();
+    loadCategories();
 
     // Listen for recording saved events
     const handleRecordingSaved = () => {
@@ -131,6 +134,11 @@ export function Automation() {
           console.log('[Automation] Total transactions:', data.transactions.length);
           console.log('[Automation] Sample scraped data:', data.transactions.slice(0, 2));
 
+          // Find the default income category
+          const incomeCategory = categories.find(
+            c => c.type === 'income' && (c.name.toLowerCase() === 'income' || c.name.toLowerCase().includes('income'))
+          );
+
           // Convert scraped transactions to CreateTransactionInput format
           const transactionsToCreate = data.transactions.map((txn: any) => {
             const amount = parseFloat(txn.amount) || 0;
@@ -138,6 +146,12 @@ export function Automation() {
             // Determine transaction type from amount
             // Negative amounts are expenses, positive are income
             const type = amount < 0 ? 'expense' : 'income';
+
+            // Automatically assign income category for positive amounts
+            let categoryId = null;
+            if (type === 'income' && incomeCategory) {
+              categoryId = incomeCategory.id;
+            }
 
             // Convert date to YYYY-MM-DD format
             let formattedDate = txn.date;
@@ -162,7 +176,7 @@ export function Automation() {
               amount: Math.abs(amount), // Store as positive number
               type: type,
               status: 'cleared' as const,
-              category_id: null, // We'll handle category mapping later
+              category_id: categoryId,
               notes: txn.category ? `Auto-categorized as: ${txn.category}` : null
             };
           });
