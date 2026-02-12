@@ -299,6 +299,8 @@ export default function Settings() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [clearStatus, setClearStatus] = useState<string | null>(null);
 
   useEffect(() => {
     loadAccounts();
@@ -496,6 +498,24 @@ export default function Settings() {
       console.error('Export error:', err);
       setExportStatus('Export failed');
       setTimeout(() => setExportStatus(null), 3000);
+    }
+  };
+
+  const handleClearAllTransactions = async () => {
+    try {
+      setClearStatus('Clearing...');
+      const deletedCount = await window.electron.invoke('transactions:delete-all');
+      setClearStatus(`Deleted ${deletedCount} transactions`);
+      setShowClearConfirm(false);
+
+      // Reload accounts to update balances
+      await loadAccounts();
+
+      setTimeout(() => setClearStatus(null), 3000);
+    } catch (err) {
+      console.error('Clear error:', err);
+      setClearStatus('Clear failed');
+      setTimeout(() => setClearStatus(null), 3000);
     }
   };
 
@@ -915,6 +935,20 @@ export default function Settings() {
 
           <div className="flex items-center justify-between p-4 border border-base-300 rounded-lg">
             <div>
+              <h3 className="font-medium text-base-content">Clear All Transactions</h3>
+              <p className="text-sm text-base-content/70">Permanently delete all transactions from the database</p>
+            </div>
+            <button
+              onClick={() => setShowClearConfirm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-error/10 text-error rounded-lg hover:bg-error/20 font-medium"
+            >
+              <Trash2 className="w-4 h-4" />
+              {clearStatus || 'Clear All'}
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between p-4 border border-base-300 rounded-lg">
+            <div>
               <h3 className="font-medium text-base-content">Database Location</h3>
               <p className="text-sm text-base-content/70 font-mono">~/Library/Application Support/personal-finance/</p>
             </div>
@@ -991,6 +1025,38 @@ export default function Settings() {
           error={error}
           isEditing={true}
         />
+      </Modal>
+
+      {/* Clear Confirmation Modal */}
+      <Modal
+        isOpen={showClearConfirm}
+        onClose={() => setShowClearConfirm(false)}
+        title="Clear All Transactions?"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div className="bg-error/10 border border-error/20 rounded-lg p-4">
+            <p className="text-error font-medium mb-2">⚠️ Warning: This action cannot be undone!</p>
+            <p className="text-sm text-base-content/70">
+              All transactions will be permanently deleted from the database. Make sure you have exported your data if needed.
+            </p>
+          </div>
+
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => setShowClearConfirm(false)}
+              className="px-4 py-2 bg-base-200 text-base-content/80 rounded-lg hover:bg-base-300 font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleClearAllTransactions}
+              className="px-4 py-2 bg-error text-error-content rounded-lg hover:bg-error/80 font-medium"
+            >
+              Clear All Transactions
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

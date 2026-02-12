@@ -61,5 +61,14 @@ export function registerTransactionHandlers(): void {
     }
   });
 
+  ipcMain.handle('transactions:delete-all', async () => {
+    try {
+      return transactionQueries.deleteAllTransactions();
+    } catch (error) {
+      console.error('Error deleting all transactions:', error);
+      throw error;
+    }
+  });
+
   console.log('Transaction IPC handlers registered');
 }

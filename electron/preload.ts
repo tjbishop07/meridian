@@ -18,6 +18,7 @@ const electronAPI: ElectronAPI = {
       'transactions:update',
       'transactions:delete',
       'transactions:bulk-create',
+      'transactions:delete-all',
 
       // Accounts
       'accounts:get-all',

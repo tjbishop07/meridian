@@ -527,3 +527,9 @@ export function findDuplicateTransactions(
 
   return fuzzy;
 }
+
+export function deleteAllTransactions(): number {
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM transactions').run();
+  return result.changes;
+}
