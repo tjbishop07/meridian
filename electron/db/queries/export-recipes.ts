@@ -6,6 +6,7 @@ export interface ExportRecipe {
   url: string;
   institution: string | null;
   steps: string; // JSON string
+  account_id: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -15,6 +16,7 @@ export interface ExportRecipeInput {
   url: string;
   institution?: string;
   steps: any[]; // Will be JSON stringified
+  account_id?: number | null;
 }
 
 export const exportRecipeQueries = {
@@ -33,9 +35,9 @@ export const exportRecipeQueries = {
     const stepsJson = JSON.stringify(input.steps);
     const result = db
       .prepare(
-        'INSERT INTO export_recipes (name, url, institution, steps) VALUES (?, ?, ?, ?)'
+        'INSERT INTO export_recipes (name, url, institution, steps, account_id) VALUES (?, ?, ?, ?, ?)'
       )
-      .run(input.name, input.url, input.institution || null, stepsJson);
+      .run(input.name, input.url, input.institution || null, stepsJson, input.account_id || null);
     return result.lastInsertRowid as number;
   },
 
@@ -59,6 +61,10 @@ export const exportRecipeQueries = {
     if (input.steps !== undefined) {
       updates.push('steps = ?');
       values.push(JSON.stringify(input.steps));
+    }
+    if (input.account_id !== undefined) {
+      updates.push('account_id = ?');
+      values.push(input.account_id);
     }
 
     if (updates.length === 0) return;

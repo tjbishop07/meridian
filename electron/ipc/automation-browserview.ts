@@ -11,6 +11,7 @@ let currentRecording: {
   url: string;
   steps: any[];
   isRecording: boolean;
+  accountId: number | null;
 } | null = null;
 
 // Re-injection interval
@@ -230,7 +231,7 @@ const getRecorderScript = () => `
 })();
 `;
 
-export function createRecordingWindow(startUrl: string = 'https://www.google.com') {
+export function createRecordingWindow(startUrl: string = 'https://www.google.com', accountId: number | null = null) {
   return new Promise<{ success: boolean }>((resolve) => {
     try {
       // Close existing window if any
@@ -241,7 +242,8 @@ export function createRecordingWindow(startUrl: string = 'https://www.google.com
       currentRecording = {
         url: startUrl,
         steps: [],
-        isRecording: false
+        isRecording: false,
+        accountId: accountId
       };
 
       // Create main window with controls
@@ -672,8 +674,8 @@ export function setMainWindow(window: BrowserWindow) {
 
 export function registerRecordingHandlers() {
   // Start recording
-  ipcMain.handle('automation:start-recording', async (_, startUrl?: string) => {
-    return createRecordingWindow(startUrl);
+  ipcMain.handle('automation:start-recording', async (_, startUrl?: string, accountId?: number | null) => {
+    return createRecordingWindow(startUrl, accountId);
   });
 
   // Navigation from controls
@@ -833,9 +835,9 @@ export function registerRecordingHandlers() {
       const db = getDatabase();
       const stepsJson = JSON.stringify(deduplicatedSteps);
       const result = db.prepare(
-        `INSERT INTO export_recipes (name, institution, url, steps)
-         VALUES (?, ?, ?, ?)`
-      ).run(data.name, data.institution || null, currentRecording.url, stepsJson);
+        `INSERT INTO export_recipes (name, institution, url, steps, account_id)
+         VALUES (?, ?, ?, ?, ?)`
+      ).run(data.name, data.institution || null, currentRecording.url, stepsJson, currentRecording.accountId || null);
 
       console.log('[Recorder] Saved recording:', result.lastInsertRowid, 'with', deduplicatedSteps.length, 'steps');
 

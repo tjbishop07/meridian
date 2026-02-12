@@ -17,25 +17,35 @@ interface Recording {
   institution?: string;
   url: string;
   steps: Step[];
+  account_id?: number | null;
   created_at: string;
   updated_at: string;
+}
+
+interface Account {
+  id: number;
+  name: string;
+  institution: string;
 }
 
 interface EditRecordingModalProps {
   isOpen: boolean;
   recording: Recording | null;
-  onSave: (id: string, name: string, institution: string, steps?: Step[]) => void;
+  accounts: Account[];
+  onSave: (id: string, name: string, institution: string, steps?: Step[], accountId?: number | null) => void;
   onClose: () => void;
 }
 
 export function EditRecordingModal({
   isOpen,
   recording,
+  accounts,
   onSave,
   onClose
 }: EditRecordingModalProps) {
   const [name, setName] = useState('');
   const [institution, setInstitution] = useState('');
+  const [accountId, setAccountId] = useState<number | null>(null);
   const [steps, setSteps] = useState<Step[]>([]);
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set());
   const [editingBasic, setEditingBasic] = useState(true);
@@ -44,6 +54,7 @@ export function EditRecordingModal({
     if (isOpen && recording) {
       setName(recording.name);
       setInstitution(recording.institution || '');
+      setAccountId(recording.account_id || null);
       setSteps([...recording.steps]);
       setExpandedSteps(new Set([0]));
       setEditingBasic(true);
@@ -76,7 +87,7 @@ export function EditRecordingModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim() && recording) {
-      onSave(recording.id, name, institution, steps);
+      onSave(recording.id, name, institution, steps, accountId);
       onClose();
     }
   };
@@ -178,6 +189,29 @@ export function EditRecordingModal({
                     onChange={(e) => setInstitution(e.target.value)}
                     placeholder="e.g., USAA, Chase, Bank of America"
                   />
+                </div>
+
+                <div className="form-control">
+                  <label className="label">
+                    <span className="label-text font-semibold">Import To Account</span>
+                  </label>
+                  <select
+                    className="select select-bordered w-full"
+                    value={accountId || ''}
+                    onChange={(e) => setAccountId(e.target.value ? Number(e.target.value) : null)}
+                  >
+                    <option value="">No account (manual import)</option>
+                    {accounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name} ({account.institution})
+                      </option>
+                    ))}
+                  </select>
+                  <label className="label">
+                    <span className="label-text-alt">
+                      Transactions will be automatically imported to this account
+                    </span>
+                  </label>
                 </div>
 
                 <div className="form-control">

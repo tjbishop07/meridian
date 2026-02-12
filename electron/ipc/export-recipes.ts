@@ -44,13 +44,14 @@ export function registerExportRecipeHandlers(): void {
   });
 
   // Update recipe
-  ipcMain.handle('export-recipes:update', async (_, data: { id: string | number; name?: string; institution?: string | null; steps?: any[] }) => {
+  ipcMain.handle('export-recipes:update', async (_, data: { id: string | number; name?: string; institution?: string | null; steps?: any[]; account_id?: number | null }) => {
     try {
       const id = typeof data.id === 'string' ? parseInt(data.id) : data.id;
       const input: Partial<ExportRecipeInput> = {};
       if (data.name !== undefined) input.name = data.name;
       if (data.institution !== undefined) input.institution = data.institution || undefined;
       if (data.steps !== undefined) input.steps = data.steps;
+      if (data.account_id !== undefined) input.account_id = data.account_id;
 
       exportRecipeQueries.update(id, input);
       return { success: true };

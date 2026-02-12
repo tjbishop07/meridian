@@ -13,6 +13,7 @@ interface Recording {
   institution?: string;
   url: string;
   steps: any[];
+  account_id?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -24,13 +25,17 @@ export function Automation() {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [editingRecording, setEditingRecording] = useState<Recording | null>(null);
   const [scrapedTransactions, setScrapedTransactions] = useState<any[] | null>(null);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
 
   // New recording modal
   const [showNewRecordingModal, setShowNewRecordingModal] = useState(false);
   const [startUrl, setStartUrl] = useState('https://www.usaa.com');
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
 
   useEffect(() => {
     loadRecordings();
+    loadAccounts();
 
     // Listen for recording saved events
     const handleRecordingSaved = () => {
@@ -45,18 +50,20 @@ export function Automation() {
     };
 
     // Listen for scrape complete events
-    const handleScrapeComplete = (...args: any[]) => {
+    const handleScrapeComplete = async (...args: any[]) => {
       console.log('[Automation] handleScrapeComplete called');
       console.log('[Automation] Arguments received:', args);
-      console.log('[Automation] Number of arguments:', args.length);
-      console.log('[Automation] First arg (event):', args[0]);
-      console.log('[Automation] Second arg (data):', args[1]);
+
+      // Prevent concurrent imports
+      if (isImporting) {
+        console.warn('[Automation] Import already in progress, ignoring duplicate event');
+        return;
+      }
 
       // The data should be the first argument (event is filtered by preload)
       const data = args[0];
 
       console.log('[Automation] Extracted data:', data);
-      console.log('[Automation] Data type:', typeof data);
 
       if (!data) {
         console.error('[Automation] Scrape complete event received with undefined data');
@@ -73,27 +80,131 @@ export function Automation() {
       console.log('[Automation] Scraped transactions:', data.transactions.length);
 
       if (data.count > 0) {
-        toast.success(`Scraped ${data.count} transactions! Opening import preview...`);
+        // Find the recording to get the account_id
+        const recording = recordings.find(r => r.id === String(data.recipeId));
 
-        // Automatically navigate to Import page with scraped data
-        setTimeout(() => {
-          navigate('/import', {
-            state: {
-              scrapedTransactions: data.transactions,
-              source: 'automation'
+        console.log('[Automation] Recording found:', recording?.name, 'Account ID:', recording?.account_id);
+        console.log('[Automation] Available accounts:', accounts.length);
+
+        let accountId = recording?.account_id;
+
+        // If no account associated with recording, try to reload and check again
+        if (!accountId) {
+          console.log('[Automation] No account_id on recording, fetching fresh data...');
+          try {
+            // Reload the specific recording to get latest data
+            const freshRecording = await window.electron.invoke('export-recipes:get-by-id', Number(data.recipeId));
+            accountId = freshRecording?.account_id;
+            console.log('[Automation] Fresh recording account_id:', accountId);
+          } catch (err) {
+            console.error('[Automation] Failed to fetch fresh recording:', err);
+          }
+        }
+
+        // If still no account, use the first available account
+        if (!accountId) {
+          // Reload accounts to make sure we have the latest list
+          const accountsList = await window.electron.invoke('accounts:get-all');
+          console.log('[Automation] Loaded accounts:', accountsList.length);
+
+          if (accountsList.length > 0) {
+            accountId = accountsList[0].id;
+            console.log('[Automation] No account associated with recording, using first account:', accountsList[0].name);
+          }
+        }
+
+        if (!accountId) {
+          console.error('[Automation] No accounts available for import');
+          toast.error('No accounts available. Please create an account first.');
+          return;
+        }
+
+        console.log('[Automation] Using account ID:', accountId);
+
+        // Directly save transactions to database
+        try {
+          setIsImporting(true);
+          toast.loading('Saving transactions...', { id: 'import' });
+
+          console.log('[Automation] ==================== SAVING TRANSACTIONS ====================');
+          console.log('[Automation] Account ID:', accountId);
+          console.log('[Automation] Total transactions:', data.transactions.length);
+          console.log('[Automation] Sample scraped data:', data.transactions.slice(0, 2));
+
+          // Convert scraped transactions to CreateTransactionInput format
+          const transactionsToCreate = data.transactions.map((txn: any) => {
+            const amount = parseFloat(txn.amount) || 0;
+
+            // Determine transaction type from amount
+            // Negative amounts are expenses, positive are income
+            const type = amount < 0 ? 'expense' : 'income';
+
+            // Convert date to YYYY-MM-DD format
+            let formattedDate = txn.date;
+            try {
+              // Parse date like "Feb 10, 2026" to "2026-02-10"
+              const parsedDate = new Date(txn.date);
+              if (!isNaN(parsedDate.getTime())) {
+                const year = parsedDate.getFullYear();
+                const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+                const day = String(parsedDate.getDate()).padStart(2, '0');
+                formattedDate = `${year}-${month}-${day}`;
+              }
+            } catch (err) {
+              console.warn('[Automation] Failed to parse date:', txn.date, err);
             }
+
+            return {
+              account_id: accountId,
+              date: formattedDate,
+              description: txn.description,
+              original_description: txn.description,
+              amount: Math.abs(amount), // Store as positive number
+              type: type,
+              status: 'cleared' as const,
+              category_id: null, // We'll handle category mapping later
+              notes: txn.category ? `Auto-categorized as: ${txn.category}` : null
+            };
           });
-        }, 1000); // Brief delay so user sees the success message
+
+          console.log('[Automation] Converted to transaction format:', transactionsToCreate.slice(0, 2));
+          console.log('[Automation] Creating transactions...');
+
+          // Bulk create all transactions
+          const created = await window.electron.invoke('transactions:bulk-create', transactionsToCreate);
+
+          console.log('[Automation] Successfully created:', created, 'transactions');
+          console.log('[Automation] ==================== SAVE COMPLETE ====================');
+
+          toast.dismiss('import');
+          toast.success(
+            `Saved ${created} transactions!`,
+            { duration: 3000 }
+          );
+
+          // Navigate to transactions page to see the saved data
+          setTimeout(() => {
+            navigate('/transactions');
+          }, 1500);
+        } catch (error) {
+          console.error('[Automation] Failed to save transactions:', error);
+          toast.dismiss('import');
+          toast.error('Failed to save transactions: ' + (error instanceof Error ? error.message : String(error)));
+        } finally {
+          setIsImporting(false);
+        }
       } else {
         toast('No transactions found on page', { icon: 'ℹ️' });
       }
     };
 
+    console.log('[Automation] Setting up event listeners');
     window.electron.on('automation:recording-saved', handleRecordingSaved);
     window.electron.on('automation:playback-complete', handlePlaybackComplete);
     window.electron.on('automation:scrape-complete', handleScrapeComplete);
 
     return () => {
+      console.log('[Automation] Cleaning up event listeners');
       window.electron.removeListener('automation:recording-saved', handleRecordingSaved);
       window.electron.removeListener('automation:playback-complete', handlePlaybackComplete);
       window.electron.removeListener('automation:scrape-complete', handleScrapeComplete);
@@ -103,12 +214,20 @@ export function Automation() {
   const loadRecordings = async () => {
     try {
       setLoading(true);
-      const recipes = await window.electron.invoke('export-recipes:get-all');
-      // Parse steps from JSON string to array
-      const parsedRecipes = recipes.map((recipe: any) => ({
-        ...recipe,
-        steps: typeof recipe.steps === 'string' ? JSON.parse(recipe.steps) : recipe.steps
-      }));
+      const [recipes, accountsList] = await Promise.all([
+        window.electron.invoke('export-recipes:get-all'),
+        window.electron.invoke('accounts:get-all')
+      ]);
+
+      // Parse steps from JSON string to array and add account names
+      const parsedRecipes = recipes.map((recipe: any) => {
+        const account = accountsList.find((acc: any) => acc.id === recipe.account_id);
+        return {
+          ...recipe,
+          steps: typeof recipe.steps === 'string' ? JSON.parse(recipe.steps) : recipe.steps,
+          account_name: account?.name || null
+        };
+      });
       setRecordings(parsedRecipes);
     } catch (error) {
       console.error('Failed to load recordings:', error);
@@ -118,16 +237,34 @@ export function Automation() {
     }
   };
 
+  const loadAccounts = async () => {
+    try {
+      const accountsList = await window.electron.invoke('accounts:get-all');
+      setAccounts(accountsList);
+      // Set first account as default
+      if (accountsList.length > 0 && !selectedAccountId) {
+        setSelectedAccountId(accountsList[0].id);
+      }
+    } catch (error) {
+      console.error('Failed to load accounts:', error);
+    }
+  };
+
   const handleNewRecording = () => {
     setShowNewRecordingModal(true);
   };
 
   const handleStartRecording = async () => {
+    if (!selectedAccountId) {
+      toast.error('Please select an account first');
+      return;
+    }
+
     try {
       setShowNewRecordingModal(false);
       toast.loading('Opening recording browser...', { duration: 1000 });
 
-      const result = await window.electron.invoke('automation:start-recording', startUrl);
+      const result = await window.electron.invoke('automation:start-recording', startUrl, selectedAccountId);
 
       if (result.success) {
         toast.success('Recording browser opened! Navigate, interact, then click "Start Recording".');
@@ -158,13 +295,14 @@ export function Automation() {
     }
   };
 
-  const handleEditRecording = async (id: string, name: string, institution: string, steps?: any[]) => {
+  const handleEditRecording = async (id: string, name: string, institution: string, steps?: any[], accountId?: number | null) => {
     try {
       await window.electron.invoke('export-recipes:update', {
         id,
         name,
         institution: institution || null,
-        steps: steps
+        steps: steps,
+        account_id: accountId
       });
       await loadRecordings();
       toast.success('Recording updated successfully');
@@ -247,6 +385,7 @@ export function Automation() {
       <EditRecordingModal
         isOpen={!!editingRecording}
         recording={editingRecording}
+        accounts={accounts}
         onSave={handleEditRecording}
         onClose={() => setEditingRecording(null)}
       />
@@ -355,6 +494,27 @@ export function Automation() {
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-base-content/80 mb-2">
+                  Import To Account
+                </label>
+                <select
+                  value={selectedAccountId || ''}
+                  onChange={(e) => setSelectedAccountId(Number(e.target.value))}
+                  className="w-full px-4 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+                >
+                  <option value="">Select account...</option>
+                  {accounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name} ({account.institution})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-base-content/60 mt-1">
+                  Transactions will be automatically imported to this account
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-base-content/80 mb-2">
                   Starting URL
                 </label>
                 <input
@@ -363,7 +523,6 @@ export function Automation() {
                   onChange={(e) => setStartUrl(e.target.value)}
                   placeholder="https://www.usaa.com"
                   className="w-full px-4 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
-                  autoFocus
                 />
               </div>
 

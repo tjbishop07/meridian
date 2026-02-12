@@ -7,6 +7,8 @@ interface Recording {
   institution?: string;
   url: string;
   steps: any[];
+  account_id?: number | null;
+  account_name?: string;
   created_at: string;
   updated_at: string;
 }
@@ -131,9 +133,17 @@ export function RecordingCard({
           </div>
         </div>
 
-        {recording.institution && (
-          <span className="badge badge-primary badge-sm">{recording.institution}</span>
-        )}
+        <div className="flex gap-2 flex-wrap">
+          {recording.institution && (
+            <span className="badge badge-primary badge-sm">{recording.institution}</span>
+          )}
+          {recording.account_name && (
+            <span className="badge badge-success badge-sm">→ {recording.account_name}</span>
+          )}
+          {!recording.account_name && (
+            <span className="badge badge-ghost badge-sm">No account</span>
+          )}
+        </div>
 
         <div className="flex gap-4 text-sm text-base-content/70">
           <span>{recording.steps.length} steps</span>

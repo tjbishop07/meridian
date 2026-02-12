@@ -96,6 +96,35 @@ export const migrations: Migration[] = [
         `);
       }
     }
+  },
+  {
+    version: 2,
+    name: 'add_export_recipes_account_id',
+    up: (db: Database.Database) => {
+      // Check if account_id column exists in export_recipes
+      const columns = db.pragma('table_info(export_recipes)') as Array<{ name: string }>;
+      const hasAccountId = columns.some(col => col.name === 'account_id');
+
+      if (!hasAccountId) {
+        console.log('Migration 2: Adding account_id to export_recipes');
+
+        // Add account_id column (nullable for existing recipes)
+        db.exec(`
+          ALTER TABLE export_recipes ADD COLUMN account_id INTEGER
+          REFERENCES accounts(id) ON DELETE SET NULL;
+        `);
+
+        // Create index
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_export_recipes_account
+          ON export_recipes(account_id);
+        `);
+
+        console.log('Migration 2: Added account_id column to export_recipes');
+      } else {
+        console.log('Migration 2: account_id column already exists');
+      }
+    }
   }
 ];
 
