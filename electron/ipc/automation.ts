@@ -20,8 +20,6 @@ let playbackState: {
   recipeId: string;
   currentStep: number;
   totalSteps: number;
-  awaitingInput: boolean;
-  inputResolver: ((value: string) => void) | null;
 } | null = null;
 
 export function setMainWindow(window: BrowserWindow) {
@@ -447,227 +445,336 @@ async function showErrorNotification(window: BrowserWindow, errorMessage: string
 }
 
 // Inject sensitive input prompt
-async function injectSensitiveInputPrompt(window: BrowserWindow, label: string, stepNumber: number, totalSteps: number): Promise<string> {
-  if (!window || window.isDestroyed()) {
-    throw new Error('Window is destroyed');
-  }
-
-  const promptCode = `
+// Get the intelligent scraper script (from scraper.ts)
+function getScraperScript() {
+  return `
     (function() {
-      return new Promise((resolve) => {
-        // Remove existing prompt if present
-        const existing = document.getElementById('sensitive-input-overlay');
-        if (existing) existing.remove();
+      console.log('[Scraper] 🔍 Starting intelligent extraction...');
 
-        const overlay = document.createElement('div');
-        overlay.id = 'sensitive-input-overlay';
-        overlay.innerHTML = \`
-          <style>
-            #sensitive-input-overlay {
-              position: fixed;
-              top: 0;
-              left: 0;
-              right: 0;
-              bottom: 0;
-              z-index: 2147483647;
-              background: rgba(0, 0, 0, 0.8);
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-              animation: fadeIn 0.2s ease-out;
-            }
+      // ===== PATTERN RECOGNITION UTILITIES =====
 
-            @keyframes fadeIn {
-              from { opacity: 0; }
-              to { opacity: 1; }
-            }
+      // Detect if text contains a monetary amount
+      function isMoneyValue(text) {
+        if (!text) return false;
+        const cleaned = text.replace(/[,\\s]/g, '');
+        return /^-?\\$?\\d+\\.?\\d{0,2}$/.test(cleaned) ||
+               /^-?\\d+\\.?\\d{0,2}$/.test(cleaned);
+      }
 
-            #sensitive-input-box {
-              background: white;
-              border-radius: 12px;
-              padding: 32px;
-              max-width: 500px;
-              width: 90%;
-              box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
-              animation: slideUp 0.3s ease-out;
-            }
+      // Extract numeric value from money string
+      function parseMoneyValue(text) {
+        if (!text) return null;
+        const cleaned = text.replace(/[$,\\s]/g, '');
+        const value = parseFloat(cleaned);
+        return isNaN(value) ? null : value;
+      }
 
-            @keyframes slideUp {
-              from {
-                opacity: 0;
-                transform: translateY(20px);
-              }
-              to {
-                opacity: 1;
-                transform: translateY(0);
-              }
-            }
+      // Detect if text contains a date
+      function isDateValue(text) {
+        if (!text || text.length < 6 || text.length > 30) return false;
 
-            #sensitive-input-box h2 {
-              margin: 0 0 8px 0;
-              font-size: 24px;
-              color: #1f2937;
-              display: flex;
-              align-items: center;
-              gap: 12px;
-            }
+        // Common date patterns
+        const datePatterns = [
+          /\\d{1,2}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{2,4}/,  // MM/DD/YYYY or DD/MM/YYYY
+          /\\d{4}[\\/\\-.]\\d{1,2}[\\/\\-.]\\d{1,2}/,    // YYYY-MM-DD
+          /\\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+\\d{1,2}[,\\s]+\\d{4}/i,  // Month DD, YYYY
+          /\\d{1,2}\\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\\s+\\d{4}/i,  // DD Month YYYY
+        ];
 
-            #sensitive-input-box .step-info {
-              color: #6b7280;
-              font-size: 14px;
-              margin-bottom: 20px;
-            }
+        return datePatterns.some(pattern => pattern.test(text));
+      }
 
-            #sensitive-input-box .field-label {
-              color: #374151;
-              font-size: 15px;
-              margin-bottom: 16px;
-              padding: 12px;
-              background: #f3f4f6;
-              border-radius: 6px;
-              border-left: 3px solid #3b82f6;
-            }
+      // Score how "transaction-like" a container is
+      function scoreTransactionLikelihood(element) {
+        let score = 0;
+        const text = element.innerText || element.textContent || '';
 
-            #sensitive-input-box .alert {
-              background: #dbeafe;
-              border: 1px solid #93c5fd;
-              color: #1e40af;
-              padding: 12px;
-              border-radius: 6px;
-              margin-bottom: 20px;
-              font-size: 13px;
-              display: flex;
-              gap: 8px;
-            }
+        // Check for money values (visible text only)
+        const moneyMatches = text.match(/\\$?\\d+\\.\\d{2}/g) || [];
+        score += moneyMatches.length * 10;
 
-            #sensitive-input-box input {
-              width: 100%;
-              padding: 14px;
-              border: 2px solid #d1d5db;
-              border-radius: 8px;
-              font-size: 16px;
-              box-sizing: border-box;
-              margin-bottom: 20px;
-              transition: border-color 0.2s;
-            }
+        // Bonus for having both amount and balance
+        if (moneyMatches.length >= 2) score += 5;
 
-            #sensitive-input-box input:focus {
-              outline: none;
-              border-color: #3b82f6;
-              box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-            }
+        // Check for dates
+        if (isDateValue(text)) score += 15;
 
-            #sensitive-input-box button {
-              width: 100%;
-              padding: 14px 24px;
-              background: #3b82f6;
-              color: white;
-              border: none;
-              border-radius: 8px;
-              font-size: 16px;
-              font-weight: 600;
-              cursor: pointer;
-              transition: all 0.2s;
-            }
+        // Check for transaction-related keywords in classes/IDs
+        const classAndId = (element.className + ' ' + element.id).toLowerCase();
+        if (classAndId.includes('transaction')) score += 20;
+        if (classAndId.includes('activity')) score += 15;
+        if (classAndId.includes('payment')) score += 15;
+        if (classAndId.includes('row')) score += 5;
+        if (classAndId.includes('item')) score += 5;
 
-            #sensitive-input-box button:hover:not(:disabled) {
-              background: #2563eb;
-              transform: translateY(-1px);
-              box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-            }
+        // Check for amount/debit/credit classes (indicates transaction row)
+        if (classAndId.includes('amount') || classAndId.includes('debit') || classAndId.includes('credit')) {
+          score += 10;
+        }
 
-            #sensitive-input-box button:active:not(:disabled) {
-              transform: translateY(0);
-            }
+        // Check structure
+        const children = element.children.length;
+        if (children >= 3 && children <= 10) score += 10;
 
-            #sensitive-input-box button:disabled {
-              background: #9ca3af;
-              cursor: not-allowed;
-            }
+        return score;
+      }
 
-            .lock-icon {
-              display: inline-block;
-              width: 28px;
-              height: 28px;
-              background: #fbbf24;
-              border-radius: 50%;
-              position: relative;
-            }
+      // Find repeating patterns (siblings with similar structure)
+      function findRepeatingPatterns() {
+        const patterns = [];
 
-            .lock-icon::before {
-              content: '🔒';
-              position: absolute;
-              top: 50%;
-              left: 50%;
-              transform: translate(-50%, -50%);
-              font-size: 14px;
-            }
-          </style>
+        // Find all potential container elements
+        const containers = [
+          ...document.querySelectorAll('table tbody'),
+          ...document.querySelectorAll('ul'),
+          ...document.querySelectorAll('ol'),
+          ...document.querySelectorAll('[class*="list"]'),
+          ...document.querySelectorAll('[class*="container"]'),
+          ...document.querySelectorAll('div')
+        ];
 
-          <div id="sensitive-input-box">
-            <h2>
-              <span class="lock-icon"></span>
-              Sensitive Input Required
-            </h2>
-            <div class="step-info">Step ${stepNumber} of ${totalSteps}</div>
-            <div class="field-label">${label.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
-            <div class="alert">
-              <span>ℹ️</span>
-              <div>
-                <strong>Privacy Note:</strong> This value is not stored and only used for this playback session.
-                ${label.toLowerCase().includes('pin') ? '<br><strong>For separate PIN boxes:</strong> Enter one digit at a time.' : ''}
-              </div>
-            </div>
-            <input
-              type="password"
-              id="sensitive-value-input"
-              placeholder="Enter value..."
-              autocomplete="off"
-            />
-            <button id="submit-sensitive-value" disabled>Continue</button>
-          </div>
-        \`;
+        for (const container of containers) {
+          const children = Array.from(container.children);
 
-        document.body.appendChild(overlay);
+          // Need at least 3 similar children to be a pattern
+          if (children.length < 3) continue;
 
-        const input = document.getElementById('sensitive-value-input');
-        const button = document.getElementById('submit-sensitive-value');
+          // Check if children have similar structure
+          const firstChild = children[0];
+          const firstScore = scoreTransactionLikelihood(firstChild);
 
-        // Focus input
-        setTimeout(() => input.focus(), 100);
+          if (firstScore < 20) continue; // Not transaction-like enough
 
-        // Enable button when input has value
-        input.addEventListener('input', () => {
-          button.disabled = !input.value.trim();
-        });
+          // Check if siblings have similar scores
+          const scores = children.map(c => scoreTransactionLikelihood(c));
+          const avgScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+          const variance = scores.reduce((sum, score) => sum + Math.pow(score - avgScore, 2), 0) / scores.length;
 
-        // Handle submit
-        function submit() {
-          const value = input.value.trim();
-          if (value) {
-            overlay.remove();
-            resolve(value);
+          // Low variance = similar structure = likely a pattern
+          if (variance < 100 && avgScore > 20) {
+            patterns.push({
+              container,
+              elements: children,
+              avgScore,
+              variance,
+              confidence: Math.min(100, avgScore + (100 - variance))
+            });
           }
         }
 
-        button.addEventListener('click', submit);
-        input.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') {
-            submit();
+        // Sort by confidence
+        return patterns.sort((a, b) => b.confidence - a.confidence);
+      }
+
+      // Extract transaction data from an element
+      function extractTransaction(element) {
+        // Check if this is a table row - if so, use cell-based extraction
+        const cells = element.querySelectorAll('td, th');
+        if (cells.length > 0) {
+          return extractFromTableCells(Array.from(cells));
+        }
+
+        // Otherwise, fall back to general extraction
+        return extractFromGenericElement(element);
+      }
+
+      // Extract from table cells (cleaner, more accurate)
+      function extractFromTableCells(cells) {
+        let date = null;
+        let description = null;
+        let amount = null;
+        let balance = null;
+        let category = null;
+
+        const allMoneyValues = [];
+        const allDates = [];
+        const allDescriptions = [];
+
+        for (let i = 0; i < cells.length; i++) {
+          const cell = cells[i];
+          const cellText = getCleanCellText(cell);
+          if (!cellText) continue;
+
+          const className = (cell.className || '').toLowerCase();
+          console.log('[Scraper] Cell', i, ':', cellText.substring(0, 50), '| class:', className);
+
+          // Split cell text by whitespace to handle multiple values in one cell
+          const parts = cellText.split(/\\s+/).filter(p => p.length > 0);
+
+          for (const part of parts) {
+            // Check each part independently
+            if (isDateValue(part)) {
+              allDates.push(part);
+            } else if (isMoneyValue(part)) {
+              allMoneyValues.push({
+                value: part,
+                isBalance: className.includes('balance') || className.includes('total')
+              });
+            }
           }
+
+          // For description, look for text that isn't a date or money
+          if (!isDateValue(cellText) && !isMoneyValue(cellText)) {
+            // Clean up the text
+            let cleaned = cellText
+              .replace(/,?\\s*Opens popup.*$/gi, '')
+              .replace(/,?\\s*opens popup.*$/gi, '')
+              .replace(/\\s*help text.*$/gi, '')
+              .replace(/,?\\s*Category.*$/gi, '')
+              .replace(/\\bpending\\b/gi, '')
+              .replace(/\\s+/g, ' ')
+              .trim();
+
+            // Filter out common junk words
+            if (cleaned &&
+                !cleaned.match(/^(pending|category|status|posted)$/i) &&
+                cleaned.length > 2 &&
+                cleaned.length < 200) {
+              allDescriptions.push(cleaned);
+            }
+          }
+        }
+
+        // Pick the best values
+        date = allDates[0] || null;  // First date
+        description = allDescriptions.find(d => d.length > 5) || allDescriptions[0] || null;  // Longest meaningful description
+
+        // Separate amount and balance from money values
+        const amounts = allMoneyValues.filter(m => !m.isBalance);
+        const balances = allMoneyValues.filter(m => m.isBalance);
+
+        amount = amounts[0]?.value || null;
+        balance = balances[balances.length - 1]?.value || null;  // Last balance (most likely to be current)
+
+        console.log('[Scraper] Extracted:', {
+          dates: allDates,
+          descriptions: allDescriptions,
+          moneyValues: allMoneyValues.map(m => m.value),
+          final: { date, description, amount, balance }
         });
+
+        return {
+          date: date || '',
+          description: description || '',
+          amount: amount || '',
+          balance: balance || '',
+          category: category || ''
+        };
+      }
+
+      // Get clean text from a cell (only direct text, not all descendants)
+      function getCleanCellText(cell) {
+        // For cells, we want to get text but filter out hidden elements and aria-labels
+        const clone = cell.cloneNode(true);
+
+        // Remove hidden elements, scripts, styles
+        const hidden = clone.querySelectorAll('[aria-hidden="true"], [hidden], script, style, noscript');
+        hidden.forEach(el => el.remove());
+
+        // Get text and clean it up
+        return (clone.textContent || '')
+          .replace(/\\s+/g, ' ')  // Normalize whitespace
+          .trim();
+      }
+
+      // Fallback extraction for non-table layouts
+      function extractFromGenericElement(element) {
+        let date = null;
+        let description = null;
+        let amount = null;
+        let balance = null;
+
+        // Get all text nodes
+        const texts = [];
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null);
+        let node;
+        while (node = walker.nextNode()) {
+          const text = node.textContent.trim();
+          if (text && text.length > 0) texts.push(text);
+        }
+
+        // Deduplicate
+        const uniqueTexts = [...new Set(texts)];
+
+        for (const text of uniqueTexts) {
+          if (!date && isDateValue(text)) {
+            date = text;
+          } else if (isMoneyValue(text)) {
+            if (!amount) amount = text;
+            else if (!balance) balance = text;
+          } else if (!description && text.length > 3 && text.length < 200) {
+            description = text;
+          }
+        }
+
+        return {
+          date: date || '',
+          description: description || '',
+          amount: amount || '',
+          balance: balance || '',
+          category: ''
+        };
+      }
+
+      // ===== MAIN EXTRACTION LOGIC =====
+
+      console.log('[Scraper] 🔍 Analyzing page structure...');
+      console.log('[Scraper] URL:', window.location.href);
+      console.log('[Scraper] Title:', document.title);
+
+      const patterns = findRepeatingPatterns();
+      console.log('[Scraper] 📊 Found', patterns.length, 'potential patterns');
+
+      if (patterns.length === 0) {
+        console.log('[Scraper] ❌ No transaction patterns detected');
+        console.log('[Scraper] Debug: Total elements on page:', document.querySelectorAll('*').length);
+        console.log('[Scraper] Debug: Tables:', document.querySelectorAll('table').length);
+        console.log('[Scraper] Debug: Divs:', document.querySelectorAll('div').length);
+        return [];
+      }
+
+      // Use the highest confidence pattern
+      const bestPattern = patterns[0];
+      console.log('[Scraper] ✅ Best pattern:', {
+        elements: bestPattern.elements.length,
+        confidence: bestPattern.confidence.toFixed(1) + '%',
+        avgScore: bestPattern.avgScore.toFixed(1),
+        containerTag: bestPattern.container.tagName,
+        containerClass: bestPattern.container.className
       });
+
+      // Log first element structure
+      console.log('[Scraper] First element HTML:', bestPattern.elements[0]?.outerHTML?.substring(0, 300));
+
+      // Extract transactions from the pattern
+      const transactions = bestPattern.elements.map((elem, index) => {
+        console.log('[Scraper] --- Processing transaction', index + 1, '---');
+        const txn = extractTransaction(elem);
+        console.log('[Scraper] Result:', txn);
+        return {
+          ...txn,
+          index: index + 1,
+          confidence: scoreTransactionLikelihood(elem)
+        };
+      });
+
+      console.log('[Scraper] Total extracted:', transactions.length);
+
+      // Filter out low-quality extractions
+      const validTransactions = transactions.filter(txn => {
+        const isValid = txn.date && (txn.description || txn.amount);
+        if (!isValid) {
+          console.log('[Scraper] ❌ Filtered out:', txn, 'Reason: missing', !txn.date ? 'date' : 'description and amount');
+        }
+        return isValid;
+      });
+
+      console.log('[Scraper] 💰 Valid transactions:', validTransactions.length, 'out of', transactions.length);
+      console.log('[Scraper] 📝 Sample transactions:', validTransactions.slice(0, 3));
+
+      return validTransactions;
     })();
   `;
-
-  try {
-    const value = await window.webContents.executeJavaScript(promptCode);
-    return value as string;
-  } catch (error) {
-    console.error('[Automation] Failed to inject sensitive input prompt:', error);
-    throw error;
-  }
 }
 
 // Inject playback progress overlay
@@ -1584,7 +1691,8 @@ export function registerAutomationHandlers(): void {
               if (window.updatePlaybackProgress) {
                 const statusEl = document.getElementById('playback-status');
                 if (statusEl) {
-                  statusEl.textContent = 'Step ${currentStep} of ${totalSteps}: Waiting for page...';
+                  statusEl.textContent = 'Step ${currentStep} of ${totalSteps}: Page loaded, continuing...';
+                  statusEl.style.color = '#10b981';
                 }
               }
             `);
@@ -1639,55 +1747,13 @@ export function registerAutomationHandlers(): void {
           }
         }
 
-        // Check if this step needs sensitive input
-        console.log('[Automation] Checking if step needs sensitive input:', {
-          type: step.type,
-          value: step.value,
-          valueType: typeof step.value,
-          isRedacted: step.value === '[REDACTED]',
-          isEmpty: !step.value || step.value === '',
-          fieldLabel: step.fieldLabel
-        });
-
-        const needsSensitiveInput = step.type === 'input' && (
-          step.value === '[REDACTED]' ||
-          step.value === '' ||
-          step.value === null ||
-          step.value === undefined
-        );
-
-        if (needsSensitiveInput) {
-          console.log('[Automation] Requesting sensitive input for step', i + 1);
-
-          // Show input prompt directly in the playback window
-          try {
-            const userInput = await injectSensitiveInputPrompt(
-              playbackWindow!,
-              step.fieldLabel || step.selector,
-              i + 1,
-              steps.length
-            );
-
-            console.log('[Automation] Received sensitive input, length:', userInput.length);
-            step.value = userInput;
-
-            // Verify overlay is completely removed
-            await playbackWindow!.webContents.executeJavaScript(`
-              (function() {
-                const overlay = document.getElementById('sensitive-input-overlay');
-                if (overlay) {
-                  overlay.remove();
-                  console.log('[Automation] Force-removed lingering overlay');
-                }
-              })()
-            `);
-
-            // Wait for overlay to be fully removed and page to be interactive
-            await new Promise(resolve => setTimeout(resolve, 800));
-          } catch (error) {
-            console.error('[Automation] Failed to get sensitive input:', error);
-            throw new Error('Failed to get sensitive input from user');
-          }
+        // Log step details for debugging
+        if (step.type === 'input') {
+          console.log('[Automation] Input step:', {
+            selector: step.selector,
+            value: step.value ? `${step.value.substring(0, 3)}... (${step.value.length} chars)` : 'empty',
+            isSensitive: step.isSensitive
+          });
         }
 
         // Get current URL before executing step
@@ -1847,21 +1913,30 @@ export function registerAutomationHandlers(): void {
         // Only check if we haven't already detected navigation during step execution
         if (stepSucceeded) {
           // Wait a bit to see if navigation starts
+          console.log('[Automation] Checking for navigation after step', i + 1);
           await new Promise(resolve => setTimeout(resolve, 1500));
 
           const urlAfter = playbackWindow.webContents.getURL();
+          console.log('[Automation] URL check: before=', urlBefore, 'after=', urlAfter);
           if (urlBefore !== urlAfter) {
-            console.log('[Automation] Navigation detected after', step.type, ':', urlBefore, '->', urlAfter);
+            console.log('[Automation] ⚠️ Navigation detected after', step.type, ':', urlBefore, '->', urlAfter);
 
-          // Wait for page to fully load
+          // Wait for page to fully load (with timeout)
           console.log('[Automation] Waiting for page to stop loading...');
+          const loadTimeout = 10000; // 10 second timeout
+          const loadStartTime = Date.now();
           await new Promise((resolve) => {
             const checkLoading = () => {
               if (!playbackWindow || playbackWindow.isDestroyed()) {
                 resolve(null);
                 return;
               }
+              const elapsed = Date.now() - loadStartTime;
               if (!playbackWindow.webContents.isLoading()) {
+                console.log('[Automation] Page stopped loading after', elapsed, 'ms');
+                resolve(null);
+              } else if (elapsed > loadTimeout) {
+                console.log('[Automation] Load timeout reached after', elapsed, 'ms - continuing anyway');
                 resolve(null);
               } else {
                 setTimeout(checkLoading, 100);
@@ -1872,7 +1947,9 @@ export function registerAutomationHandlers(): void {
 
           console.log('[Automation] Page load complete, waiting for content to render...');
 
-          // Wait for document.readyState to be complete
+          // Wait for document.readyState to be complete (with timeout)
+          const readyTimeout = 5000; // 5 second timeout
+          const readyStartTime = Date.now();
           await new Promise((resolve) => {
             const checkReadyState = async () => {
               if (!playbackWindow || playbackWindow.isDestroyed()) {
@@ -1880,15 +1957,21 @@ export function registerAutomationHandlers(): void {
                 return;
               }
               try {
+                const elapsed = Date.now() - readyStartTime;
                 const isComplete = await playbackWindow.webContents.executeJavaScript(
                   'document.readyState === "complete"'
                 );
                 if (isComplete) {
+                  console.log('[Automation] Document ready after', elapsed, 'ms');
+                  resolve(null);
+                } else if (elapsed > readyTimeout) {
+                  console.log('[Automation] Ready timeout reached after', elapsed, 'ms - continuing anyway');
                   resolve(null);
                 } else {
                   setTimeout(checkReadyState, 100);
                 }
               } catch (err) {
+                console.log('[Automation] Error checking ready state, continuing anyway:', err);
                 resolve(null);
               }
             };
@@ -1897,7 +1980,7 @@ export function registerAutomationHandlers(): void {
 
           // Wait additional time for JavaScript/AJAX to execute and render dynamic content
           console.log('[Automation] Document ready, waiting for dynamic content...');
-          await new Promise(resolve => setTimeout(resolve, 3500));
+          await new Promise(resolve => setTimeout(resolve, 2000)); // Reduced from 3500ms to 2000ms
 
           // Re-inject playback controls
           console.log('[Automation] Re-injecting playback controls after navigation');
@@ -1921,9 +2004,11 @@ export function registerAutomationHandlers(): void {
 
         // Wait between steps
         await new Promise(resolve => setTimeout(resolve, 500));
+        console.log(`[Automation] ✓ Completed step ${i + 1} of ${steps.length}`);
       }
 
-      console.log(`[Automation] Playback complete! Successfully executed all ${steps.length} steps.`);
+      console.log(`[Automation] 🎉 ALL STEPS COMPLETE! Successfully executed all ${steps.length} steps.`);
+      console.log(`[Automation] 📊 Now starting automatic page scrape...`);
 
       // Update progress one last time
       if (playbackWindow && !playbackWindow.isDestroyed()) {
@@ -1941,6 +2026,268 @@ export function registerAutomationHandlers(): void {
       // Notify main window
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('automation:playback-complete');
+      }
+
+      // Auto-scrape the current page after playback completes
+      console.log('[Automation] Starting AI-powered automatic scrape of current page...');
+
+      if (playbackWindow && !playbackWindow.isDestroyed()) {
+        try {
+          // Update status to show scraping
+          await playbackWindow.webContents.executeJavaScript(`
+            if (window.updatePlaybackProgress) {
+              const status = document.getElementById('playback-status');
+              if (status) {
+                status.textContent = 'AI analyzing page... 🤖';
+                status.style.color = '#3b82f6';
+              }
+            }
+          `).catch(() => {});
+
+          // Get the HTML of the current page
+          console.log('[Automation] Getting page HTML...');
+          const pageHtml = await playbackWindow.webContents.executeJavaScript(`
+            document.documentElement.outerHTML
+          `);
+
+          console.log('[Automation] HTML length:', pageHtml.length, 'chars');
+
+          // Try to find transaction table/container to reduce HTML size
+          const transactionHtml = await playbackWindow.webContents.executeJavaScript(`
+            (function() {
+              // Look for common transaction containers
+              const selectors = [
+                'table tbody',
+                '[class*="transaction"]',
+                '[class*="activity"]',
+                '[id*="transaction"]',
+                'table',
+                'main',
+                '[role="table"]'
+              ];
+
+              for (const selector of selectors) {
+                const el = document.querySelector(selector);
+                if (el && el.textContent.includes('$')) {
+                  console.log('[Scraper] Found container:', selector);
+                  return el.outerHTML;
+                }
+              }
+
+              // Fallback to body
+              return document.body.outerHTML;
+            })()
+          `);
+
+          const htmlToSend = transactionHtml.substring(0, 100000); // Increased to 100k
+          console.log('[Automation] Sending', htmlToSend.length, 'chars to Ollama...');
+
+          // Use Ollama to extract transactions from HTML
+          const ollamaResponse = await fetch('http://localhost:11434/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'llama3.2',
+              prompt: `You are extracting bank transactions from HTML. Extract EVERY transaction with complete accuracy.
+
+HTML:
+${htmlToSend}
+
+CRITICAL INSTRUCTIONS:
+1. Find ALL transaction rows in the HTML (tables, lists, or divs)
+2. For EACH transaction, extract these fields EXACTLY as they appear:
+   - date: The transaction date (keep original format)
+   - description: The merchant/description (remove "pending", "posted", "Opens popup", status text)
+   - amount: The transaction amount (negative for debits/expenses, positive for credits/income)
+   - balance: The account balance AFTER this transaction (running balance, ending balance)
+   - category: The SPENDING CATEGORY using these rules:
+     * First, look for explicit category labels in the HTML (e.g., category column, tags, labels)
+     * If explicit category found, use it (e.g., "Dining", "Shopping", "Gas")
+     * If NO explicit category, infer from merchant name:
+       - Restaurants/food: "Restaurants & Dining"
+       - Gas stations: "Gas & Fuel"
+       - Grocery stores: "Groceries"
+       - Online shopping (Amazon, etc): "Shopping"
+       - Utilities/bills: "Bills & Utilities"
+       - Entertainment (Netflix, etc): "Entertainment"
+     * Do NOT use status as category (ignore "pending", "posted", "completed")
+     * If truly unknown, use empty string ""
+
+3. Extract ALL transactions on the page, not just a sample
+4. Be ACCURATE - extract values exactly as shown
+5. For balance: Look for "Balance", "Running Balance", "Ending Balance" in each row
+
+Example output format (valid JSON only):
+[
+  {
+    "date": "Feb 10, 2026",
+    "description": "SQ *SHAKE SHACK 021026",
+    "amount": "-31.60",
+    "balance": "1529.97",
+    "category": "Restaurants"
+  },
+  {
+    "date": "Feb 09, 2026",
+    "description": "SHELL GAS STATION",
+    "amount": "-45.00",
+    "balance": "1561.57",
+    "category": "Gas & Fuel"
+  },
+  {
+    "date": "Feb 08, 2026",
+    "description": "NETFLIX.COM",
+    "amount": "-15.99",
+    "balance": "1606.57",
+    "category": ""
+  }
+]
+
+Note: Categories are spending types (Restaurants, Shopping, Bills, etc.), NOT status (pending/posted). Many banks don't show categories - if missing, use empty string "".`
+
+VALIDATION RULES:
+- Amount: Must be a number with optional negative sign and decimal (e.g., "-31.60", "500.00")
+- Balance: Account balance after transaction (e.g., "1529.97")
+- Description: Clean text, max 100 chars, remove UI elements
+- Date: Keep as-is from HTML
+- Category: Extract if visible, else ""
+
+Return ONLY the JSON array. No explanations, no markdown, just the array.`,
+              stream: false,
+              options: {
+                num_predict: 16000,
+                temperature: 0.05, // Lower temp for more accuracy
+              },
+            }),
+          });
+
+          let scrapedTransactions = [];
+
+          if (ollamaResponse.ok) {
+            const data = await ollamaResponse.json();
+            console.log('[Automation] Ollama response received');
+            console.log('[Automation] Response length:', data.response?.length, 'chars');
+
+            // Parse JSON from response
+            let responseText = data.response;
+            console.log('[Automation] Response preview:', responseText.substring(0, 500));
+            console.log('[Automation] Response end:', responseText.substring(responseText.length - 200));
+
+            // Extract JSON array
+            const jsonMatch = responseText.match(/\[\s*\{[\s\S]*\}\s*\]/);
+            if (jsonMatch) {
+              responseText = jsonMatch[0];
+            }
+
+            // Remove markdown code blocks
+            responseText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+            try {
+              scrapedTransactions = JSON.parse(responseText);
+              if (!Array.isArray(scrapedTransactions)) {
+                scrapedTransactions = [];
+              }
+
+              // Clean and validate transactions
+              scrapedTransactions = scrapedTransactions.map((txn, index) => {
+                // Clean amount (remove $ and commas)
+                let amount = String(txn.amount || '').replace(/[$,]/g, '').trim();
+
+                // Clean balance (remove $ and commas)
+                let balance = String(txn.balance || '').replace(/[$,]/g, '').trim();
+
+                // Clean description (limit length, remove extra whitespace)
+                let description = String(txn.description || '')
+                  .replace(/\s+/g, ' ')
+                  .trim()
+                  .substring(0, 200);
+
+                return {
+                  date: String(txn.date || '').trim(),
+                  description: description,
+                  amount: amount,
+                  balance: balance,
+                  category: String(txn.category || '').trim(),
+                  index: index + 1,
+                  confidence: 95 // High confidence for AI extraction
+                };
+              });
+
+              // Filter out invalid transactions (must have at least date and amount)
+              scrapedTransactions = scrapedTransactions.filter(txn =>
+                txn.date && txn.amount
+              );
+
+              console.log('[Automation] Successfully parsed', scrapedTransactions.length, 'transactions');
+              console.log('[Automation] First transaction:', scrapedTransactions[0]);
+              console.log('[Automation] Last transaction:', scrapedTransactions[scrapedTransactions.length - 1]);
+            } catch (parseError) {
+              console.error('[Automation] Failed to parse Ollama response:', parseError);
+              console.error('[Automation] Attempted to parse:', responseText.substring(0, 500));
+              scrapedTransactions = [];
+            }
+          } else {
+            console.error('[Automation] Ollama request failed:', ollamaResponse.status);
+          }
+
+          console.log('[Automation] AI extraction complete! Found', scrapedTransactions?.length || 0, 'transactions');
+
+          // Ensure we have a valid array
+          const validTransactions = Array.isArray(scrapedTransactions) ? scrapedTransactions : [];
+
+          // Send scraped data to main window
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            try {
+              const eventData = {
+                recipeId: String(recipeId),
+                transactions: validTransactions,
+                count: validTransactions.length
+              };
+
+              console.log('[Automation] Preparing to send scrape-complete event');
+              console.log('[Automation] - recipeId:', eventData.recipeId);
+              console.log('[Automation] - transaction count:', eventData.count);
+              console.log('[Automation] - transactions array length:', eventData.transactions.length);
+              console.log('[Automation] - sample transaction:', eventData.transactions[0]);
+
+              mainWindow.webContents.send('automation:scrape-complete', eventData);
+              console.log('[Automation] ✓ Event sent successfully');
+            } catch (sendError) {
+              console.error('[Automation] Failed to send scrape-complete event:', sendError);
+            }
+          } else {
+            console.error('[Automation] Main window not available for sending event');
+          }
+
+          // Update status based on results
+          if (validTransactions.length > 0) {
+
+            await playbackWindow.webContents.executeJavaScript(`
+              if (window.updatePlaybackProgress) {
+                const status = document.getElementById('playback-status');
+                if (status) {
+                  status.textContent = 'Found ${validTransactions.length} transactions! ✓';
+                  status.style.color = '#10b981';
+                }
+              }
+            `).catch(() => {});
+          } else {
+            console.log('[Automation] No transactions found on page');
+
+            // Update status to show no data found
+            await playbackWindow.webContents.executeJavaScript(`
+              if (window.updatePlaybackProgress) {
+                const status = document.getElementById('playback-status');
+                if (status) {
+                  status.textContent = 'Playback Complete - No transactions found';
+                  status.style.color = '#f59e0b';
+                }
+              }
+            `).catch(() => {});
+          }
+        } catch (scrapeError) {
+          console.error('[Automation] Auto-scrape failed:', scrapeError);
+          // Don't fail the entire playback if scraping fails
+        }
       }
 
       // Keep window open for 3 seconds to show completion
@@ -1970,16 +2317,6 @@ export function registerAutomationHandlers(): void {
 
       throw error;
     }
-  });
-
-  // Provide sensitive input
-  ipcMain.handle('automation:provide-sensitive-input', async (_, value: string) => {
-    if (!playbackState || !playbackState.awaitingInput || !playbackState.inputResolver) {
-      throw new Error('No input request pending');
-    }
-
-    playbackState.inputResolver(value);
-    return { success: true };
   });
 }
 

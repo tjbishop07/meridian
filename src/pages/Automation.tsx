@@ -5,7 +5,6 @@ import toast from 'react-hot-toast';
 import PageHeader from '../components/layout/PageHeader';
 import { RecordingCard } from '../components/automation/RecordingCard';
 import { EmptyState } from '../components/automation/EmptyState';
-import { SensitiveInputModal } from '../components/automation/SensitiveInputModal';
 import { EditRecordingModal } from '../components/automation/EditRecordingModal';
 
 interface Recording {
@@ -18,19 +17,13 @@ interface Recording {
   updated_at: string;
 }
 
-interface SensitiveInputRequest {
-  stepNumber: number;
-  totalSteps: number;
-  fieldLabel: string;
-}
-
 export function Automation() {
   const navigate = useNavigate();
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [editingRecording, setEditingRecording] = useState<Recording | null>(null);
-  const [sensitiveInputRequest, setSensitiveInputRequest] = useState<SensitiveInputRequest | null>(null);
+  const [scrapedTransactions, setScrapedTransactions] = useState<any[] | null>(null);
 
   // New recording modal
   const [showNewRecordingModal, setShowNewRecordingModal] = useState(false);
@@ -51,19 +44,50 @@ export function Automation() {
       toast.success('Automation completed successfully');
     };
 
-    // Listen for sensitive input requests
-    const handleSensitiveInputNeeded = (_: any, data: SensitiveInputRequest) => {
-      setSensitiveInputRequest(data);
+    // Listen for scrape complete events
+    const handleScrapeComplete = (...args: any[]) => {
+      console.log('[Automation] handleScrapeComplete called');
+      console.log('[Automation] Arguments received:', args);
+      console.log('[Automation] Number of arguments:', args.length);
+      console.log('[Automation] First arg (event):', args[0]);
+      console.log('[Automation] Second arg (data):', args[1]);
+
+      // The data should be the first argument (event is filtered by preload)
+      const data = args[0];
+
+      console.log('[Automation] Extracted data:', data);
+      console.log('[Automation] Data type:', typeof data);
+
+      if (!data) {
+        console.error('[Automation] Scrape complete event received with undefined data');
+        toast.error('Failed to receive scraped data');
+        return;
+      }
+
+      if (!data.transactions || !Array.isArray(data.transactions)) {
+        console.error('[Automation] Invalid transactions data:', data);
+        toast.error('Invalid scraped data format');
+        return;
+      }
+
+      console.log('[Automation] Setting scraped transactions:', data.transactions.length);
+      setScrapedTransactions(data.transactions);
+
+      if (data.count > 0) {
+        toast.success(`Scraped ${data.count} transactions!`);
+      } else {
+        toast('No transactions found on page', { icon: 'ℹ️' });
+      }
     };
 
     window.electron.on('automation:recording-saved', handleRecordingSaved);
     window.electron.on('automation:playback-complete', handlePlaybackComplete);
-    window.electron.on('automation:playback-needs-input', handleSensitiveInputNeeded);
+    window.electron.on('automation:scrape-complete', handleScrapeComplete);
 
     return () => {
       window.electron.removeListener('automation:recording-saved', handleRecordingSaved);
       window.electron.removeListener('automation:playback-complete', handlePlaybackComplete);
-      window.electron.removeListener('automation:playback-needs-input', handleSensitiveInputNeeded);
+      window.electron.removeListener('automation:scrape-complete', handleScrapeComplete);
     };
   }, []);
 
@@ -174,22 +198,6 @@ export function Automation() {
     }
   };
 
-  const handleSensitiveInputSubmit = async (value: string) => {
-    try {
-      await window.electron.invoke('automation:provide-sensitive-input', value);
-      setSensitiveInputRequest(null);
-    } catch (error) {
-      console.error('Failed to provide sensitive input:', error);
-      toast.error('Failed to provide input');
-    }
-  };
-
-  const handleSensitiveInputCancel = () => {
-    setSensitiveInputRequest(null);
-    setPlayingId(null);
-    // TODO: Send cancel signal to playback window
-  };
-
   return (
     <div className="flex flex-col h-full">
       <PageHeader
@@ -234,14 +242,94 @@ export function Automation() {
         onClose={() => setEditingRecording(null)}
       />
 
-      <SensitiveInputModal
-        isOpen={!!sensitiveInputRequest}
-        stepNumber={sensitiveInputRequest?.stepNumber || 0}
-        totalSteps={sensitiveInputRequest?.totalSteps || 0}
-        fieldLabel={sensitiveInputRequest?.fieldLabel || ''}
-        onSubmit={handleSensitiveInputSubmit}
-        onCancel={handleSensitiveInputCancel}
-      />
+      {/* Scraped Transactions Modal */}
+      {scrapedTransactions && scrapedTransactions.length > 0 && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-base-100 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-base-300">
+              <h3 className="text-xl font-bold text-base-content">
+                Scraped Transactions ({scrapedTransactions.length})
+              </h3>
+              <p className="text-sm text-base-content/70 mt-1">
+                Review the extracted transactions below
+              </p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="overflow-x-auto">
+                <table className="table table-zebra w-full">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Date</th>
+                      <th>Description</th>
+                      <th>Category</th>
+                      <th>Amount</th>
+                      <th>Balance</th>
+                      <th>Confidence</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scrapedTransactions.map((txn, idx) => (
+                      <tr key={idx}>
+                        <td>{txn.index || idx + 1}</td>
+                        <td className="whitespace-nowrap">{txn.date}</td>
+                        <td className="max-w-xs truncate">{txn.description}</td>
+                        <td className="whitespace-nowrap">
+                          {txn.category ? (
+                            <span className="badge badge-sm badge-primary">{txn.category}</span>
+                          ) : (
+                            <span className="text-base-content/40 text-xs">No category</span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap font-mono">{txn.amount}</td>
+                        <td className="whitespace-nowrap font-mono">{txn.balance}</td>
+                        <td>
+                          <span className={`badge badge-sm ${
+                            txn.confidence > 50 ? 'badge-success' :
+                            txn.confidence > 30 ? 'badge-warning' :
+                            'badge-error'
+                          }`}>
+                            {txn.confidence ? Math.round(txn.confidence) : '?'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="flex gap-3 p-6 border-t border-base-300 bg-base-200">
+              <button
+                onClick={() => setScrapedTransactions(null)}
+                className="flex-1 px-4 py-2 bg-base-300 text-base-content rounded-lg hover:bg-base-400 font-medium"
+              >
+                Dismiss
+              </button>
+              <button
+                onClick={() => {
+                  // Copy as JSON to clipboard
+                  navigator.clipboard.writeText(JSON.stringify(scrapedTransactions, null, 2));
+                  toast.success('Copied to clipboard!');
+                }}
+                className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium"
+              >
+                Copy as JSON
+              </button>
+              <button
+                onClick={() => {
+                  // TODO: Import to database
+                  toast.info('Import feature coming soon!');
+                }}
+                className="flex-1 px-4 py-2 bg-primary text-primary-content rounded-lg hover:bg-primary/80 font-medium"
+              >
+                Import Transactions
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* New Recording Modal */}
       {showNewRecordingModal && (
@@ -287,10 +375,10 @@ export function Automation() {
 
               <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
                 <p className="text-purple-800 text-sm">
-                  <strong>🔒 PINs & Passwords Auto-Saved</strong>
+                  <strong>🔒 Fully Automated</strong>
                 </p>
                 <p className="text-purple-700 text-xs mt-1">
-                  Enter your PIN/password once during recording - it'll be saved and automatically entered during playback! Look for the "🔒 Saved" indicator.
+                  All inputs including PINs and passwords are saved during recording and automatically entered during playback. No manual intervention needed!
                 </p>
               </div>
             </div>

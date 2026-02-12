@@ -436,7 +436,7 @@ export interface ElectronAPI {
   on(channel: 'browser:error', callback: (error: { code: number; description: string; url: string }) => void): void;
   on(channel: 'automation:recording-saved', callback: () => void): void;
   on(channel: 'automation:playback-complete', callback: () => void): void;
-  on(channel: 'automation:playback-needs-input', callback: (data: { stepNumber: number; totalSteps: number; fieldLabel: string }) => void): void;
+  on(channel: 'automation:scrape-complete', callback: (data: { recipeId: string; transactions: any[]; count: number }) => void): void;
   on(channel: 'scraper:transactions-found', callback: (data: { accountId: number; transactions: any[] }) => void): void;
   on(channel: 'ollama:pull-progress', callback: (data: string) => void): void;
   on(channel: 'ollama:install-progress', callback: (data: string) => void): void;
