@@ -49,7 +49,7 @@ export function Automation() {
     // Listen for playback complete events
     const handlePlaybackComplete = () => {
       setPlayingId(null);
-      toast.success('Automation completed successfully');
+      // Don't show toast here - wait for scrape complete which shows transaction count
     };
 
     // Listen for scrape complete events
@@ -190,10 +190,10 @@ export function Automation() {
           console.log('[Automation] Successfully created:', created, 'transactions');
           console.log('[Automation] ==================== SAVE COMPLETE ====================');
 
-          toast.dismiss('import');
+          // Update the loading toast to success (same id to replace it)
           toast.success(
             `Saved ${created} transactions!`,
-            { duration: 3000 }
+            { id: 'import', duration: 3000 }
           );
 
           // Navigate to transactions page to see the saved data
@@ -202,8 +202,11 @@ export function Automation() {
           }, 1500);
         } catch (error) {
           console.error('[Automation] Failed to save transactions:', error);
-          toast.dismiss('import');
-          toast.error('Failed to save transactions: ' + (error instanceof Error ? error.message : String(error)));
+          // Update the loading toast to error (same id to replace it)
+          toast.error(
+            'Failed to save transactions: ' + (error instanceof Error ? error.message : String(error)),
+            { id: 'import' }
+          );
         } finally {
           setIsImporting(false);
         }
@@ -297,11 +300,10 @@ export function Automation() {
 
     try {
       setPlayingId(id);
-      toast.loading('Starting playback...', { duration: 1000 });
 
       await window.electron.invoke('automation:play-recording', id);
 
-      toast.success('Playback started! Watch the automation window.');
+      // Don't show toast - overlay will show progress
     } catch (error) {
       console.error('Failed to play recording:', error);
       toast.error('Failed to play recording');

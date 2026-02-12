@@ -1693,8 +1693,8 @@ export function registerAutomationHandlers(): void {
               if (window.updatePlaybackProgress) {
                 const statusEl = document.getElementById('playback-status');
                 if (statusEl) {
-                  statusEl.textContent = 'Step ${currentStep} of ${totalSteps}: Page loaded, continuing...';
-                  statusEl.style.color = '#10b981';
+                  statusEl.textContent = '${currentStep} of ${totalSteps}';
+                  statusEl.style.color = '#ffffff';
                 }
               }
             `);
@@ -1982,7 +1982,7 @@ export function registerAutomationHandlers(): void {
 
           // Wait additional time for JavaScript/AJAX to execute and render dynamic content
           console.log('[Automation] Document ready, waiting for dynamic content...');
-          await new Promise(resolve => setTimeout(resolve, 2000)); // Reduced from 3500ms to 2000ms
+          await new Promise(resolve => setTimeout(resolve, 800)); // Reduced for faster playback
 
           // Re-inject playback controls
           console.log('[Automation] Re-injecting playback controls after navigation');
@@ -2012,35 +2012,22 @@ export function registerAutomationHandlers(): void {
       console.log(`[Automation] 🎉 ALL STEPS COMPLETE! Successfully executed all ${steps.length} steps.`);
       console.log(`[Automation] 📊 Now starting automatic page scrape...`);
 
-      // Update progress one last time
-      if (playbackWindow && !playbackWindow.isDestroyed()) {
-        await playbackWindow.webContents.executeJavaScript(`
-          if (window.updatePlaybackProgress) {
-            const status = document.getElementById('playback-status');
-            if (status) {
-              status.textContent = 'Playback Complete! ✓';
-              status.style.color = '#10b981';
-            }
-          }
-        `).catch(() => {});
-      }
-
       // Notify main window
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('automation:playback-complete');
       }
 
       // Auto-scrape the current page after playback completes
-      console.log('[Automation] Starting AI-powered automatic scrape of current page...');
+      console.log('[Automation] Starting automatic scrape of current page...');
 
       if (playbackWindow && !playbackWindow.isDestroyed()) {
         try {
-          // Update status to show scraping
+          // Update status to show scraping immediately
           await playbackWindow.webContents.executeJavaScript(`
             if (window.updatePlaybackProgress) {
               const status = document.getElementById('playback-status');
               if (status) {
-                status.textContent = 'AI analyzing page... 🤖';
+                status.textContent = 'Extracting transactions...';
                 status.style.color = '#3b82f6';
               }
             }
