@@ -287,14 +287,26 @@ export default function Dashboard() {
           <h2 className="text-lg font-semibold text-base-content">Recent Transactions</h2>
         </div>
         <div className="divide-y divide-base-300">
-          {recentTransactions.slice(0, 5).map((transaction) => (
-            <div key={transaction.id} className="px-6 py-4 flex items-center justify-between hover:bg-base-200">
-              <div className="flex-1">
-                <p className="font-medium text-base-content">{transaction.description}</p>
-                <p className="text-sm text-base-content/70">
-                  {format(parseISO(transaction.date), 'MMM d, yyyy')} • {transaction.category_name || 'Uncategorized'}
-                </p>
-              </div>
+          {recentTransactions.slice(0, 5).map((transaction) => {
+            // Safely parse date with fallback
+            let dateDisplay = 'Invalid date';
+            try {
+              const parsed = parseISO(transaction.date);
+              if (!isNaN(parsed.getTime())) {
+                dateDisplay = format(parsed, 'MMM d, yyyy');
+              }
+            } catch (e) {
+              console.warn('Invalid date for transaction:', transaction.id, transaction.date);
+            }
+
+            return (
+              <div key={transaction.id} className="px-6 py-4 flex items-center justify-between hover:bg-base-200">
+                <div className="flex-1">
+                  <p className="font-medium text-base-content">{transaction.description}</p>
+                  <p className="text-sm text-base-content/70">
+                    {dateDisplay} • {transaction.category_name || 'Uncategorized'}
+                  </p>
+                </div>
               <p
                 className={`text-lg font-semibold ${
                   transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
@@ -304,7 +316,8 @@ export default function Dashboard() {
                 {transaction.amount.toFixed(2)}
               </p>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
       </div>

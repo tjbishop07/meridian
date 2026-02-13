@@ -140,46 +140,52 @@ export function Automation() {
           );
 
           // Convert scraped transactions to CreateTransactionInput format
-          const transactionsToCreate = data.transactions.map((txn: any) => {
-            const amount = parseFloat(txn.amount) || 0;
+          const transactionsToCreate = data.transactions
+            .map((txn: any) => {
+              const amount = parseFloat(txn.amount) || 0;
 
-            // Determine transaction type from amount
-            // Negative amounts are expenses, positive are income
-            const type = amount < 0 ? 'expense' : 'income';
+              // Determine transaction type from amount
+              // Negative amounts are expenses, positive are income
+              const type = amount < 0 ? 'expense' : 'income';
 
-            // Automatically assign income category for positive amounts
-            let categoryId = null;
-            if (type === 'income' && incomeCategory) {
-              categoryId = incomeCategory.id;
-            }
-
-            // Convert date to YYYY-MM-DD format
-            let formattedDate = txn.date;
-            try {
-              // Parse date like "Feb 10, 2026" to "2026-02-10"
-              const parsedDate = new Date(txn.date);
-              if (!isNaN(parsedDate.getTime())) {
-                const year = parsedDate.getFullYear();
-                const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
-                const day = String(parsedDate.getDate()).padStart(2, '0');
-                formattedDate = `${year}-${month}-${day}`;
+              // Automatically assign income category for positive amounts
+              let categoryId = null;
+              if (type === 'income' && incomeCategory) {
+                categoryId = incomeCategory.id;
               }
-            } catch (err) {
-              console.warn('[Automation] Failed to parse date:', txn.date, err);
-            }
 
-            return {
-              account_id: accountId,
-              date: formattedDate,
-              description: txn.description,
-              original_description: txn.description,
-              amount: Math.abs(amount), // Store as positive number
-              type: type,
-              status: 'cleared' as const,
-              category_id: categoryId,
-              notes: txn.category ? `Auto-categorized as: ${txn.category}` : null
-            };
-          });
+              // Convert date to YYYY-MM-DD format
+              let formattedDate = '';
+              try {
+                // Parse date like "Feb 10, 2026" to "2026-02-10"
+                const parsedDate = new Date(txn.date);
+                if (!isNaN(parsedDate.getTime())) {
+                  const year = parsedDate.getFullYear();
+                  const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+                  const day = String(parsedDate.getDate()).padStart(2, '0');
+                  formattedDate = `${year}-${month}-${day}`;
+                } else {
+                  console.warn('[Automation] Invalid date, skipping transaction:', txn);
+                  return null;
+                }
+              } catch (err) {
+                console.warn('[Automation] Failed to parse date, skipping transaction:', txn.date, err);
+                return null;
+              }
+
+              return {
+                account_id: accountId,
+                date: formattedDate,
+                description: txn.description,
+                original_description: txn.description,
+                amount: Math.abs(amount), // Store as positive number
+                type: type,
+                status: 'cleared' as const,
+                category_id: categoryId,
+                notes: txn.category ? `Auto-categorized as: ${txn.category}` : null
+              };
+            })
+            .filter((txn): txn is NonNullable<typeof txn> => txn !== null); // Remove invalid transactions
 
           console.log('[Automation] Converted to transaction format:', transactionsToCreate.slice(0, 2));
           console.log('[Automation] Creating transactions...');

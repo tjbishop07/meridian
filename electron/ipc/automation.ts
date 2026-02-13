@@ -1203,7 +1203,28 @@ export const getRecorderScript = () => `
       // Only capture meaningful interactions
       if (e.type === 'click' && tag === 'BUTTON' || tag === 'A' || t.type === 'submit') {
         type = 'click';
-        data = { selector: getSelector(t), element: tag };
+
+        // Get element position relative to viewport
+        const rect = t.getBoundingClientRect();
+
+        data = {
+          selector: getSelector(t),
+          element: tag,
+          // Capture click coordinates
+          coordinates: {
+            x: e.clientX,
+            y: e.clientY,
+            // Element center as fallback
+            elementX: rect.left + rect.width / 2,
+            elementY: rect.top + rect.height / 2
+          },
+          viewport: {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            scrollX: window.scrollX,
+            scrollY: window.scrollY
+          }
+        };
       } else if (e.type === 'input' && (tag === 'INPUT' || tag === 'TEXTAREA')) {
         type = 'input';
         const val = t.type === 'password' ? '[REDACTED]' : t.value;
@@ -1213,15 +1234,43 @@ export const getRecorderScript = () => `
         if (state.last?.type === 'input' && state.last?.selector === sel &&
             Date.now() - state.last.timestamp < 800) return;
 
+        const rect = t.getBoundingClientRect();
+
         data = {
           selector: sel,
           element: tag,
           value: val,
-          fieldLabel: t.placeholder || t.name || t.getAttribute('aria-label') || ''
+          fieldLabel: t.placeholder || t.name || t.getAttribute('aria-label') || '',
+          coordinates: {
+            elementX: rect.left + rect.width / 2,
+            elementY: rect.top + rect.height / 2
+          },
+          viewport: {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            scrollX: window.scrollX,
+            scrollY: window.scrollY
+          }
         };
       } else if (e.type === 'change' && tag === 'SELECT') {
         type = 'select';
-        data = { selector: getSelector(t), element: tag, value: t.value };
+        const rect = t.getBoundingClientRect();
+
+        data = {
+          selector: getSelector(t),
+          element: tag,
+          value: t.value,
+          coordinates: {
+            elementX: rect.left + rect.width / 2,
+            elementY: rect.top + rect.height / 2
+          },
+          viewport: {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            scrollX: window.scrollX,
+            scrollY: window.scrollY
+          }
+        };
       }
 
       if (type && data) {
@@ -1718,6 +1767,9 @@ export function registerAutomationHandlers(): void {
       // Wait for initial page to load
       await new Promise(resolve => setTimeout(resolve, 2000));
 
+      // Track if all steps complete successfully
+      let allStepsCompleted = true;
+
       // Execute steps
       for (let i = 0; i < steps.length; i++) {
         const step = steps[i];
@@ -1903,9 +1955,11 @@ export function registerAutomationHandlers(): void {
           `);
 
             if (userChoice === 'abort') {
+              allStepsCompleted = false;
               throw error; // Re-throw to stop playback
             } else {
               console.log(`[Automation] User chose to skip step ${i + 1}, continuing...`);
+              allStepsCompleted = false; // Mark as incomplete since we skipped a step
               // Continue to next step
             }
           }
@@ -2009,13 +2063,44 @@ export function registerAutomationHandlers(): void {
         console.log(`[Automation] ✓ Completed step ${i + 1} of ${steps.length}`);
       }
 
-      console.log(`[Automation] 🎉 ALL STEPS COMPLETE! Successfully executed all ${steps.length} steps.`);
-      console.log(`[Automation] 📊 Now starting automatic page scrape...`);
+      console.log(`[Automation] 🎉 Loop completed for ${steps.length} steps.`);
 
       // Notify main window
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('automation:playback-complete');
       }
+
+      // Only scrape if all steps completed successfully
+      if (!allStepsCompleted) {
+        console.log('[Automation] ⚠️ Not all steps completed successfully - skipping scrape and import');
+
+        if (playbackWindow && !playbackWindow.isDestroyed()) {
+          await playbackWindow.webContents.executeJavaScript(`
+            if (window.updatePlaybackProgress) {
+              const status = document.getElementById('playback-status');
+              if (status) {
+                status.textContent = 'Playback incomplete - no import';
+                status.style.color = '#f59e0b';
+              }
+            }
+          `).catch(() => {});
+        }
+
+        // Wait briefly to show message, then close
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        if (playbackWindow && !playbackWindow.isDestroyed()) {
+          playbackWindow.close();
+        }
+
+        playbackWindow = null;
+        playbackState = null;
+
+        return { success: false, message: 'Playback incomplete - no transactions imported' };
+      }
+
+      console.log(`[Automation] ✅ ALL STEPS COMPLETE! Successfully executed all ${steps.length} steps.`);
+      console.log(`[Automation] 📊 Now starting automatic page scrape...`);
 
       // Auto-scrape the current page after playback completes
       console.log('[Automation] Starting automatic scrape of current page...');
@@ -2341,6 +2426,79 @@ async function executeStep(window: BrowserWindow, step: any): Promise<void> {
   let lastError = null;
 
   console.log(`[executeStep] Starting execution for: ${selector} (${step.type})`);
+
+  // Try coordinate-based clicking first if coordinates are available
+  if (step.coordinates && step.type === 'click') {
+    console.log(`[executeStep] Attempting coordinate-based click at (${step.coordinates.x}, ${step.coordinates.y})`);
+
+    try {
+      const result = await window.webContents.executeJavaScript(`
+        (function() {
+          // Use the actual click coordinates
+          const x = ${step.coordinates.x};
+          const y = ${step.coordinates.y};
+
+          console.log('[Coordinate Click] Attempting click at:', x, y);
+
+          // Find element at these coordinates
+          const element = document.elementFromPoint(x, y);
+
+          if (element) {
+            console.log('[Coordinate Click] Found element:', element.tagName, element.className);
+
+            // Highlight element briefly for visual feedback
+            const originalOutline = element.style.outline;
+            element.style.outline = '3px solid #fbbf24';
+            setTimeout(() => { element.style.outline = originalOutline; }, 500);
+
+            // Click the element
+            element.click();
+            return { success: true, element: element.tagName };
+          } else {
+            console.log('[Coordinate Click] No element found at coordinates');
+            return { success: false, error: 'No element at coordinates' };
+          }
+        })()
+      `);
+
+      if (result.success) {
+        console.log(`[executeStep] ✓ Coordinate-based click succeeded on ${result.element}`);
+        return; // Success! Exit early
+      } else {
+        console.log(`[executeStep] Coordinate click failed: ${result.error}, falling back to selector`);
+      }
+    } catch (coordError) {
+      console.log(`[executeStep] Coordinate click error:`, coordError);
+      console.log(`[executeStep] Falling back to selector-based approach`);
+    }
+  }
+
+  // For input and select, try coordinates to focus the element first
+  if (step.coordinates && (step.type === 'input' || step.type === 'select')) {
+    console.log(`[executeStep] Using coordinates to locate ${step.type} field`);
+
+    try {
+      await window.webContents.executeJavaScript(`
+        (function() {
+          const x = ${step.coordinates.elementX};
+          const y = ${step.coordinates.elementY};
+          const element = document.elementFromPoint(x, y);
+
+          if (element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT')) {
+            // Highlight briefly
+            const originalOutline = element.style.outline;
+            element.style.outline = '3px solid #fbbf24';
+            setTimeout(() => { element.style.outline = originalOutline; }, 500);
+
+            element.focus();
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        })()
+      `);
+    } catch (e) {
+      console.log(`[executeStep] Coordinate focus failed, continuing with selector`);
+    }
+  }
 
   while (retries > 0) {
     try {
