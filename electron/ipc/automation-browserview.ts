@@ -206,6 +206,111 @@ const getRecorderScript = () => `
       if (type && data) {
         data.type = type;
         data.timestamp = Date.now();
+
+        // For clicks, use the actual clickable element (not a child element)
+        // If we clicked on a SPAN inside a BUTTON or A, use the parent
+        let identificationTarget = t;
+        if (type === 'click') {
+          // Walk up to find the actual clickable parent
+          let current = t;
+          for (let i = 0; i < 5 && current; i++) {
+            const tag = current.tagName;
+            const isClickable = tag === 'BUTTON' ||
+                               tag === 'A' ||
+                               current.type === 'submit' ||
+                               current.getAttribute?.('role') === 'button' ||
+                               current.getAttribute?.('role') === 'link';
+
+            if (isClickable) {
+              identificationTarget = current;
+              break;
+            }
+            current = current.parentElement;
+          }
+        }
+
+        // Capture rich identification data for text-based playback
+        const target = identificationTarget;
+        const rect = target.getBoundingClientRect();
+
+        // Get text content (cleaned)
+        let text = target.textContent?.trim() || '';
+        if (text.length > 100) text = text.substring(0, 100);
+
+        // Get ARIA attributes
+        const ariaLabel = target.getAttribute('aria-label') ||
+                         (target.getAttribute('aria-labelledby') &&
+                          document.getElementById(target.getAttribute('aria-labelledby'))?.textContent?.trim());
+
+        // Get other attributes
+        const placeholder = target.getAttribute('placeholder');
+        const title = target.getAttribute('title');
+        const role = target.getAttribute('role') || target.tagName.toLowerCase();
+
+        // Find nearby labels
+        const nearbyLabels = [];
+        const labels = document.querySelectorAll('label');
+        for (const label of labels) {
+          const labelRect = label.getBoundingClientRect();
+          const distance = Math.abs(labelRect.top - rect.top) + Math.abs(labelRect.left - rect.left);
+          if (distance < 200) {
+            nearbyLabels.push(label.textContent?.trim());
+          }
+        }
+
+        // Also check for label associated by 'for' attribute
+        if (target.id) {
+          const associatedLabel = document.querySelector(\`label[for="\${target.id}"]\`);
+          if (associatedLabel) {
+            nearbyLabels.push(associatedLabel.textContent?.trim());
+          }
+        }
+
+        // Capture href for links (helps validate navigation)
+        const href = target.tagName === 'A' ? target.getAttribute('href') : null;
+
+        // Get parent context for better matching
+        const parent = target.parentElement;
+        const parentRole = parent?.getAttribute('role') || parent?.tagName.toLowerCase();
+        const parentClass = parent?.className && typeof parent.className === 'string'
+          ? parent.className.split(/\\s+/).filter(c => c && c.length < 30)[0]
+          : null;
+
+        // Capture visual properties for validation
+        const isVisible = rect.width > 0 && rect.height > 0 &&
+                         window.getComputedStyle(target).visibility !== 'hidden' &&
+                         window.getComputedStyle(target).display !== 'none';
+
+        // Add identification data
+        data.identification = {
+          text,
+          ariaLabel,
+          placeholder,
+          title,
+          role,
+          nearbyLabels: nearbyLabels.filter(l => l && l.length > 0),
+          href: href, // Link destination for validation
+          parentRole: parentRole, // Parent context
+          parentClass: parentClass, // Parent class for structural matching
+          isVisible: isVisible, // Visual state
+          elementSize: {
+            width: Math.round(rect.width),
+            height: Math.round(rect.height)
+          },
+          coordinates: {
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+            elementX: rect.left + rect.width / 2,
+            elementY: rect.top + rect.height / 2
+          },
+          viewport: {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            scrollX: window.scrollX,
+            scrollY: window.scrollY
+          }
+        };
+
         state.last = data;
 
         // Log actual value for debugging

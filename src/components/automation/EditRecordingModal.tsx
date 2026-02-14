@@ -9,6 +9,18 @@ interface Step {
   text?: string;
   timestamp?: number;
   fieldLabel?: string;
+  identification?: {
+    text?: string;
+    ariaLabel?: string;
+    placeholder?: string;
+    title?: string;
+    role?: string;
+    nearbyLabels?: string[];
+    coordinates?: {
+      x: number;
+      y: number;
+    };
+  };
 }
 
 interface Recording {
@@ -106,7 +118,31 @@ export function EditRecordingModal({
   };
 
   const getStepSummary = (step: Step) => {
-    let selector = step.selector;
+    // Show text-based identification if available (new format)
+    if (step.identification) {
+      const parts: string[] = [];
+
+      if (step.identification.text) {
+        parts.push(`"${step.identification.text}"`);
+      }
+      if (step.identification.ariaLabel) {
+        parts.push(`aria-label: "${step.identification.ariaLabel}"`);
+      }
+      if (step.identification.placeholder) {
+        parts.push(`placeholder: "${step.identification.placeholder}"`);
+      }
+      if (step.identification.nearbyLabels && step.identification.nearbyLabels.length > 0) {
+        parts.push(`near: "${step.identification.nearbyLabels[0]}"`);
+      }
+
+      if (parts.length > 0) {
+        const summary = parts.join(' • ');
+        return summary.length > 70 ? summary.substring(0, 70) + '...' : summary;
+      }
+    }
+
+    // Fallback to old selector format
+    let selector = step.selector || '';
     if (selector.startsWith('label:')) {
       selector = `Label: "${selector.substring(6)}"`;
     } else if (selector.startsWith('placeholder:')) {
@@ -114,7 +150,7 @@ export function EditRecordingModal({
     } else if (selector.length > 50) {
       selector = selector.substring(0, 50) + '...';
     }
-    return selector;
+    return selector || 'No identification data';
   };
 
   if (!isOpen || !recording) return null;
@@ -296,21 +332,67 @@ export function EditRecordingModal({
                           </select>
                         </div>
 
-                        {/* Selector */}
-                        <div className="form-control">
-                          <label className="label">
-                            <span className="label-text font-semibold">Selector</span>
-                            <span className="label-text-alt text-xs">
-                              CSS selector, label:text, or placeholder:text
-                            </span>
-                          </label>
-                          <textarea
-                            className="textarea textarea-bordered textarea-sm font-mono text-xs"
-                            rows={2}
-                            value={step.selector}
-                            onChange={(e) => updateStep(index, 'selector', e.target.value)}
-                          />
-                        </div>
+                        {/* Text-Based Identification (New Format) */}
+                        {step.identification && (
+                          <div className="alert alert-info py-2 px-3">
+                            <div className="text-xs">
+                              <div className="font-semibold mb-2 flex items-center gap-2">
+                                <span className="text-lg">✨</span>
+                                Text-Based Identification
+                              </div>
+                              <div className="space-y-1 text-base-content/80">
+                                {step.identification.text && (
+                                  <div>
+                                    <strong>Text:</strong> "{step.identification.text}"
+                                  </div>
+                                )}
+                                {step.identification.ariaLabel && (
+                                  <div>
+                                    <strong>ARIA Label:</strong> "{step.identification.ariaLabel}"
+                                  </div>
+                                )}
+                                {step.identification.placeholder && (
+                                  <div>
+                                    <strong>Placeholder:</strong> "{step.identification.placeholder}"
+                                  </div>
+                                )}
+                                {step.identification.role && (
+                                  <div>
+                                    <strong>Role:</strong> {step.identification.role}
+                                  </div>
+                                )}
+                                {step.identification.nearbyLabels && step.identification.nearbyLabels.length > 0 && (
+                                  <div>
+                                    <strong>Nearby Labels:</strong> {step.identification.nearbyLabels.join(', ')}
+                                  </div>
+                                )}
+                                {step.identification.coordinates && (
+                                  <div className="text-base-content/50 mt-1">
+                                    <strong>Coordinates (fallback):</strong> ({Math.round(step.identification.coordinates.x)}, {Math.round(step.identification.coordinates.y)})
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Selector (Legacy or if no identification) */}
+                        {!step.identification && (
+                          <div className="form-control">
+                            <label className="label">
+                              <span className="label-text font-semibold">Selector</span>
+                              <span className="label-text-alt text-xs">
+                                CSS selector, label:text, or placeholder:text
+                              </span>
+                            </label>
+                            <textarea
+                              className="textarea textarea-bordered textarea-sm font-mono text-xs"
+                              rows={2}
+                              value={step.selector}
+                              onChange={(e) => updateStep(index, 'selector', e.target.value)}
+                            />
+                          </div>
+                        )}
 
                         {/* Element */}
                         <div className="form-control">
@@ -322,6 +404,7 @@ export function EditRecordingModal({
                             className="input input-bordered input-sm"
                             value={step.element}
                             onChange={(e) => updateStep(index, 'element', e.target.value)}
+                            disabled={!!step.identification}
                           />
                         </div>
 

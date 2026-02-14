@@ -33,6 +33,7 @@ const electronAPI: ElectronAPI = {
       'categories:create',
       'categories:update',
       'categories:delete',
+      'categories:delete-all',
 
       // Budgets
       'budgets:get-by-month',
@@ -108,6 +109,12 @@ const electronAPI: ElectronAPI = {
       'automation:play-recording',
       'automation:start-recording-mode',
       'automation:get-current-recording',
+
+      // Automation Settings
+      'automation-settings:get-all',
+      'automation-settings:get',
+      'automation-settings:set',
+      'automation-settings:update',
 
       // Scraper
       'scraper:open-browser',

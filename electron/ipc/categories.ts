@@ -49,5 +49,14 @@ export function registerCategoryHandlers(): void {
     }
   });
 
+  ipcMain.handle('categories:delete-all', async () => {
+    try {
+      return categoryQueries.deleteAllCategories();
+    } catch (error) {
+      console.error('Error deleting all categories:', error);
+      throw error;
+    }
+  });
+
   console.log('Category IPC handlers registered');
 }

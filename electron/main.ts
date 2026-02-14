@@ -14,11 +14,12 @@ import { registerBillHandlers } from './ipc/bills';
 import { registerSettingsHandlers } from './ipc/settings';
 import { registerRecorderHandlers } from './ipc/recorder';
 import { registerExportRecipeHandlers } from './ipc/export-recipes';
-import { registerAutomationHandlers, setMainWindow } from './ipc/automation';
+import { registerAutomationHandlers, setMainWindow } from './ipc/automation/index';
 import { registerScraperHandlers, setMainWindow as setScraperMainWindow } from './ipc/scraper';
 import { registerAIScraperHandlers, setMainWindow as setAIScraperMainWindow } from './ipc/ai-scraper';
 import { registerOllamaHandlers, setMainWindow as setOllamaMainWindow } from './ipc/ollama';
 import { registerPuppeteerScraperHandlers, setMainWindow as setPuppeteerMainWindow } from './ipc/puppeteer-scraper';
+import { registerAutomationSettingsHandlers } from './ipc/automation-settings';
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -395,6 +396,7 @@ app.whenReady().then(async () => {
 
     console.log('[Main] Registering automation handlers...');
     registerAutomationHandlers();
+    registerAutomationSettingsHandlers();
     registerScraperHandlers();
     registerAIScraperHandlers();
     registerOllamaHandlers();

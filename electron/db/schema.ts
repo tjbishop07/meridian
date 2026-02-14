@@ -252,6 +252,44 @@ export function initializeDatabase(db: Database.Database): void {
     );
   `);
 
+  // Automation settings table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS automation_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+
+  // Insert default automation settings
+  db.exec(`
+    INSERT OR IGNORE INTO automation_settings (key, value) VALUES
+      ('vision_provider', 'claude'),
+      ('claude_api_key', ''),
+      ('retry_attempts', '3'),
+      ('retry_delay_ms', '2000'),
+      ('schedule_enabled', 'false'),
+      ('schedule_cron', '0 6 * * *');
+  `);
+
+  // Automation schedules table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS automation_schedules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      recipe_id INTEGER NOT NULL,
+      schedule_cron TEXT NOT NULL,
+      is_enabled BOOLEAN DEFAULT 1,
+      last_run TEXT,
+      last_status TEXT,
+      last_error TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (recipe_id) REFERENCES export_recipes(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_automation_schedules_recipe ON automation_schedules(recipe_id);
+    CREATE INDEX IF NOT EXISTS idx_automation_schedules_enabled ON automation_schedules(is_enabled);
+  `);
+
   // Seed default categories if empty
   const categoryCount = db.prepare('SELECT COUNT(*) as count FROM categories').get() as { count: number };
 

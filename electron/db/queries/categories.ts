@@ -100,3 +100,10 @@ export function deleteCategory(id: number): void {
   const db = getDatabase();
   db.prepare('DELETE FROM categories WHERE id = ? AND is_system = 0').run(id);
 }
+
+export function deleteAllCategories(): number {
+  const db = getDatabase();
+  // Only delete non-system categories
+  const result = db.prepare('DELETE FROM categories WHERE is_system = 0').run();
+  return result.changes;
+}

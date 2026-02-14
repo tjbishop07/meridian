@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Building2, Tag, Download, Database, Palette, Sparkles, CheckCircle, XCircle, Loader, RefreshCw } from 'lucide-react';
+import { Plus, Edit2, Trash2, Building2, Tag, Download, Database, Palette, Sparkles, CheckCircle, XCircle, Loader, RefreshCw, Bot, Key, Save } from 'lucide-react';
 import { useAccounts } from '../hooks/useAccounts';
 import { useCategories } from '../hooks/useCategories';
 import { useOllama } from '../hooks/useOllama';
+import { useAutomationSettings } from '../hooks/useAutomationSettings';
 import Modal from '../components/ui/Modal';
 import type { Account, Category } from '../types';
 
@@ -272,6 +273,7 @@ export default function Settings() {
     pullModel,
     openHomebrewInstall,
   } = useOllama();
+  const { settings: automationSettings, loading: loadingAutomation, saving: savingAutomation, updateSettings: updateAutomationSettings } = useAutomationSettings();
 
   // Theme state
   const [currentTheme, setCurrentTheme] = useState('dark');
@@ -301,6 +303,8 @@ export default function Settings() {
   const [exportStatus, setExportStatus] = useState<string | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [clearStatus, setClearStatus] = useState<string | null>(null);
+  const [showClearCategoriesConfirm, setShowClearCategoriesConfirm] = useState(false);
+  const [clearCategoriesStatus, setClearCategoriesStatus] = useState<string | null>(null);
 
   useEffect(() => {
     loadAccounts();
@@ -519,6 +523,24 @@ export default function Settings() {
     }
   };
 
+  const handleClearAllCategories = async () => {
+    try {
+      setClearCategoriesStatus('Clearing...');
+      const deletedCount = await window.electron.invoke('categories:delete-all');
+      setClearCategoriesStatus(`Deleted ${deletedCount} categories`);
+      setShowClearCategoriesConfirm(false);
+
+      // Reload categories
+      await loadCategories();
+
+      setTimeout(() => setClearCategoriesStatus(null), 3000);
+    } catch (err) {
+      console.error('Clear categories error:', err);
+      setClearCategoriesStatus('Clear failed');
+      setTimeout(() => setClearCategoriesStatus(null), 3000);
+    }
+  };
+
   const incomeCategories = categories.filter((c) => c.type === 'income');
   const expenseCategories = categories.filter((c) => c.type === 'expense');
 
@@ -694,6 +716,186 @@ export default function Settings() {
                   </span>
                 ))}
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* Automation Settings Section */}
+        <div className="bg-base-100 rounded-lg shadow-sm p-6 mb-6">
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold text-base-content flex items-center gap-2">
+              <Bot className="w-5 h-5" />
+              Automation Settings
+            </h2>
+            <p className="text-sm text-base-content/70">Configure Claude AI for vision-based transaction scraping</p>
+          </div>
+
+          {loadingAutomation ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader className="w-6 h-6 animate-spin text-base-content/50" />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Vision Provider Selection */}
+              <div>
+                <label className="block text-sm font-medium text-base-content/80 mb-2">
+                  Scraping Method
+                </label>
+                <select
+                  value={automationSettings.vision_provider}
+                  onChange={(e) => updateAutomationSettings({ vision_provider: e.target.value as 'claude' | 'none' })}
+                  className="w-full px-4 py-2.5 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
+                >
+                  <option value="claude">Claude Vision AI (Most Reliable - Recommended)</option>
+                  <option value="none">DOM Parsing Only (Legacy - Less Reliable)</option>
+                </select>
+                <p className="mt-2 text-xs text-base-content/60">
+                  Claude Vision AI uses AI to read transaction pages like a human, making it resilient to website changes.
+                  Cost: ~$0.01 per page (~$0.30/month for daily runs).
+                </p>
+              </div>
+
+              {/* Claude API Key */}
+              {automationSettings.vision_provider === 'claude' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-base-content/80 mb-2">
+                      <Key className="w-4 h-4 inline mr-1" />
+                      Claude API Key
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="password"
+                        value={automationSettings.claude_api_key}
+                        onChange={(e) => updateAutomationSettings({ claude_api_key: e.target.value })}
+                        placeholder="sk-ant-api..."
+                        className="flex-1 px-4 py-2.5 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content font-mono text-sm"
+                      />
+                      {savingAutomation && (
+                        <div className="flex items-center px-4 py-2.5 bg-success/10 text-success rounded-lg">
+                          <CheckCircle className="w-4 h-4" />
+                        </div>
+                      )}
+                    </div>
+                    <p className="mt-2 text-xs text-base-content/60">
+                      Get your API key from{' '}
+                      <a
+                        href="https://console.anthropic.com/settings/keys"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                      >
+                        console.anthropic.com/settings/keys
+                      </a>
+                    </p>
+                  </div>
+
+                  {/* Claude Model Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-base-content/80 mb-2">
+                      Claude Model
+                    </label>
+                    <select
+                      value={automationSettings.claude_model || 'claude-sonnet-4-5-20250929'}
+                      onChange={(e) => updateAutomationSettings({ claude_model: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
+                    >
+                      <option value="claude-sonnet-4-5-20250929">Claude Sonnet 4.5 (Recommended - Latest & Most Accurate)</option>
+                      <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet (October 2024)</option>
+                      <option value="claude-3-opus-20240229">Claude 3 Opus (Most Capable)</option>
+                      <option value="claude-3-sonnet-20240229">Claude 3 Sonnet (Balanced)</option>
+                      <option value="claude-3-haiku-20240307">Claude 3 Haiku (Fastest & Cheapest)</option>
+                    </select>
+                    <p className="mt-2 text-xs text-base-content/60">
+                      Claude Sonnet 4.5 offers the best balance of speed, accuracy, and cost for transaction scraping.
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {/* Error Recovery Settings */}
+              <div className="border-t border-base-300 pt-6">
+                <h3 className="text-sm font-semibold text-base-content/80 uppercase tracking-wide mb-4">
+                  Error Recovery
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-base-content/80 mb-2">
+                      Retry Attempts
+                    </label>
+                    <select
+                      value={automationSettings.retry_attempts}
+                      onChange={(e) => updateAutomationSettings({ retry_attempts: Number(e.target.value) })}
+                      className="w-full px-4 py-2.5 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
+                    >
+                      <option value="1">1 (No Retries)</option>
+                      <option value="2">2</option>
+                      <option value="3">3 (Recommended)</option>
+                      <option value="4">4</option>
+                      <option value="5">5</option>
+                    </select>
+                    <p className="mt-1 text-xs text-base-content/60">
+                      Number of times to retry failed steps
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-base-content/80 mb-2">
+                      Retry Delay
+                    </label>
+                    <select
+                      value={automationSettings.retry_delay_ms}
+                      onChange={(e) => updateAutomationSettings({ retry_delay_ms: Number(e.target.value) })}
+                      className="w-full px-4 py-2.5 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
+                    >
+                      <option value="1000">1 second</option>
+                      <option value="2000">2 seconds (Recommended)</option>
+                      <option value="3000">3 seconds</option>
+                      <option value="5000">5 seconds</option>
+                    </select>
+                    <p className="mt-1 text-xs text-base-content/60">
+                      Base delay between retry attempts (uses exponential backoff)
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status indicator */}
+              {automationSettings.vision_provider === 'claude' && automationSettings.claude_api_key && (
+                <div className="p-4 bg-success/10 border border-success/30 rounded-lg flex items-center gap-3">
+                  <CheckCircle className="w-5 h-5 text-success" />
+                  <div>
+                    <p className="text-sm font-medium text-success">Claude Vision AI Configured</p>
+                    <p className="text-xs text-base-content/70 mt-0.5">
+                      Automation will use AI vision for reliable transaction scraping
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {automationSettings.vision_provider === 'claude' && !automationSettings.claude_api_key && (
+                <div className="p-4 bg-warning/10 border border-warning/30 rounded-lg flex items-center gap-3">
+                  <XCircle className="w-5 h-5 text-warning" />
+                  <div>
+                    <p className="text-sm font-medium text-warning">API Key Required</p>
+                    <p className="text-xs text-base-content/70 mt-0.5">
+                      Add your Claude API key above to enable vision-based scraping
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {automationSettings.vision_provider === 'none' && (
+                <div className="p-4 bg-base-200 border border-base-300 rounded-lg flex items-center gap-3">
+                  <XCircle className="w-5 h-5 text-base-content/50" />
+                  <div>
+                    <p className="text-sm font-medium text-base-content">DOM Parsing Mode</p>
+                    <p className="text-xs text-base-content/70 mt-0.5">
+                      Using legacy DOM parsing - may break when bank websites update
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -949,6 +1151,20 @@ export default function Settings() {
 
           <div className="flex items-center justify-between p-4 border border-base-300 rounded-lg">
             <div>
+              <h3 className="font-medium text-base-content">Clear All Categories</h3>
+              <p className="text-sm text-base-content/70">Permanently delete all user-created categories (system categories are preserved)</p>
+            </div>
+            <button
+              onClick={() => setShowClearCategoriesConfirm(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-error/10 text-error rounded-lg hover:bg-error/20 font-medium"
+            >
+              <Trash2 className="w-4 h-4" />
+              {clearCategoriesStatus || 'Clear All'}
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between p-4 border border-base-300 rounded-lg">
+            <div>
               <h3 className="font-medium text-base-content">Database Location</h3>
               <p className="text-sm text-base-content/70 font-mono">~/Library/Application Support/personal-finance/</p>
             </div>
@@ -1027,7 +1243,7 @@ export default function Settings() {
         />
       </Modal>
 
-      {/* Clear Confirmation Modal */}
+      {/* Clear Transactions Confirmation Modal */}
       <Modal
         isOpen={showClearConfirm}
         onClose={() => setShowClearConfirm(false)}
@@ -1054,6 +1270,38 @@ export default function Settings() {
               className="px-4 py-2 bg-error text-error-content rounded-lg hover:bg-error/80 font-medium"
             >
               Clear All Transactions
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Clear Categories Confirmation Modal */}
+      <Modal
+        isOpen={showClearCategoriesConfirm}
+        onClose={() => setShowClearCategoriesConfirm(false)}
+        title="Clear All Categories?"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div className="bg-error/10 border border-error/20 rounded-lg p-4">
+            <p className="text-error font-medium mb-2">⚠️ Warning: This action cannot be undone!</p>
+            <p className="text-sm text-base-content/70">
+              All user-created categories will be permanently deleted. System categories will be preserved. Transactions will not be deleted, but their category assignments will be removed.
+            </p>
+          </div>
+
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => setShowClearCategoriesConfirm(false)}
+              className="px-4 py-2 bg-base-200 text-base-content/80 rounded-lg hover:bg-base-300 font-medium"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleClearAllCategories}
+              className="px-4 py-2 bg-error text-error-content rounded-lg hover:bg-error/80 font-medium"
+            >
+              Clear All Categories
             </button>
           </div>
         </div>

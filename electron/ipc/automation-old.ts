@@ -1927,7 +1927,7 @@ export function registerAutomationHandlers(): void {
                     <h2>⚠️ Step Failed</h2>
                     <p>Step ${i + 1} of ${steps.length} failed to execute.</p>
                     <div class="error-details">
-                      <strong>Element:</strong> ${JSON.stringify(step.selector).slice(1, -1)}<br>
+                      <strong>Location:</strong> ${step.coordinates ? 'Coordinates (' + step.coordinates.x + ', ' + step.coordinates.y + ')' : 'Unknown'}<br>
                       <strong>Action:</strong> ${step.type}<br>
                       <strong>Error:</strong> ${(error instanceof Error ? error.message : String(error)).replace(/</g, '&lt;')}
                     </div>
@@ -2118,12 +2118,68 @@ export function registerAutomationHandlers(): void {
             }
           `).catch(() => {});
 
+          // Show AI cleanup status
+          const showAIStatus = async (message: string) => {
+            if (playbackWindow && !playbackWindow.isDestroyed()) {
+              await playbackWindow.webContents.executeJavaScript(`
+                if (window.updatePlaybackProgress) {
+                  const status = document.getElementById('playback-status');
+                  if (status) {
+                    status.textContent = '${message}';
+                    status.style.color = '#8b5cf6';
+                  }
+                }
+              `).catch(() => {});
+            }
+          };
+
           // Extract transactions directly using JavaScript in the browser (more reliable than AI)
           console.log('[Automation] Extracting transactions directly from DOM...');
 
-          const scrapedTransactions = await playbackWindow.webContents.executeJavaScript(`
+          let scrapedTransactions = await playbackWindow.webContents.executeJavaScript(`
             (function() {
               const transactions = [];
+
+              // Helper function to extract clean text from elements
+              // Handles cases where multiple text nodes or nested elements cause duplication
+              function getCleanText(element) {
+                if (!element) return '';
+
+                let text = element.innerText || element.textContent || '';
+                text = text.trim();
+
+                // Detect and fix concatenated dates (e.g., "Feb 04, 2026February 04 2026")
+                const datePattern = /^([A-Za-z]{3}\\s+\\d{1,2},\\s+\\d{4})/;
+                const dateMatch = text.match(datePattern);
+                if (dateMatch) {
+                  // Take only the first date format
+                  text = dateMatch[1];
+                }
+
+                // Detect and fix concatenated amounts (e.g., "-206.422380.52")
+                // Look for pattern like "-123.45" followed by more digits
+                const amountPattern = /^(-?\\$?[\\d,]+\\.\\d{2})/;
+                const amountMatch = text.match(amountPattern);
+                if (amountMatch && text.length > amountMatch[0].length) {
+                  // Text continues after valid amount - probably concatenated with balance
+                  text = amountMatch[1];
+                }
+
+                return text;
+              }
+
+              // Helper to get first child text only (avoid nested element text)
+              function getDirectText(element) {
+                if (!element) return '';
+
+                // Try to get text from first direct child if it exists
+                const firstChild = element.querySelector(':scope > span, :scope > div, :scope > time');
+                if (firstChild) {
+                  return getCleanText(firstChild);
+                }
+
+                return getCleanText(element);
+              }
 
               // Try multiple selector strategies for different bank websites
               const strategies = [
@@ -2137,20 +2193,25 @@ export function registerAutomationHandlers(): void {
 
                     // Look for date in various places
                     const dateCell = row.querySelector('[class*="date"]') || cells[0];
-                    const timeEl = dateCell?.querySelector('time');
-                    date = timeEl?.textContent?.trim() || dateCell?.textContent?.trim() || '';
+                    if (dateCell) {
+                      const timeEl = dateCell.querySelector('time');
+                      date = timeEl ? getDirectText(timeEl) : getCleanText(dateCell);
+                    }
 
                     // Look for description (usually in a cell with class containing "description" or "merchant")
                     const descCell = row.querySelector('[class*="description"], [class*="merchant"], [class*="payee"]');
-                    description = descCell?.textContent?.trim() || cells[1]?.textContent?.trim() || '';
+                    description = descCell ? getCleanText(descCell) : (cells[1] ? getCleanText(cells[1]) : '');
 
                     // Look for amount (cell with $ or number)
                     const amountCell = row.querySelector('[class*="amount"]');
-                    amount = amountCell?.textContent?.trim() || '';
+                    if (amountCell) {
+                      amount = getCleanText(amountCell);
+                    }
+
                     if (!amount) {
                       // Search all cells for amount pattern
                       for (const cell of cells) {
-                        const text = cell.textContent?.trim() || '';
+                        const text = getCleanText(cell);
                         if (text.match(/^-?\\$?[\\d,]+\\.\\d{2}$/)) {
                           amount = text;
                           break;
@@ -2160,11 +2221,14 @@ export function registerAutomationHandlers(): void {
 
                     // Look for balance
                     const balanceCell = row.querySelector('[class*="balance"]');
-                    balance = balanceCell?.textContent?.trim() || '';
+                    if (balanceCell) {
+                      balance = getCleanText(balanceCell);
+                    }
+
                     if (!balance) {
                       // Check last few cells for balance
                       for (let i = cells.length - 1; i >= Math.max(0, cells.length - 3); i--) {
-                        const text = cells[i]?.textContent?.trim() || '';
+                        const text = getCleanText(cells[i]);
                         if (text.match(/^\\$?[\\d,]+\\.\\d{2}$/) && text !== amount) {
                           balance = text;
                           break;
@@ -2174,7 +2238,7 @@ export function registerAutomationHandlers(): void {
 
                     // Look for category
                     const categoryCell = row.querySelector('[class*="category"]');
-                    category = categoryCell?.textContent?.trim() || '';
+                    category = categoryCell ? getCleanText(categoryCell) : '';
 
                     return { date, description, amount, balance, category };
                   }
@@ -2191,25 +2255,25 @@ export function registerAutomationHandlers(): void {
                     let date = '', description = '', amount = '', balance = '', category = '';
 
                     // First cell is usually date
-                    date = cells[0]?.textContent?.trim() || '';
+                    date = getCleanText(cells[0]);
 
-                    // Find cells with dollar amounts
+                    // Find cells with dollar amounts (using cleaned text)
                     const moneyCells = cells.filter(cell => {
-                      const text = cell.textContent?.trim() || '';
-                      return text.match(/\\$?[\\d,]+\\.\\d{2}/);
+                      const text = getCleanText(cell);
+                      return text.match(/^-?\\$?[\\d,]+\\.\\d{2}$/);
                     });
 
                     // Second cell is usually description
-                    description = cells[1]?.textContent?.trim() || '';
+                    description = getCleanText(cells[1]);
 
                     // Amount is usually the first money cell
                     if (moneyCells[0]) {
-                      amount = moneyCells[0].textContent?.trim() || '';
+                      amount = getCleanText(moneyCells[0]);
                     }
 
                     // Balance is usually the second money cell
                     if (moneyCells[1]) {
-                      balance = moneyCells[1].textContent?.trim() || '';
+                      balance = getCleanText(moneyCells[1]);
                     }
 
                     return { date, description, amount, balance, category };
@@ -2226,26 +2290,50 @@ export function registerAutomationHandlers(): void {
                 if (rows.length === 0) continue;
 
                 let successCount = 0;
+                let skippedCount = 0;
                 for (const row of rows) {
                   try {
-                    // Skip header rows
-                    if (row.querySelector('th') || row.classList.contains('header') ||
-                        row.getAttribute('data-testid')?.includes('header')) {
+                    // Skip header rows (check if it's actually a header)
+                    const isHeaderRow = row.querySelector('th') !== null;
+                    if (isHeaderRow) {
+                      console.log('[Scraper] Skipping header row');
                       continue;
                     }
 
                     const data = strategy.extract(row);
-                    if (!data || !data.date || !data.amount) continue;
+
+                    // More lenient validation - require at least description or amount
+                    if (!data || (!data.date && !data.description && !data.amount)) {
+                      console.log('[Scraper] Skipping row - no data extracted');
+                      skippedCount++;
+                      continue;
+                    }
+
+                    // Require either date or amount (not both mandatory)
+                    if (!data.date && !data.amount) {
+                      console.log('[Scraper] Skipping row - missing both date and amount:', data);
+                      skippedCount++;
+                      continue;
+                    }
 
                     // Skip pending transactions
                     if (data.description.toLowerCase().includes('pending') ||
                         data.category?.toLowerCase().includes('pending')) {
                       console.log('[Scraper] Skipping pending transaction:', data.description);
+                      skippedCount++;
                       continue;
                     }
 
+                    // Log warnings for missing fields
+                    if (!data.date) {
+                      console.log('[Scraper] Warning: Transaction missing date:', data.description || '(no description)', data.amount || '(no amount)');
+                    }
+                    if (!data.amount) {
+                      console.log('[Scraper] Warning: Transaction missing amount:', data.description || '(no description)', data.date || '(no date)');
+                    }
+
                     // Clean up description
-                    let cleanDesc = data.description
+                    let cleanDesc = (data.description || '')
                       .replace(/pending/gi, '')
                       .replace(/posted/gi, '')
                       .replace(/Opens? popup/gi, '')
@@ -2258,13 +2346,22 @@ export function registerAutomationHandlers(): void {
                     }
 
                     // Clean amount (remove $ and commas, keep negative sign)
-                    let cleanAmount = data.amount.replace(/[$,]/g, '').trim();
+                    let cleanAmount = (data.amount || '').replace(/[$,]/g, '').trim();
 
                     // Clean balance
                     let cleanBalance = data.balance.replace(/[$,]/g, '').trim();
 
-                    // Infer category from description if not provided
+                    // Clean category - remove trailing numbers, extra spaces, special chars
                     let category = data.category || '';
+                    if (category) {
+                      category = category
+                        .replace(/\\s+\\d+$/g, '')  // Remove trailing numbers like "Allowance 0"
+                        .replace(/[\\d\\(\\)]+$/g, '')  // Remove trailing numbers and parentheses
+                        .replace(/\\s+/g, ' ')  // Normalize spaces
+                        .trim();
+                    }
+
+                    // Infer category from description if not provided
                     if (!category && cleanDesc) {
                       const desc = cleanDesc.toLowerCase();
                       if (desc.includes('restaurant') || desc.includes('shack') || desc.includes('cafe') || desc.includes('pizza')) {
@@ -2280,35 +2377,131 @@ export function registerAutomationHandlers(): void {
                       }
                     }
 
-                    transactions.push({
-                      date: data.date,
-                      description: cleanDesc,
-                      amount: cleanAmount,
-                      balance: cleanBalance,
-                      category: category,
-                      index: transactions.length + 1,
-                      confidence: 95
-                    });
+                    // Only add if we have at least amount (date can be inferred later)
+                    if (cleanAmount || data.date) {
+                      transactions.push({
+                        date: data.date || '',  // Will be handled in Automation.tsx
+                        description: cleanDesc,
+                        amount: cleanAmount,
+                        balance: cleanBalance,
+                        category: category,
+                        index: transactions.length + 1,
+                        confidence: 95
+                      });
 
-                    successCount++;
+                      successCount++;
+                    } else {
+                      console.log('[Scraper] Skipping row - no valid amount or date after cleaning:', cleanDesc);
+                      skippedCount++;
+                    }
                   } catch (err) {
                     console.warn('[Scraper] Failed to extract row:', err);
                   }
                 }
 
-                // If we got transactions, use this strategy
-                if (successCount > 0) {
-                  console.log('[Scraper] Strategy', strategy.name, 'extracted', successCount, 'transactions');
-                  break;
+                console.log('[Scraper] Strategy', strategy.name, 'results: extracted', successCount, 'transactions, skipped', skippedCount, 'rows');
+
+                // Continue trying all strategies instead of breaking after first success
+                // This ensures we don't miss transactions that only one strategy can find
+              }
+
+              console.log('[Scraper] Before deduplication:', transactions.length, 'transactions');
+
+              // Deduplicate transactions (same date, description, and amount)
+              const uniqueTransactions = [];
+              const seen = new Set();
+
+              for (const txn of transactions) {
+                const key = \`\${txn.date}|\${txn.description}|\${txn.amount}\`;
+                if (!seen.has(key)) {
+                  seen.add(key);
+                  uniqueTransactions.push(txn);
+                } else {
+                  console.log('[Scraper] Removing duplicate:', txn.description, txn.amount);
                 }
               }
 
-              console.log('[Scraper] Total extracted:', transactions.length, 'transactions');
-              return transactions;
+              console.log('[Scraper] After deduplication:', uniqueTransactions.length, 'unique transactions');
+              return uniqueTransactions;
             })()
           `);
 
           console.log('[Automation] Direct extraction complete! Found', scrapedTransactions?.length || 0, 'transactions');
+          console.log('[Automation] Sample transaction:', scrapedTransactions?.[0]);
+
+          // Use AI to clean up the scraped data
+          if (scrapedTransactions && scrapedTransactions.length > 0) {
+            console.log('[Automation] ✅ Starting AI cleanup of scraped transactions...');
+            console.log('[Automation] Total transactions to clean:', scrapedTransactions.length);
+
+            try {
+              console.log('[Automation] Checking if Ollama is available...');
+              // Check if Ollama is available
+              let ollamaCheck = await fetch('http://localhost:11434/api/tags', {
+                signal: AbortSignal.timeout(2000),
+              }).catch((err) => {
+                console.log('[Automation] Ollama check failed:', err.message);
+                return null;
+              });
+              console.log('[Automation] Ollama check result:', ollamaCheck?.ok ? 'OK' : 'NOT OK');
+
+              // If Ollama is not running, try to start it
+              if (!ollamaCheck?.ok) {
+                console.log('[Automation] Ollama not running, attempting to start...');
+                await showAIStatus('Starting Ollama...');
+
+                // Check if Ollama is installed
+                try {
+                  const { exec } = await import('child_process');
+                  const { promisify } = await import('util');
+                  const execAsync = promisify(exec);
+
+                  await execAsync('which ollama');
+                  console.log('[Automation] Ollama is installed, starting server...');
+
+                  // Start Ollama server in background
+                  exec('ollama serve > /dev/null 2>&1 &');
+
+                  // Wait for server to start (up to 5 seconds)
+                  for (let i = 0; i < 10; i++) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    ollamaCheck = await fetch('http://localhost:11434/api/tags', {
+                      signal: AbortSignal.timeout(1000),
+                    }).catch(() => null);
+
+                    if (ollamaCheck?.ok) {
+                      console.log('[Automation] ✓ Ollama started successfully');
+                      await showAIStatus('Ollama started ✓');
+                      await new Promise(resolve => setTimeout(resolve, 500));
+                      break;
+                    }
+                  }
+                } catch (startError) {
+                  console.log('[Automation] Could not start Ollama:', startError);
+                  await showAIStatus('Ollama not available');
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+              }
+
+              if (ollamaCheck?.ok) {
+                console.log('[Automation] ✅ Ollama is available! Starting AI cleanup...');
+                await showAIStatus(`AI cleanup (${scrapedTransactions.length} transactions)...`);
+                console.log('[Automation] Calling cleanTransactionsWithAI...');
+                const cleanedData = await cleanTransactionsWithAI(scrapedTransactions, showAIStatus);
+                console.log('[Automation] AI cleanup returned', cleanedData.length, 'transactions');
+                scrapedTransactions = cleanedData;
+                console.log('[Automation] ✅ AI cleanup complete! Cleaned', scrapedTransactions.length, 'transactions');
+                await showAIStatus('AI cleanup complete ✓');
+                await new Promise(resolve => setTimeout(resolve, 800));
+              } else {
+                console.log('[Automation] ❌ Ollama not available, skipping AI cleanup');
+              }
+            } catch (aiError) {
+              console.error('[Automation] AI cleanup failed, using raw scraped data:', aiError);
+              await showAIStatus('AI cleanup failed, using raw data');
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
 
           console.log('[Automation] Extraction complete! Found', scrapedTransactions?.length || 0, 'transactions');
 
@@ -2347,12 +2540,8 @@ export function registerAutomationHandlers(): void {
 
           // Update status based on results
           if (validTransactions.length > 0) {
-            const statusText = transactionCount > 0 && validTransactions.length < transactionCount
-              ? `Found ${validTransactions.length}/${transactionCount} transactions ⚠️`
-              : `Found ${validTransactions.length} transactions! ✓`;
-            const statusColor = transactionCount > 0 && validTransactions.length < transactionCount
-              ? '#f59e0b' // Warning orange
-              : '#10b981'; // Success green
+            const statusText = `Found ${validTransactions.length} transactions! ✓`;
+            const statusColor = '#10b981'; // Success green
 
             await playbackWindow.webContents.executeJavaScript(`
               if (window.updatePlaybackProgress) {
@@ -2416,505 +2605,352 @@ export function registerAutomationHandlers(): void {
 }
 
 // Helper function to execute a single step
+/**
+ * Clean up scraped transactions using AI (Ollama)
+ * - Normalizes category names (removes trailing numbers like "Television 0")
+ * - Cleans up descriptions (removes bank jargon)
+ * - Detects and removes duplicates
+ * - Standardizes formatting
+ */
+async function cleanTransactionsWithAI(transactions: any[], statusCallback?: (msg: string) => Promise<void>): Promise<any[]> {
+  console.log('[AI Cleanup] 🚀 Function called with', transactions.length, 'transactions');
+  console.log('[AI Cleanup] First transaction:', JSON.stringify(transactions[0]));
+
+  try {
+    // Process in batches of 20 to avoid token limits
+    const batchSize = 20;
+    const cleanedTransactions: any[] = [];
+    const totalBatches = Math.ceil(transactions.length / batchSize);
+    console.log('[AI Cleanup] Will process', totalBatches, 'batches');
+
+    for (let i = 0; i < transactions.length; i += batchSize) {
+      const batch = transactions.slice(i, i + batchSize);
+      const batchNum = Math.floor(i / batchSize) + 1;
+      console.log(`[AI Cleanup] Processing batch ${batchNum} of ${totalBatches} (${batch.length} transactions)`);
+
+      if (statusCallback) {
+        await statusCallback(`AI cleanup (batch ${batchNum}/${totalBatches})...`);
+      }
+
+      const prompt = `You are a financial data cleanup assistant. Clean up these bank transactions by:
+
+1. Normalize category names:
+   - Remove trailing numbers like "Television 0" → "Television"
+   - Remove extra spaces and special characters
+   - Standardize common categories (e.g., "Fast Food", "Groceries", "Gas & Fuel", "Shopping", "Entertainment", "Bills & Utilities", "Income", "Transfer")
+   - If category is empty or unclear, infer from description
+
+2. Clean descriptions:
+   - Remove bank jargon (DEBIT, ACH, POS, etc.)
+   - Keep merchant names clear and simple
+   - Remove extra whitespace
+
+3. Remove duplicate transactions (same date, description, and amount)
+
+4. Ensure all amounts are properly formatted numbers (negative for expenses, positive for income)
+
+Input transactions (JSON):
+${JSON.stringify(batch, null, 2)}
+
+Return ONLY valid JSON array with cleaned transactions. Each transaction should have: date, description, amount, balance, category.
+Example format:
+[
+  {
+    "date": "2024-01-15",
+    "description": "Amazon",
+    "amount": "-45.99",
+    "balance": "1250.00",
+    "category": "Shopping"
+  }
+]`;
+
+      // Try to find an available model (prefer llama3.2, fallback to any available)
+      let modelToUse = 'llama3.2';
+      try {
+        const modelsResponse = await fetch('http://localhost:11434/api/tags');
+        if (modelsResponse.ok) {
+          const modelsData = await modelsResponse.json();
+          const availableModels = modelsData.models?.map((m: any) => m.name) || [];
+
+          // Prefer text models: llama3.2, mistral, or any other available
+          const preferredModels = ['llama3.2', 'llama3.2:latest', 'mistral', 'mistral:latest', 'llama2', 'llama2:latest'];
+          const foundModel = preferredModels.find(m => availableModels.some((a: string) => a.startsWith(m.split(':')[0])));
+
+          if (foundModel) {
+            modelToUse = foundModel;
+          } else if (availableModels.length > 0) {
+            // Use first available model
+            modelToUse = availableModels[0];
+          }
+
+          console.log(`[AI Cleanup] Using model: ${modelToUse}`);
+        }
+      } catch (modelCheckError) {
+        console.log('[AI Cleanup] Could not check models, using default:', modelToUse);
+      }
+
+      const response = await fetch('http://localhost:11434/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: modelToUse,
+          prompt: prompt,
+          stream: false,
+          options: {
+            temperature: 0.1, // Low temperature for more consistent output
+            num_predict: 4000, // Allow longer responses for batch processing
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        console.error('[AI Cleanup] Ollama API error:', response.status);
+        // Return original batch if AI fails
+        cleanedTransactions.push(...batch);
+        continue;
+      }
+
+      const data = await response.json();
+      const aiResponse = data.response;
+
+      // Extract JSON from AI response (it might include markdown code blocks)
+      let cleanedBatch: any[];
+      try {
+        // Try to find JSON array in the response
+        const jsonMatch = aiResponse.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          cleanedBatch = JSON.parse(jsonMatch[0]);
+          console.log(`[AI Cleanup] Successfully cleaned ${cleanedBatch.length} transactions in batch`);
+
+          // Preserve the index from original
+          cleanedBatch.forEach((txn, idx) => {
+            txn.index = batch[idx]?.index || (i + idx + 1);
+            txn.confidence = 98; // Higher confidence for AI-cleaned data
+          });
+
+          cleanedTransactions.push(...cleanedBatch);
+        } else {
+          console.warn('[AI Cleanup] Could not extract JSON from AI response, using original batch');
+          cleanedTransactions.push(...batch);
+        }
+      } catch (parseError) {
+        console.error('[AI Cleanup] Failed to parse AI response:', parseError);
+        console.log('[AI Cleanup] AI response was:', aiResponse.substring(0, 500));
+        // Return original batch if parsing fails
+        cleanedTransactions.push(...batch);
+      }
+    }
+
+    console.log(`[AI Cleanup] Completed! Total transactions: ${cleanedTransactions.length}`);
+    return cleanedTransactions;
+  } catch (error) {
+    console.error('[AI Cleanup] Error:', error);
+    // Return original transactions if AI cleanup fails
+    return transactions;
+  }
+}
+
 async function executeStep(window: BrowserWindow, step: any): Promise<void> {
   if (!window || window.isDestroyed()) {
     throw new Error('Window is destroyed');
   }
 
-  const selector = step.selector;
-  let retries = 5; // Increased from 3 to 5 retries
-  let lastError = null;
+  // COORDINATES ONLY - No selector fallback
+  if (!step.coordinates) {
+    throw new Error(`Step has no coordinates - cannot execute. Please re-record with coordinate capture enabled.`);
+  }
 
-  console.log(`[executeStep] Starting execution for: ${selector} (${step.type})`);
+  console.log(`[executeStep] Executing ${step.type} using COORDINATES ONLY at (${step.coordinates.x}, ${step.coordinates.y})`);
 
-  // Try coordinate-based clicking first if coordinates are available
-  if (step.coordinates && step.type === 'click') {
+  // CLICK using coordinates
+  if (step.type === 'click') {
     console.log(`[executeStep] Attempting coordinate-based click at (${step.coordinates.x}, ${step.coordinates.y})`);
 
     try {
       const result = await window.webContents.executeJavaScript(`
         (function() {
-          // Use the actual click coordinates
-          const x = ${step.coordinates.x};
-          const y = ${step.coordinates.y};
+          const recordedX = ${step.coordinates.x};
+          const recordedY = ${step.coordinates.y};
+          const elementX = ${step.coordinates.elementX || step.coordinates.x};
+          const elementY = ${step.coordinates.elementY || step.coordinates.y};
 
-          console.log('[Coordinate Click] Attempting click at:', x, y);
+          console.log('[Coordinate Click] Recorded click:', recordedX, recordedY);
+          console.log('[Coordinate Click] Element center:', elementX, elementY);
 
-          // Find element at these coordinates
-          const element = document.elementFromPoint(x, y);
+          // Try multiple coordinate strategies
+          const strategies = [
+            { x: recordedX, y: recordedY, name: 'exact click position' },
+            { x: elementX, y: elementY, name: 'element center' },
+            // Adjust for current scroll position if viewport info available
+            ${step.viewport ? `
+            { x: recordedX + (window.scrollX - ${step.viewport.scrollX}), y: recordedY + (window.scrollY - ${step.viewport.scrollY}), name: 'scroll-adjusted' },
+            ` : ''}
+          ];
 
-          if (element) {
-            console.log('[Coordinate Click] Found element:', element.tagName, element.className);
+          for (const strategy of strategies) {
+            const element = document.elementFromPoint(strategy.x, strategy.y);
 
-            // Highlight element briefly for visual feedback
-            const originalOutline = element.style.outline;
-            element.style.outline = '3px solid #fbbf24';
-            setTimeout(() => { element.style.outline = originalOutline; }, 500);
+            if (element && element.tagName !== 'HTML' && element.tagName !== 'BODY') {
+              console.log('[Coordinate Click] ✓ Found element using', strategy.name + ':', element.tagName, element.className);
 
-            // Click the element
-            element.click();
-            return { success: true, element: element.tagName };
-          } else {
-            console.log('[Coordinate Click] No element found at coordinates');
-            return { success: false, error: 'No element at coordinates' };
+              // Highlight element briefly for visual feedback
+              const originalOutline = element.style.outline;
+              element.style.outline = '3px solid #10b981';
+              setTimeout(() => { element.style.outline = originalOutline; }, 500);
+
+              // Scroll element into view if needed
+              element.scrollIntoView({ behavior: 'auto', block: 'center', inline: 'center' });
+
+              // Wait a moment for scroll to complete
+              setTimeout(() => {}, 100);
+
+              // Click the element
+              element.click();
+              return { success: true, element: element.tagName, strategy: strategy.name };
+            } else {
+              console.log('[Coordinate Click] Strategy', strategy.name, 'failed - no valid element at', strategy.x, strategy.y);
+            }
           }
+
+          console.log('[Coordinate Click] All strategies failed');
+          return { success: false, error: 'No element found with any strategy' };
         })()
       `);
 
       if (result.success) {
-        console.log(`[executeStep] ✓ Coordinate-based click succeeded on ${result.element}`);
-        return; // Success! Exit early
+        console.log(`[executeStep] ✓ Coordinate-based click succeeded on ${result.element} using ${result.strategy}`);
+        return; // Success! Exit early - no selector fallback needed
       } else {
-        console.log(`[executeStep] Coordinate click failed: ${result.error}, falling back to selector`);
+        console.log(`[executeStep] ⚠️ Coordinate click failed: ${result.error}`);
+        throw new Error(`Coordinate-based click failed: ${result.error}`);
       }
     } catch (coordError) {
-      console.log(`[executeStep] Coordinate click error:`, coordError);
-      console.log(`[executeStep] Falling back to selector-based approach`);
+      console.log(`[executeStep] ❌ Coordinate click error:`, coordError);
+      throw new Error(`Coordinate-based click failed: ${coordError instanceof Error ? coordError.message : String(coordError)}`);
     }
   }
 
-  // For input and select, try coordinates to focus the element first
-  if (step.coordinates && (step.type === 'input' || step.type === 'select')) {
-    console.log(`[executeStep] Using coordinates to locate ${step.type} field`);
+  // INPUT using coordinates
+  if (step.type === 'input') {
+    console.log(`[executeStep] Executing INPUT using coordinates`);
 
     try {
-      await window.webContents.executeJavaScript(`
-        (function() {
-          const x = ${step.coordinates.elementX};
-          const y = ${step.coordinates.elementY};
+      const result = await window.webContents.executeJavaScript(`
+        (async function() {
+          const x = ${step.coordinates.elementX || step.coordinates.x};
+          const y = ${step.coordinates.elementY || step.coordinates.y};
           const element = document.elementFromPoint(x, y);
 
-          if (element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT')) {
-            // Highlight briefly
-            const originalOutline = element.style.outline;
-            element.style.outline = '3px solid #fbbf24';
-            setTimeout(() => { element.style.outline = originalOutline; }, 500);
-
-            element.focus();
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if (!element || (element.tagName !== 'INPUT' && element.tagName !== 'TEXTAREA')) {
+            return { success: false, error: 'No input element at coordinates' };
           }
+
+          // Highlight briefly
+          const originalOutline = element.style.outline;
+          element.style.outline = '3px solid #10b981';
+          setTimeout(() => { element.style.outline = originalOutline; }, 500);
+
+          // Focus and scroll into view
+          element.focus();
+          element.scrollIntoView({ behavior: 'auto', block: 'center' });
+
+          const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+          await wait(200);
+
+          // Clear and set value using native setter for React compatibility
+          const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+            window.HTMLInputElement.prototype,
+            'value'
+          ).set;
+          const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
+            window.HTMLTextAreaElement.prototype,
+            'value'
+          ).set;
+
+          const setter = element.tagName === 'TEXTAREA' ? nativeTextAreaValueSetter : nativeInputValueSetter;
+
+          // Clear first
+          setter.call(element, '');
+          element.dispatchEvent(new Event('input', { bubbles: true }));
+          await wait(100);
+
+          // Set new value
+          setter.call(element, ${JSON.stringify(step.value)});
+
+          // Dispatch comprehensive events
+          element.dispatchEvent(new InputEvent('input', {
+            bubbles: true,
+            cancelable: true,
+            data: ${JSON.stringify(step.value)},
+            inputType: 'insertText'
+          }));
+          element.dispatchEvent(new Event('change', { bubbles: true }));
+          element.dispatchEvent(new Event('blur', { bubbles: true }));
+
+          return { success: true };
         })()
       `);
-    } catch (e) {
-      console.log(`[executeStep] Coordinate focus failed, continuing with selector`);
-    }
-  }
 
-  while (retries > 0) {
-    try {
-      let element = null;
-      const retryNumber = 6 - retries;
-      console.log(`[executeStep] Attempt ${retryNumber}/5 for: ${selector}`);
-
-      // Wait for page to be ready before attempting
-      if (window.webContents.isLoading()) {
-        console.log(`[executeStep] Page is loading, waiting...`);
-        await new Promise((resolve) => {
-          const checkLoading = () => {
-            if (!window || window.isDestroyed() || !window.webContents.isLoading()) {
-              resolve(null);
-            } else {
-              setTimeout(checkLoading, 100);
-            }
-          };
-          checkLoading();
-        });
-        console.log(`[executeStep] Page loaded, continuing...`);
-      }
-
-      // Try different selector strategies
-      if (selector.startsWith('label:')) {
-        const labelText = selector.substring(6);
-        element = await window.webContents.executeJavaScript(`
-          (function() {
-            const labels = Array.from(document.querySelectorAll('label'));
-            const label = labels.find(l => l.textContent.trim() === ${JSON.stringify(labelText)});
-            if (label) {
-              const input = label.querySelector('input, textarea, select') ||
-                           (label.getAttribute('for') && document.getElementById(label.getAttribute('for')));
-              return input ? true : false;
-            }
-            return false;
-          })()
-        `);
-
-        if (element) {
-          if (step.type === 'click') {
-            await window.webContents.executeJavaScript(`
-              (function() {
-                const labels = Array.from(document.querySelectorAll('label'));
-                const label = labels.find(l => l.textContent.trim() === ${JSON.stringify(labelText)});
-                if (label) {
-                  const input = label.querySelector('input, textarea, select') ||
-                               (label.getAttribute('for') && document.getElementById(label.getAttribute('for')));
-                  if (input) input.click();
-                }
-              })()
-            `);
-          } else if (step.type === 'input') {
-            await window.webContents.executeJavaScript(`
-              (async function() {
-                const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-                const labels = Array.from(document.querySelectorAll('label'));
-                const label = labels.find(l => l.textContent.trim() === ${JSON.stringify(labelText)});
-                if (label) {
-                  const input = label.querySelector('input, textarea') ||
-                               (label.getAttribute('for') && document.getElementById(label.getAttribute('for')));
-                  if (input) {
-                    // Focus first
-                    input.focus();
-                    await wait(200);
-
-                    // Use native setter for framework compatibility
-                    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                      window.HTMLInputElement.prototype,
-                      'value'
-                    ).set;
-                    const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
-                      window.HTMLTextAreaElement.prototype,
-                      'value'
-                    ).set;
-
-                    const setter = input.tagName === 'TEXTAREA' ? nativeTextAreaValueSetter : nativeInputValueSetter;
-
-                    // Clear first
-                    setter.call(input, '');
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                    await wait(100);
-
-                    // Set new value
-                    setter.call(input, ${JSON.stringify(step.value)});
-
-                    // Dispatch comprehensive events
-                    input.dispatchEvent(new InputEvent('input', {
-                      bubbles: true,
-                      cancelable: true,
-                      data: ${JSON.stringify(step.value)},
-                      inputType: 'insertText'
-                    }));
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
-                    input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
-                    input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
-
-                    await wait(200);
-                    input.blur();
-                    await wait(300);
-                  }
-                }
-              })()
-            `);
-          }
-          return;
-        }
-      } else if (selector.startsWith('text:')) {
-        // Find element by text content (format: text:ClassNameOrTag:Text Content)
-        const parts = selector.substring(5).split(':', 2);
-        const classOrTag = parts[0];
-        const textContent = parts[1] || parts[0]; // If no colon, treat whole thing as text
-
-        console.log(`[executeStep] Parsing text selector: class/tag="${classOrTag}", text="${textContent}"`);
-
-        // Add timeout to prevent hanging
-        const executeWithTimeout = (promise: Promise<any>, timeoutMs: number) => {
-          return Promise.race([
-            promise,
-            new Promise((_, reject) =>
-              setTimeout(() => reject(new Error('executeJavaScript timeout')), timeoutMs)
-            )
-          ]);
-        };
-
-        let result;
-        try {
-          result = await executeWithTimeout(
-            window.webContents.executeJavaScript(`
-          (async function() {
-            const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-            // Determine if it's a tag name or class name
-            const isTagName = ${JSON.stringify(['button', 'a', 'div', 'span', 'input', 'select', 'textarea'].includes(classOrTag.toLowerCase()))};
-            const selector = isTagName ? ${JSON.stringify(classOrTag)} : ${JSON.stringify(classOrTag.startsWith('.') ? classOrTag : '.' + classOrTag)};
-
-            console.log('[executeStep-page] Looking for selector:', selector);
-            const elements = Array.from(document.querySelectorAll(selector));
-            console.log('[executeStep-page] Found', elements.length, 'elements with selector');
-
-            // Log what we found
-            if (elements.length > 0) {
-              console.log('[executeStep-page] Element texts:', elements.map(el => el.textContent?.trim().substring(0, 50)));
-            }
-
-            // Find the one with matching text content
-            const element = elements.find(el => el.textContent?.trim() === ${JSON.stringify(textContent)});
-
-            if (element) {
-              console.log('[executeStep-page] Found matching element!');
-              if (${JSON.stringify(step.type)} === 'click') {
-                console.log('[executeStep-page] Scrolling element into view...');
-                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                await wait(500);
-                console.log('[executeStep-page] Clicking element...');
-                element.click();
-                console.log('[executeStep-page] Click completed!');
-                await wait(500);
-              }
-              return { success: true };
-            }
-            console.log('[executeStep-page] No element found with exact text match:', ${JSON.stringify(textContent)});
-            return { success: false, elementCount: elements.length };
-          })()
-        `),
-            10000  // 10 second timeout (increased from 5)
-          );
-        } catch (error) {
-          console.error(`[executeStep] executeJavaScript failed:`, error instanceof Error ? error.message : error);
-          result = { success: false, elementCount: 0 };
-        }
-
-        console.log(`[executeStep] Result:`, result);
-
-        if (result.success) {
-          return;
-        } else {
-          console.log(`[executeStep] Failed: found ${result.elementCount} elements with class/tag, but none matched text`);
-        }
-      } else if (selector.startsWith('placeholder:')) {
-        const placeholder = selector.substring(12);
-        if (step.type === 'input') {
-          const found = await window.webContents.executeJavaScript(`
-            (async function() {
-              const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-              const input = document.querySelector('[placeholder=${JSON.stringify(placeholder)}]');
-              if (input) {
-                // Focus first
-                input.focus();
-                await wait(200);
-
-                // Use native setter for framework compatibility
-                const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                  window.HTMLInputElement.prototype,
-                  'value'
-                ).set;
-                const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
-                  window.HTMLTextAreaElement.prototype,
-                  'value'
-                ).set;
-
-                const setter = input.tagName === 'TEXTAREA' ? nativeTextAreaValueSetter : nativeInputValueSetter;
-
-                // Clear first
-                setter.call(input, '');
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                await wait(100);
-
-                // Set new value
-                setter.call(input, ${JSON.stringify(step.value)});
-
-                // Dispatch comprehensive events
-                input.dispatchEvent(new InputEvent('input', {
-                  bubbles: true,
-                  cancelable: true,
-                  data: ${JSON.stringify(step.value)},
-                  inputType: 'insertText'
-                }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-                input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
-                input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
-
-                await wait(200);
-                input.blur();
-                await wait(300);
-
-                return true;
-              }
-              return false;
-            })()
-          `);
-          if (found) {
-            return;
-          }
-        }
+      if (result.success) {
+        console.log(`[executeStep] ✓ Input succeeded`);
+        return;
       } else {
-        // Standard CSS selector
-
-        // Special handling: if selector points to an option element, extract value and select on parent
-        if (selector.includes('option')) {
-          console.log('[executeStep] Detected option selector, extracting value...');
-          const result = await window.webContents.executeJavaScript(`
-            (function() {
-              const option = document.querySelector(${JSON.stringify(selector)});
-              if (!option) return { found: false };
-
-              const select = option.closest('select');
-              if (!select) return { found: false };
-
-              // Set the select to this option's value
-              select.value = option.value;
-              select.dispatchEvent(new Event('change', { bubbles: true }));
-
-              return {
-                found: true,
-                selectId: select.id,
-                optionValue: option.value,
-                optionText: option.textContent.trim()
-              };
-            })()
-          `);
-
-          if (result.found) {
-            console.log(`[executeStep] Selected option: "${result.optionText}" (value: ${result.optionValue}) in select#${result.selectId}`);
-            return;
-          }
-        }
-
-        const exists = await window.webContents.executeJavaScript(`
-          document.querySelector(${JSON.stringify(selector)}) !== null
-        `);
-
-        if (exists) {
-          if (step.type === 'click') {
-            await window.webContents.executeJavaScript(`
-              document.querySelector(${JSON.stringify(selector)}).click()
-            `);
-          } else if (step.type === 'input') {
-            await window.webContents.executeJavaScript(`
-              (async function() {
-                const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-                const el = document.querySelector(${JSON.stringify(selector)});
-                if (el) {
-                  // Focus first
-                  el.focus();
-                  await wait(200);
-
-                  // Use native setter for framework compatibility
-                  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                    window.HTMLInputElement.prototype,
-                    'value'
-                  ).set;
-                  const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(
-                    window.HTMLTextAreaElement.prototype,
-                    'value'
-                  ).set;
-
-                  const setter = el.tagName === 'TEXTAREA' ? nativeTextAreaValueSetter : nativeInputValueSetter;
-
-                  // Clear first
-                  setter.call(el, '');
-                  el.dispatchEvent(new Event('input', { bubbles: true }));
-                  await wait(100);
-
-                  // Set new value
-                  setter.call(el, ${JSON.stringify(step.value)});
-
-                  // Dispatch comprehensive events
-                  el.dispatchEvent(new InputEvent('input', {
-                    bubbles: true,
-                    cancelable: true,
-                    data: ${JSON.stringify(step.value)},
-                    inputType: 'insertText'
-                  }));
-                  el.dispatchEvent(new Event('change', { bubbles: true }));
-                  el.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
-                  el.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }));
-
-                  await wait(200);
-                  el.blur();
-                  await wait(300);
-                }
-              })()
-            `);
-          } else if (step.type === 'select') {
-            await window.webContents.executeJavaScript(`
-              (function() {
-                const el = document.querySelector(${JSON.stringify(selector)});
-                if (el) {
-                  el.value = ${JSON.stringify(step.value)};
-                  el.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-              })()
-            `);
-          }
-          return;
-        }
+        throw new Error(result.error);
       }
-
-      // Log diagnostic information about what's on the page
-      const diagnostics = await window.webContents.executeJavaScript(`
-        (function() {
-          const inputs = Array.from(document.querySelectorAll('input, textarea'));
-          const selects = Array.from(document.querySelectorAll('select'));
-          const buttons = Array.from(document.querySelectorAll('button, input[type="submit"]'));
-
-          return {
-            url: window.location.href,
-            title: document.title,
-            readyState: document.readyState,
-            totalInputs: inputs.length,
-            visibleInputs: inputs.filter(el => el.offsetParent !== null).length,
-            totalSelects: selects.length,
-            visibleSelects: selects.filter(el => el.offsetParent !== null).length,
-            totalButtons: buttons.length,
-            inputs: inputs.slice(0, 5).map(el => ({
-              type: el.type,
-              name: el.name,
-              placeholder: el.placeholder,
-              id: el.id,
-              visible: el.offsetParent !== null
-            })),
-            selects: selects.map(el => ({
-              name: el.name,
-              id: el.id,
-              options: el.options.length,
-              visible: el.offsetParent !== null,
-              disabled: el.disabled
-            })),
-            buttons: buttons.slice(0, 5).map(el => ({
-              text: el.textContent?.trim().substring(0, 30),
-              type: el.type,
-              id: el.id,
-              visible: el.offsetParent !== null
-            }))
-          };
-        })()
-      `);
-
-      console.log('[Automation] Page diagnostics:');
-      console.log('  URL:', diagnostics.url);
-      console.log('  Title:', diagnostics.title);
-      console.log('  Ready State:', diagnostics.readyState);
-      console.log('  Inputs:', diagnostics.totalInputs, '(', diagnostics.visibleInputs, 'visible)');
-      console.log('  Selects:', diagnostics.totalSelects, '(', diagnostics.visibleSelects, 'visible)');
-      console.log('  Buttons:', diagnostics.totalButtons);
-      if (diagnostics.selects.length > 0) {
-        console.log('  Available select elements:', diagnostics.selects);
-      }
-      if (diagnostics.inputs.length > 0) {
-        console.log('  Sample inputs:', diagnostics.inputs);
-      }
-      throw new Error(`Element not found: ${selector} (type: ${step.type})`);
     } catch (error) {
-      lastError = error;
-      retries--;
-      const attemptNum = 6 - retries;
-      console.log(`[Automation] Step execution failed, retry ${attemptNum}/5:`, {
-        selector: step.selector,
-        type: step.type,
-        error: error instanceof Error ? error.message : String(error)
-      });
-      if (retries > 0) {
-        // Increase wait time progressively: 1s, 1.5s, 2s, 2.5s, 3s
-        const waitTime = 1000 + (attemptNum * 500);
-        console.log(`[Automation] Waiting ${waitTime}ms before retry...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-      }
+      console.log(`[executeStep] ❌ Input failed:`, error);
+      throw new Error(`Coordinate-based input failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
-  console.error('[Automation] Step execution failed after all retries:', {
-    selector: step.selector,
-    type: step.type,
-    element: step.element,
-    error: lastError instanceof Error ? lastError.message : String(lastError)
-  });
-  throw new Error(`Failed to execute step after 5 retries: ${lastError}`);
+  // SELECT using coordinates
+  if (step.type === 'select') {
+    console.log(`[executeStep] Executing SELECT using coordinates`);
+
+    try {
+      const result = await window.webContents.executeJavaScript(`
+        (async function() {
+          const x = ${step.coordinates.elementX || step.coordinates.x};
+          const y = ${step.coordinates.elementY || step.coordinates.y};
+          const element = document.elementFromPoint(x, y);
+
+          if (!element || element.tagName !== 'SELECT') {
+            return { success: false, error: 'No select element at coordinates' };
+          }
+
+          // Highlight briefly
+          const originalOutline = element.style.outline;
+          element.style.outline = '3px solid #10b981';
+          setTimeout(() => { element.style.outline = originalOutline; }, 500);
+
+          // Focus and scroll into view
+          element.focus();
+          element.scrollIntoView({ behavior: 'auto', block: 'center' });
+
+          const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+          await wait(200);
+
+          // Set value
+          element.value = ${JSON.stringify(step.value)};
+          element.dispatchEvent(new Event('change', { bubbles: true }));
+          element.dispatchEvent(new Event('blur', { bubbles: true }));
+
+          return { success: true };
+        })()
+      `);
+
+      if (result.success) {
+        console.log(`[executeStep] ✓ Select succeeded`);
+        return;
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      console.log(`[executeStep] ❌ Select failed:`, error);
+      throw new Error(`Coordinate-based select failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  // If we get here, unsupported step type
+  throw new Error(`Unsupported step type: ${step.type}`);
 }

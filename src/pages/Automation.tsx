@@ -139,53 +139,117 @@ export function Automation() {
             c => c.type === 'income' && (c.name.toLowerCase() === 'income' || c.name.toLowerCase().includes('income'))
           );
 
-          // Convert scraped transactions to CreateTransactionInput format
-          const transactionsToCreate = data.transactions
-            .map((txn: any) => {
-              const amount = parseFloat(txn.amount) || 0;
+          // Helper function to normalize category names
+          const normalizeCategoryName = (name: string): string => {
+            return name
+              .trim()
+              .replace(/\s+\d+$/g, '')  // Remove trailing numbers like "Allowance 0"
+              .replace(/[\d\(\)]+$/g, '')  // Remove trailing numbers and parentheses
+              .replace(/\s+/g, ' ')  // Normalize multiple spaces to single space
+              .trim();
+          };
 
-              // Determine transaction type from amount
-              // Negative amounts are expenses, positive are income
-              const type = amount < 0 ? 'expense' : 'income';
+          // Helper function to get or create category
+          const getOrCreateCategory = async (categoryName: string, type: 'income' | 'expense') => {
+            // Normalize the category name
+            const normalizedName = normalizeCategoryName(categoryName);
 
-              // Automatically assign income category for positive amounts
-              let categoryId = null;
-              if (type === 'income' && incomeCategory) {
-                categoryId = incomeCategory.id;
-              }
+            // Skip if empty after normalization
+            if (!normalizedName) {
+              return null;
+            }
 
-              // Convert date to YYYY-MM-DD format
-              let formattedDate = '';
+            // Skip if category is pending
+            if (normalizedName.toLowerCase().includes('pending')) {
+              return null;
+            }
+
+            // Look for existing category (case-insensitive, normalized comparison)
+            let category = categories.find(c => {
+              const existingNormalized = normalizeCategoryName(c.name);
+              return existingNormalized.toLowerCase() === normalizedName.toLowerCase() && c.type === type;
+            });
+
+            if (!category) {
+              // Create new category with normalized name
+              console.log('[Automation] Creating new category:', normalizedName, type);
               try {
-                // Parse date like "Feb 10, 2026" to "2026-02-10"
-                const parsedDate = new Date(txn.date);
-                if (!isNaN(parsedDate.getTime())) {
-                  const year = parsedDate.getFullYear();
-                  const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
-                  const day = String(parsedDate.getDate()).padStart(2, '0');
-                  formattedDate = `${year}-${month}-${day}`;
-                } else {
-                  console.warn('[Automation] Invalid date, skipping transaction:', txn);
-                  return null;
-                }
-              } catch (err) {
-                console.warn('[Automation] Failed to parse date, skipping transaction:', txn.date, err);
+                await window.electron.invoke('categories:create', {
+                  name: normalizedName,
+                  type: type,
+                  parent_id: null,
+                  icon: null
+                });
+
+                // Reload categories to get the new one
+                await loadCategories();
+
+                // Find the newly created category
+                category = categories.find(c => {
+                  const existingNormalized = normalizeCategoryName(c.name);
+                  return existingNormalized.toLowerCase() === normalizedName.toLowerCase() && c.type === type;
+                });
+              } catch (error) {
+                console.error('[Automation] Failed to create category:', error);
                 return null;
               }
+            }
 
-              return {
-                account_id: accountId,
-                date: formattedDate,
-                description: txn.description,
-                original_description: txn.description,
-                amount: Math.abs(amount), // Store as positive number
-                type: type,
-                status: 'cleared' as const,
-                category_id: categoryId,
-                notes: txn.category ? `Auto-categorized as: ${txn.category}` : null
-              };
-            })
-            .filter((txn): txn is NonNullable<typeof txn> => txn !== null); // Remove invalid transactions
+            return category?.id || null;
+          };
+
+          // Convert scraped transactions to CreateTransactionInput format
+          const transactionsToCreate = [];
+
+          for (const txn of data.transactions) {
+            const amount = parseFloat(txn.amount) || 0;
+
+            // Determine transaction type from amount
+            // Negative amounts are expenses, positive are income
+            const type = amount < 0 ? 'expense' : 'income';
+
+            // Handle category from scrape
+            let categoryId = null;
+
+            if (txn.category && txn.category.trim()) {
+              // Get or create category from scraped data
+              categoryId = await getOrCreateCategory(txn.category.trim(), type);
+            } else if (type === 'income' && incomeCategory) {
+              // Fall back to default income category for income transactions without category
+              categoryId = incomeCategory.id;
+            }
+
+            // Convert date to YYYY-MM-DD format
+            let formattedDate = '';
+            try {
+              // Parse date like "Feb 10, 2026" to "2026-02-10"
+              const parsedDate = new Date(txn.date);
+              if (!isNaN(parsedDate.getTime())) {
+                const year = parsedDate.getFullYear();
+                const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+                const day = String(parsedDate.getDate()).padStart(2, '0');
+                formattedDate = `${year}-${month}-${day}`;
+              } else {
+                console.warn('[Automation] Invalid date, skipping transaction:', txn);
+                continue; // Skip this transaction
+              }
+            } catch (err) {
+              console.warn('[Automation] Failed to parse date, skipping transaction:', txn.date, err);
+              continue; // Skip this transaction
+            }
+
+            transactionsToCreate.push({
+              account_id: accountId,
+              date: formattedDate,
+              description: txn.description,
+              original_description: txn.description,
+              amount: Math.abs(amount), // Store as positive number
+              type: type,
+              status: 'cleared' as const,
+              category_id: categoryId,
+              notes: null
+            });
+          }
 
           console.log('[Automation] Converted to transaction format:', transactionsToCreate.slice(0, 2));
           console.log('[Automation] Creating transactions...');
