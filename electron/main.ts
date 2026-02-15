@@ -326,7 +326,7 @@ function createWindow() {
   // Load the app
   if (isDev) {
     mainWindow.loadURL('http://localhost:5173');
-    mainWindow.webContents.openDevTools();
+    // mainWindow.webContents.openDevTools(); // Disabled by default - use Cmd+Option+I to open manually
   } else {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
