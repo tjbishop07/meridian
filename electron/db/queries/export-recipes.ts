@@ -9,6 +9,7 @@ export interface ExportRecipe {
   account_id: number | null;
   created_at: string;
   updated_at: string;
+  last_run_at: string | null;
 }
 
 export interface ExportRecipeInput {

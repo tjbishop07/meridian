@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, Zap, Play } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/layout/PageHeader';
@@ -22,6 +22,7 @@ interface Recording {
 
 export function Automation() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { categories, loadCategories } = useCategories();
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,6 +37,13 @@ export function Automation() {
   const [showNewRecordingModal, setShowNewRecordingModal] = useState(false);
   const [startUrl, setStartUrl] = useState('https://www.usaa.com');
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+
+  // Reload recordings whenever user navigates to this page
+  useEffect(() => {
+    if (location.pathname === '/automation') {
+      loadRecordings();
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     loadRecordings();

@@ -56,19 +56,45 @@ export function RecordingCard({
     }
   };
 
-  const formatRelativeTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+  const formatLastRunTime = (dateStr: string) => {
+    // SQLite stores timestamps in UTC as 'YYYY-MM-DD HH:MM:SS'
+    // We need to explicitly treat it as UTC and convert to local time
+    let date: Date;
 
-    if (diffMins < 1) return 'just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString();
+    if (dateStr.includes('T') || dateStr.includes('Z')) {
+      // Already in ISO format with timezone info
+      date = new Date(dateStr);
+    } else {
+      // SQLite format without timezone - treat as UTC
+      date = new Date(dateStr + ' UTC');
+    }
+
+    // Get current time in user's local timezone
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const isYesterday = date.toDateString() === yesterday.toDateString();
+
+    // Format time in user's local timezone
+    const timeStr = date.toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    if (isToday) {
+      return `Today at ${timeStr}`;
+    } else if (isYesterday) {
+      return `Yesterday at ${timeStr}`;
+    } else {
+      return date.toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+      }) + ` at ${timeStr}`;
+    }
   };
 
   return (
@@ -149,7 +175,7 @@ export function RecordingCard({
         <div className="flex gap-4 text-sm text-base-content/70">
           <span>{recording.steps.length} steps</span>
           {recording.last_run_at ? (
-            <span className="text-success">Last run: {formatRelativeTime(recording.last_run_at)}</span>
+            <span className="text-success">Last run: {formatLastRunTime(recording.last_run_at)}</span>
           ) : (
             <span className="text-warning">Never run</span>
           )}

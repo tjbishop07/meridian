@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { format } from 'date-fns';
 import Layout from './components/layout/Layout';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
@@ -12,8 +13,11 @@ import Settings from './pages/Settings';
 import { Automation } from './pages/Automation';
 import Browser from './pages/Browser';
 import Toaster from './components/ui/Toaster';
+import { useTickerStore } from './store/tickerStore';
 
 function App() {
+  const welcomeShown = useRef(false);
+
   useEffect(() => {
     const loadTheme = async () => {
       try {
@@ -32,6 +36,24 @@ function App() {
       }
     };
     loadTheme();
+
+    // Show welcome message only once
+    if (!welcomeShown.current) {
+      welcomeShown.current = true;
+
+      const now = new Date();
+      const dayName = format(now, 'EEEE');        // "Monday"
+      const dateStr = format(now, 'MMMM d, yyyy'); // "February 15, 2026"
+      const timeStr = format(now, 'h:mm a');       // "3:45 PM"
+
+      const welcomeMsg = `Welcome! Today is ${dayName}, ${dateStr} at ${timeStr}`;
+
+      useTickerStore.getState().addMessage({
+        content: welcomeMsg,
+        type: 'info',
+        duration: 0, // Persistent - never auto-dismiss
+      });
+    }
   }, []);
 
   return (
