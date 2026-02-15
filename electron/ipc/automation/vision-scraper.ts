@@ -59,35 +59,49 @@ async function captureFullPage(window: BrowserWindow): Promise<Buffer[]> {
 
   console.log('[Vision Scraper] Page dimensions:', dimensions);
 
-  // Capture screenshots at different scroll positions to see all initially loaded content
-  // This captures the ~50 transactions already on the page without triggering lazy loading
-  console.log('[Vision Scraper] Capturing screenshots of initially loaded content...');
+  // Capture overlapping screenshots to ensure we don't miss any transactions
+  console.log('[Vision Scraper] Capturing comprehensive screenshots with overlap...');
 
   const viewportHeight = dimensions.clientHeight;
   const totalHeight = dimensions.scrollHeight;
   const isScrollable = totalHeight > viewportHeight * 1.2;
 
   if (isScrollable) {
-    // Capture 3 screenshots: top, middle, bottom thirds
-    const positions = [0, 0.4, 0.7]; // Top, middle-ish, bottom-ish
-    const maxScreenshots = 3;
+    // Scroll in overlapping chunks (60% of viewport at a time = 40% overlap)
+    const scrollStep = Math.floor(viewportHeight * 0.6); // 60% viewport height
+    const numScreenshots = Math.min(
+      Math.ceil((totalHeight - viewportHeight) / scrollStep) + 1,
+      6 // Cap at 6 screenshots to avoid too many API calls
+    );
 
-    console.log(`[Vision Scraper] Page is scrollable, capturing ${maxScreenshots} screenshots`);
+    console.log(`[Vision Scraper] Page height: ${totalHeight}px, viewport: ${viewportHeight}px`);
+    console.log(`[Vision Scraper] Will capture ${numScreenshots} overlapping screenshots`);
 
-    for (let i = 0; i < maxScreenshots; i++) {
-      const scrollY = Math.round(totalHeight * positions[i]);
+    for (let i = 0; i < numScreenshots; i++) {
+      // Calculate scroll position with overlap
+      const scrollY = Math.min(i * scrollStep, totalHeight - viewportHeight);
 
       await window.webContents.executeJavaScript(`window.scrollTo(0, ${scrollY})`);
-      await new Promise(resolve => setTimeout(resolve, 400)); // Wait for scroll
+      await new Promise(resolve => setTimeout(resolve, 500)); // Wait for rendering
 
       const screenshot = await window.webContents.capturePage();
       screenshots.push(screenshot.toPNG());
-      console.log(`[Vision Scraper] Captured screenshot ${i + 1}/${maxScreenshots} at ${Math.round(positions[i] * 100)}%`);
+
+      const percentComplete = Math.round((scrollY / (totalHeight - viewportHeight)) * 100);
+      console.log(`[Vision Scraper] Screenshot ${i + 1}/${numScreenshots} at ${scrollY}px (${percentComplete}%)`);
+
+      // Stop if we've reached the bottom
+      if (scrollY >= totalHeight - viewportHeight - 10) {
+        console.log('[Vision Scraper] Reached bottom of page');
+        break;
+      }
     }
 
     // Scroll back to top
     await window.webContents.executeJavaScript('window.scrollTo(0, 0)');
     await new Promise(resolve => setTimeout(resolve, 300));
+
+    console.log(`[Vision Scraper] Captured ${screenshots.length} screenshots total`);
   } else {
     // Single screenshot for non-scrollable pages
     console.log('[Vision Scraper] Page fits in viewport, capturing single screenshot');

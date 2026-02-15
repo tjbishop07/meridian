@@ -300,9 +300,8 @@ async function playRecording(recipeId: string): Promise<{ success: boolean; mess
     console.log(`[Automation]   - Amount symbols: ${pageInfo.hasAmountSymbols}`);
     console.log(`[Automation]   - Page height: ${pageInfo.scrollHeight}px (viewport: ${pageInfo.clientHeight}px)`);
 
-    // Gentle scroll through existing content (no pagination, no lazy loading)
-    // This ensures we capture all transactions already loaded on the page
-    console.log('[Automation] Scrolling through existing content to capture all initially loaded transactions...');
+    // Thorough scroll through existing content to ensure we capture everything
+    console.log('[Automation] Performing thorough scroll to capture all initially loaded transactions...');
 
     const scrollResult = await playbackWindow.webContents.executeJavaScript(`
       (async function() {
@@ -312,23 +311,40 @@ async function playRecording(recipeId: string): Promise<{ success: boolean; mess
 
         console.log('[Scroll] Initial state:', initialRowCount, 'rows,', scrollHeight, 'px tall');
 
-        // If page is taller than viewport, scroll through it slowly
         if (scrollHeight > clientHeight * 1.2) {
-          // Scroll to 25%, 50%, 75%, then back to top
-          const positions = [0.25, 0.5, 0.75];
+          // Scroll in smaller increments to ensure nothing is missed
+          // Cover the page in ~400px chunks with overlap
+          const scrollStep = Math.min(400, clientHeight * 0.6); // ~60% of viewport at a time
+          const numSteps = Math.ceil(scrollHeight / scrollStep);
 
-          for (const pos of positions) {
-            const targetY = scrollHeight * pos;
-            window.scrollTo({ top: targetY, behavior: 'smooth' });
-            console.log('[Scroll] Scrolled to', Math.round(pos * 100) + '%');
+          console.log('[Scroll] Will scroll in', numSteps, 'steps of', scrollStep, 'px');
 
-            // Wait for any rendering to complete
-            await new Promise(resolve => setTimeout(resolve, 800));
+          let previousRowCount = initialRowCount;
+
+          for (let i = 0; i <= numSteps; i++) {
+            const targetY = Math.min(i * scrollStep, scrollHeight - clientHeight);
+            window.scrollTo({ top: targetY, behavior: 'instant' });
+
+            // Wait for rendering and any lazy content
+            await new Promise(resolve => setTimeout(resolve, 600));
+
+            // Check if we're getting new rows (indicates lazy loading)
+            const currentRowCount = document.querySelectorAll('table tr').length;
+            if (currentRowCount > previousRowCount) {
+              console.log('[Scroll] Row count increased:', previousRowCount, '->', currentRowCount);
+              previousRowCount = currentRowCount;
+            }
+
+            // If we've reached the end, stop
+            if (targetY >= scrollHeight - clientHeight) {
+              console.log('[Scroll] Reached bottom of page');
+              break;
+            }
           }
 
-          // Scroll back to top
+          // Scroll back to top slowly to ensure all content is rendered
           window.scrollTo({ top: 0, behavior: 'instant' });
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 800));
         }
 
         const finalRowCount = document.querySelectorAll('table tr').length;
@@ -343,6 +359,13 @@ async function playRecording(recipeId: string): Promise<{ success: boolean; mess
     `).catch(() => ({ initialRows: 0, finalRows: 0, scrolled: false }));
 
     console.log(`[Automation] Scroll complete: ${scrollResult.initialRows} -> ${scrollResult.finalRows} rows`);
+
+    // If we're getting way more than 50, it means lazy loading is triggering
+    if (scrollResult.finalRows > scrollResult.initialRows * 2) {
+      console.warn('[Automation] ⚠️ Row count increased significantly during scroll - lazy loading may have triggered');
+      console.warn('[Automation] Will limit to first 50 transactions to avoid historical data');
+    }
+
     pageInfo.rowCount = scrollResult.finalRows;
 
     await updatePlaybackProgress(playbackWindow, steps.length, steps.length, 'Extracting transactions...', '#3b82f6');
