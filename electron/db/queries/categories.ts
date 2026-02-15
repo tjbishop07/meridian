@@ -21,13 +21,43 @@ export function createCategory(
 ): number {
   const db = getDatabase();
 
+  // DEFENSE IN DEPTH: Sanitize category name before database insert
+  // Remove any trailing numbers or suspicious characters
+  let cleanName = data.name
+    .trim()
+    // Remove ALL trailing digits
+    .replace(/\s*\d+\s*$/g, '')
+    // Remove trailing punctuation with numbers
+    .replace(/\s*[\(\)\[\]\{\}]\s*\d*\s*$/g, '')
+    // Normalize spaces
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Log if we cleaned the name
+  if (cleanName !== data.name) {
+    console.log(`[DB] 🧹 Category name sanitized: "${data.name}" → "${cleanName}"`);
+  }
+
+  // Validate we didn't make it empty
+  if (!cleanName || cleanName.length === 0) {
+    console.error(`[DB] ❌ Category name became empty after sanitization: "${data.name}"`);
+    cleanName = data.name; // Use original if cleaning failed
+  }
+
+  // Final check for trailing digits
+  if (/\d$/.test(cleanName)) {
+    console.warn(`[DB] ⚠️ Category still has trailing digit: "${cleanName}"`);
+    cleanName = cleanName.replace(/\s*\d+$/g, '').trim();
+    console.log(`[DB] 🧹 Extra cleaning pass: "${cleanName}"`);
+  }
+
   const stmt = db.prepare(`
     INSERT INTO categories (name, type, parent_id, icon, color, is_system)
     VALUES (?, ?, ?, ?, ?, ?)
   `);
 
   const result = stmt.run(
-    data.name,
+    cleanName,
     data.type,
     data.parent_id || null,
     data.icon || null,

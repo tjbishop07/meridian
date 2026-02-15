@@ -1028,7 +1028,7 @@ export default function Settings() {
           </div>
           <button
             onClick={() => setIsCreateCategoryOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-content rounded-lg hover:bg-primary/80 font-medium"
+            className="btn btn-primary btn-sm gap-2"
           >
             <Plus className="w-4 h-4" />
             Add Category
@@ -1037,37 +1037,48 @@ export default function Settings() {
 
         {/* Expense Categories */}
         <div className="mb-6">
-          <h3 className="text-sm font-semibold text-base-content/80 uppercase tracking-wide mb-3">
-            Expense Categories ({expenseCategories.length})
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-sm font-semibold text-base-content/80 uppercase tracking-wide">
+              Expense Categories
+            </h3>
+            <div className="badge badge-neutral badge-sm">{expenseCategories.length}</div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {expenseCategories.map((cat) => (
-              <div
-                key={cat.id}
-                className="flex items-center justify-between p-3 border border-base-300 rounded-lg"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-red-400" />
-                  <span className="text-sm text-base-content">{cat.name}</span>
-                  {cat.is_system && (
-                    <span className="text-xs text-base-content/50">system</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setEditingCategory(cat)}
-                    className="p-1 text-base-content/50 hover:text-primary transition-colors"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  {!cat.is_system && (
-                    <button
-                      onClick={() => handleDeleteCategory(cat)}
-                      className="p-1 text-base-content/50 hover:text-red-600 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+              <div key={cat.id} className="card bg-base-200 shadow-sm">
+                <div className="card-body p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="w-2 h-2 rounded-full bg-error flex-shrink-0" />
+                      <span
+                        className="font-medium text-sm text-base-content truncate"
+                        data-category-name={cat.name}
+                      >
+                        {String(cat.name).trim()}
+                      </span>
+                      {Boolean(cat.is_system) && (
+                        <div className="badge badge-ghost badge-xs flex-shrink-0">system</div>
+                      )}
+                    </div>
+                    <div className="btn-group btn-group-horizontal">
+                      <button
+                        onClick={() => setEditingCategory(cat)}
+                        className="btn btn-ghost btn-xs"
+                        title="Edit category"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                      {!cat.is_system && (
+                        <button
+                          onClick={() => handleDeleteCategory(cat)}
+                          className="btn btn-ghost btn-xs text-error hover:bg-error/10"
+                          title="Delete category"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -1076,37 +1087,48 @@ export default function Settings() {
 
         {/* Income Categories */}
         <div>
-          <h3 className="text-sm font-semibold text-base-content/80 uppercase tracking-wide mb-3">
-            Income Categories ({incomeCategories.length})
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div className="flex items-center gap-2 mb-3">
+            <h3 className="text-sm font-semibold text-base-content/80 uppercase tracking-wide">
+              Income Categories
+            </h3>
+            <div className="badge badge-neutral badge-sm">{incomeCategories.length}</div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {incomeCategories.map((cat) => (
-              <div
-                key={cat.id}
-                className="flex items-center justify-between p-3 border border-base-300 rounded-lg"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-green-400" />
-                  <span className="text-sm text-base-content">{cat.name}</span>
-                  {cat.is_system && (
-                    <span className="text-xs text-base-content/50">system</span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setEditingCategory(cat)}
-                    className="p-1 text-base-content/50 hover:text-primary transition-colors"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  {!cat.is_system && (
-                    <button
-                      onClick={() => handleDeleteCategory(cat)}
-                      className="p-1 text-base-content/50 hover:text-red-600 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+              <div key={cat.id} className="card bg-base-200 shadow-sm">
+                <div className="card-body p-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="w-2 h-2 rounded-full bg-success flex-shrink-0" />
+                      <span
+                        className="font-medium text-sm text-base-content truncate"
+                        data-category-name={cat.name}
+                      >
+                        {String(cat.name).trim()}
+                      </span>
+                      {Boolean(cat.is_system) && (
+                        <div className="badge badge-ghost badge-xs flex-shrink-0">system</div>
+                      )}
+                    </div>
+                    <div className="btn-group btn-group-horizontal">
+                      <button
+                        onClick={() => setEditingCategory(cat)}
+                        className="btn btn-ghost btn-xs"
+                        title="Edit category"
+                      >
+                        <Edit2 className="w-3 h-3" />
+                      </button>
+                      {!cat.is_system && (
+                        <button
+                          onClick={() => handleDeleteCategory(cat)}
+                          className="btn btn-ghost btn-xs text-error hover:bg-error/10"
+                          title="Delete category"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -1306,6 +1328,7 @@ export default function Settings() {
           </div>
         </div>
       </Modal>
+
     </div>
   );
 }

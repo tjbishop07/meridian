@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Zap, Play } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -29,6 +29,7 @@ export function Automation() {
   const [scrapedTransactions, setScrapedTransactions] = useState<any[] | null>(null);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [isImporting, setIsImporting] = useState(false);
+  const isImportingRef = useRef(false); // Use ref for synchronous duplicate detection
 
   // New recording modal
   const [showNewRecordingModal, setShowNewRecordingModal] = useState(false);
@@ -57,12 +58,13 @@ export function Automation() {
       console.log('[Automation] handleScrapeComplete called');
       console.log('[Automation] Arguments received:', args);
 
-      // Prevent concurrent imports - set flag IMMEDIATELY
-      if (isImporting) {
-        console.warn('[Automation] Import already in progress, ignoring duplicate event');
+      // Prevent concurrent imports - use REF for synchronous check
+      if (isImportingRef.current) {
+        console.warn('[Automation] ❌ BLOCKED: Import already in progress, ignoring duplicate event');
         return;
       }
-      setIsImporting(true); // Set immediately to block duplicate events
+      isImportingRef.current = true; // Set ref synchronously
+      setIsImporting(true); // Set state for UI
 
       // The data should be the first argument (event is filtered by preload)
       const data = args[0];
@@ -72,6 +74,7 @@ export function Automation() {
       if (!data) {
         console.error('[Automation] Scrape complete event received with undefined data');
         toast.error('Failed to receive scraped data');
+        isImportingRef.current = false;
         setIsImporting(false);
         return;
       }
@@ -79,6 +82,7 @@ export function Automation() {
       if (!data.transactions || !Array.isArray(data.transactions)) {
         console.error('[Automation] Invalid transactions data:', data);
         toast.error('Invalid scraped data format');
+        isImportingRef.current = false;
         setIsImporting(false);
         return;
       }
@@ -122,7 +126,8 @@ export function Automation() {
         if (!accountId) {
           console.error('[Automation] No accounts available for import');
           toast.error('No accounts available. Please create an account first.');
-          setIsImporting(false);
+          isImportingRef.current = false;
+        setIsImporting(false);
           return;
         }
 
@@ -152,60 +157,172 @@ export function Automation() {
               .trim();
           };
 
-          // Helper function to get or create category
-          const getOrCreateCategory = async (categoryName: string, type: 'income' | 'expense') => {
-            // Normalize the category name
-            const normalizedName = normalizeCategoryName(categoryName);
+          /**
+           * FINAL SANITIZATION - Remove ANY suspicious characters before database save
+           * This is the last line of defense to ensure clean category names
+           */
+          const sanitizeCategoryForDatabase = (name: string): string => {
+            const original = name;
 
-            // Skip if empty after normalization
-            if (!normalizedName) {
-              return null;
+            let cleaned = name
+              .trim()
+              // Remove ALL trailing digits (be aggressive)
+              .replace(/\s*\d+\s*$/g, '')
+              // Remove trailing spaces again
+              .trim()
+              // Remove any remaining trailing punctuation with numbers
+              .replace(/\s*[\(\)\[\]\{\}]\s*\d*\s*$/g, '')
+              // Remove multiple spaces
+              .replace(/\s+/g, ' ')
+              // Final trim
+              .trim();
+
+            // Log if we made changes
+            if (original !== cleaned) {
+              console.log(`[Automation] 🧹 SANITIZED: "${original}" → "${cleaned}"`);
             }
 
-            // Skip if category is pending
-            if (normalizedName.toLowerCase().includes('pending')) {
-              return null;
+            // Validate result
+            if (!cleaned || cleaned.length === 0) {
+              console.error(`[Automation] ❌ SANITIZATION FAILED: "${original}" became empty!`);
+              return original; // Return original rather than empty string
             }
 
-            // Fetch fresh categories from database to avoid stale React state
-            const freshCategories = await window.electron.invoke('categories:get-all');
-
-            // Look for existing category that EXACTLY matches the normalized name (case-insensitive)
-            // This prevents matching "Credit Card Payment 0" when we want "Credit Card Payment"
-            let category = freshCategories.find((c: any) => {
-              return c.name.toLowerCase() === normalizedName.toLowerCase() && c.type === type;
-            });
-
-            if (category) {
-              console.log('[Automation] Found existing category:', category.name, '(ID:', category.id, ')');
-              return category.id;
+            // Check if still has trailing digits (should never happen)
+            if (/\d$/.test(cleaned)) {
+              console.warn(`[Automation] ⚠️ WARNING: Category still has trailing digit: "${cleaned}"`);
+              // One more aggressive pass
+              cleaned = cleaned.replace(/\s*\d+$/g, '').trim();
+              console.log(`[Automation] 🧹 EXTRA PASS: Now "${cleaned}"`);
             }
 
-            // Create new category with normalized name
-            console.log('[Automation] Creating new category:', normalizedName, type);
-            try {
-              const newCategoryId = await window.electron.invoke('categories:create', {
-                name: normalizedName,
-                type: type,
-                parent_id: null,
-                icon: null,
-                color: null,
-                is_system: false
-              });
-
-              console.log('[Automation] Created category ID:', newCategoryId);
-
-              // Reload categories in background for UI
-              loadCategories().catch(err => console.error('[Automation] Failed to reload categories:', err));
-
-              return newCategoryId;
-            } catch (error) {
-              console.error('[Automation] Failed to create category:', error);
-              return null;
-            }
+            return cleaned;
           };
 
-          // Convert scraped transactions to CreateTransactionInput format
+          /**
+           * Extract, normalize, and batch-create categories from scraped transactions
+           * Returns a map: normalized category name + type → category_id
+           */
+          const batchProcessCategories = async (
+            scrapedTransactions: any[]
+          ): Promise<Map<string, number>> => {
+            console.log('[Automation] ==================== BATCH PROCESSING CATEGORIES ====================');
+
+            // Step 1: Extract unique categories from scraped data
+            const uniqueCategories = new Map<string, { type: 'income' | 'expense', originalNames: Set<string> }>();
+
+            for (const txn of scrapedTransactions) {
+              if (!txn.category || !txn.category.trim()) continue;
+
+              const amount = parseFloat(txn.amount) || 0;
+              const type = amount < 0 ? 'expense' : 'income';
+              const normalizedName = normalizeCategoryName(txn.category.trim());
+
+              // Skip empty or "pending" categories
+              if (!normalizedName || normalizedName.toLowerCase().includes('pending')) {
+                continue;
+              }
+
+              // Group by normalized name
+              if (!uniqueCategories.has(normalizedName)) {
+                uniqueCategories.set(normalizedName, { type, originalNames: new Set() });
+              }
+              uniqueCategories.get(normalizedName)!.originalNames.add(txn.category.trim());
+            }
+
+            console.log(`[Automation] Found ${uniqueCategories.size} unique categories to process`);
+            console.log('[Automation] Categories:', Array.from(uniqueCategories.entries()).map(([name, data]) =>
+              `${name} (${data.type}) from [${Array.from(data.originalNames).join(', ')}]`
+            ));
+
+            // Step 2: Fetch existing categories once
+            const existingCategories = await window.electron.invoke('categories:get-all');
+            console.log(`[Automation] Found ${existingCategories.length} existing categories in database`);
+
+            // Step 3: Build map of existing categories
+            const categoryMap = new Map<string, number>();
+            for (const cat of existingCategories) {
+              const key = `${cat.name.toLowerCase()}:${cat.type}`;
+              categoryMap.set(key, cat.id);
+            }
+
+            // Step 4: Identify categories that need to be created
+            const categoriesToCreate: Array<{ name: string; type: 'income' | 'expense' }> = [];
+
+            for (const [normalizedName, data] of uniqueCategories) {
+              const key = `${normalizedName.toLowerCase()}:${data.type}`;
+
+              if (!categoryMap.has(key)) {
+                categoriesToCreate.push({ name: normalizedName, type: data.type });
+              }
+            }
+
+            console.log(`[Automation] Need to create ${categoriesToCreate.length} new categories`);
+
+            // Step 5: Batch create new categories
+            if (categoriesToCreate.length > 0) {
+              console.log('[Automation] Creating categories:', categoriesToCreate.map(c => `${c.name} (${c.type})`).join(', '));
+
+              for (const cat of categoriesToCreate) {
+                try {
+                  console.log(`[Automation]   🔍 BEFORE SANITIZATION: "${cat.name}" (type: ${cat.type})`);
+                  console.log(`[Automation]      - Length: ${cat.name.length}`);
+                  console.log(`[Automation]      - Char codes: [${Array.from(cat.name).map(c => c.charCodeAt(0)).join(', ')}]`);
+                  console.log(`[Automation]      - Last char: "${cat.name[cat.name.length - 1]}" (code: ${cat.name.charCodeAt(cat.name.length - 1)})`);
+
+                  // FINAL SANITIZATION - Clean category name right before database save
+                  const sanitizedName = sanitizeCategoryForDatabase(cat.name);
+
+                  console.log(`[Automation]   📝 AFTER SANITIZATION: "${sanitizedName}" (type: ${cat.type})`);
+                  console.log(`[Automation]      - Length: ${sanitizedName.length}`);
+                  console.log(`[Automation]      - Last char: "${sanitizedName[sanitizedName.length - 1]}" (code: ${sanitizedName.charCodeAt(sanitizedName.length - 1)})`);
+
+                  const newId = await window.electron.invoke('categories:create', {
+                    name: sanitizedName,
+                    type: cat.type,
+                    parent_id: null,
+                    icon: null,
+                    color: null,
+                    is_system: false
+                  });
+
+                  // Verify what was actually created
+                  const createdCategory = await window.electron.invoke('categories:get-all');
+                  const justCreated = createdCategory.find((c: any) => c.id === newId);
+                  console.log(`[Automation]   ✅ VERIFIED IN DB: "${justCreated?.name}" (ID: ${newId})`);
+                  if (justCreated?.name !== sanitizedName) {
+                    console.error(`[Automation]   🚨 MISMATCH! Sent "${sanitizedName}" but DB has "${justCreated?.name}"`);
+                  }
+
+                  // Use sanitized name for the map key
+                  const key = `${sanitizedName.toLowerCase()}:${cat.type}`;
+                  categoryMap.set(key, newId);
+                } catch (error) {
+                  console.error(`[Automation]   ✗ Failed to create "${cat.name}":`, error);
+                }
+              }
+            }
+
+            // Step 6: Build final lookup map: normalized name + type → category_id
+            const lookupMap = new Map<string, number>();
+            for (const [normalizedName, data] of uniqueCategories) {
+              const key = `${normalizedName.toLowerCase()}:${data.type}`;
+              const categoryId = categoryMap.get(key);
+              if (categoryId) {
+                lookupMap.set(`${normalizedName}:${data.type}`, categoryId);
+              }
+            }
+
+            console.log('[Automation] Category map built:', lookupMap.size, 'mappings');
+            console.log('[Automation] ==================== CATEGORY PROCESSING COMPLETE ====================');
+
+            return lookupMap;
+          };
+
+          // Step A: Batch process all categories BEFORE processing transactions
+          const categoryLookupMap = await batchProcessCategories(data.transactions);
+
+          // Step B: Convert scraped transactions to CreateTransactionInput format
           const transactionsToCreate = [];
 
           for (const txn of data.transactions) {
@@ -215,25 +332,19 @@ export function Automation() {
             // Negative amounts are expenses, positive are income
             const type = amount < 0 ? 'expense' : 'income';
 
-            // Handle category from scrape
+            // Handle category from pre-built map (no IPC calls)
             let categoryId = null;
 
-            // DIAGNOSTIC: Log the raw category from scrape
-            console.log('[Automation] Transaction:', {
-              description: txn.description,
-              amount: txn.amount,
-              type,
-              scrapedCategory: txn.category,
-              hasCategoryField: 'category' in txn,
-              categoryIsTruthy: !!txn.category,
-              categoryTrimmed: txn.category ? txn.category.trim() : '(empty)'
-            });
-
             if (txn.category && txn.category.trim()) {
-              // Get or create category from scraped data
-              console.log('[Automation] 🔍 Calling getOrCreateCategory with:', txn.category.trim(), type);
-              categoryId = await getOrCreateCategory(txn.category.trim(), type);
-              console.log('[Automation] 📌 getOrCreateCategory returned:', categoryId);
+              const normalizedName = normalizeCategoryName(txn.category.trim());
+              const lookupKey = `${normalizedName}:${type}`;
+              categoryId = categoryLookupMap.get(lookupKey) || null;
+
+              if (categoryId) {
+                console.log(`[Automation] Transaction "${txn.description}" → category ID ${categoryId}`);
+              } else {
+                console.warn(`[Automation] Transaction "${txn.description}" → no category found for "${normalizedName}"`);
+              }
             } else if (type === 'income' && incomeCategory) {
               // Fall back to default income category for income transactions without category
               console.log('[Automation] 💰 Using default income category:', incomeCategory.id);
@@ -261,15 +372,6 @@ export function Automation() {
               continue; // Skip this transaction
             }
 
-            console.log('[Automation] ✅ Adding transaction to batch:', {
-              description: txn.description,
-              date: formattedDate,
-              amount: Math.abs(amount),
-              type,
-              category_id: categoryId,
-              hasCategory: categoryId !== null
-            });
-
             transactionsToCreate.push({
               account_id: accountId,
               date: formattedDate,
@@ -283,7 +385,15 @@ export function Automation() {
             });
           }
 
-          console.log('[Automation] Converted to transaction format:', transactionsToCreate.slice(0, 2));
+          // Summary before bulk insert
+          const categorizedCount = transactionsToCreate.filter(t => t.category_id !== null).length;
+          const uncategorizedCount = transactionsToCreate.length - categorizedCount;
+
+          console.log(`[Automation] Transactions ready for import:`);
+          console.log(`[Automation]   - Total: ${transactionsToCreate.length}`);
+          console.log(`[Automation]   - With categories: ${categorizedCount}`);
+          console.log(`[Automation]   - Without categories: ${uncategorizedCount}`);
+          console.log('[Automation] Sample transactions:', transactionsToCreate.slice(0, 2));
           console.log('[Automation] Creating transactions...');
 
           // Bulk create all transactions
@@ -291,6 +401,9 @@ export function Automation() {
 
           console.log('[Automation] Successfully created:', created, 'transactions');
           console.log('[Automation] ==================== SAVE COMPLETE ====================');
+
+          // Reload categories in background for UI
+          loadCategories().catch(err => console.error('[Automation] Failed to reload categories:', err));
 
           // Update the loading toast to success (same id to replace it)
           toast.success(
@@ -310,7 +423,8 @@ export function Automation() {
             { id: 'import' }
           );
         } finally {
-          setIsImporting(false);
+          isImportingRef.current = false;
+        setIsImporting(false);
         }
       } else {
         toast('No transactions found on page', { icon: 'ℹ️' });
