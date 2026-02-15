@@ -125,6 +125,28 @@ export const migrations: Migration[] = [
         console.log('Migration 2: account_id column already exists');
       }
     }
+  },
+  {
+    version: 3,
+    name: 'add_export_recipes_last_run_at',
+    up: (db: Database.Database) => {
+      // Check if last_run_at column exists in export_recipes
+      const columns = db.pragma('table_info(export_recipes)') as Array<{ name: string }>;
+      const hasLastRunAt = columns.some(col => col.name === 'last_run_at');
+
+      if (!hasLastRunAt) {
+        console.log('Migration 3: Adding last_run_at to export_recipes');
+
+        // Add last_run_at column (nullable - NULL means never run)
+        db.exec(`
+          ALTER TABLE export_recipes ADD COLUMN last_run_at TEXT;
+        `);
+
+        console.log('Migration 3: Added last_run_at column to export_recipes');
+      } else {
+        console.log('Migration 3: last_run_at column already exists');
+      }
+    }
   }
 ];
 

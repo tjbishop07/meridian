@@ -17,6 +17,7 @@ interface Recording {
   account_id?: number | null;
   created_at: string;
   updated_at: string;
+  last_run_at?: string | null;
 }
 
 export function Automation() {
@@ -402,8 +403,9 @@ export function Automation() {
           console.log('[Automation] Successfully created:', created, 'transactions');
           console.log('[Automation] ==================== SAVE COMPLETE ====================');
 
-          // Reload categories in background for UI
+          // Reload categories and recordings in background for UI
           loadCategories().catch(err => console.error('[Automation] Failed to reload categories:', err));
+          loadRecordings().catch(err => console.error('[Automation] Failed to reload recordings:', err));
 
           // Update the loading toast to success (same id to replace it)
           toast.success(

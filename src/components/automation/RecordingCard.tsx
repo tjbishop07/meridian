@@ -11,6 +11,7 @@ interface Recording {
   account_name?: string;
   created_at: string;
   updated_at: string;
+  last_run_at?: string | null;
 }
 
 interface RecordingCardProps {
@@ -147,7 +148,11 @@ export function RecordingCard({
 
         <div className="flex gap-4 text-sm text-base-content/70">
           <span>{recording.steps.length} steps</span>
-          <span>Updated {formatRelativeTime(recording.updated_at)}</span>
+          {recording.last_run_at ? (
+            <span className="text-success">Last run: {formatRelativeTime(recording.last_run_at)}</span>
+          ) : (
+            <span className="text-warning">Never run</span>
+          )}
         </div>
 
         <div className="card-actions justify-end mt-4">

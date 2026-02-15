@@ -11,6 +11,7 @@ import { executeStep, resetPageTracking } from './playback';
 import { scrapeTransactions } from './scraper';
 import { cleanTransactionsWithAI, ensureOllamaRunning } from './ai-cleanup';
 import { registerRecordingHandlers, setMainWindow as setBrowserViewMainWindow } from '../automation-browserview';
+import { getDatabase } from '../../db';
 
 // Window references
 let mainWindow: BrowserWindow | null = null;
@@ -386,6 +387,15 @@ async function playRecording(recipeId: string): Promise<{ success: boolean; mess
         transactions,
         count: transactions.length,
       });
+    }
+
+    // Update last_run_at timestamp
+    try {
+      const db = getDatabase();
+      db.prepare('UPDATE export_recipes SET last_run_at = CURRENT_TIMESTAMP WHERE id = ?').run(recipeId);
+      console.log(`[Automation] Updated last_run_at for recipe ${recipeId}`);
+    } catch (error) {
+      console.error('[Automation] Failed to update last_run_at:', error);
     }
 
     // Close playback window after delay
