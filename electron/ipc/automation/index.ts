@@ -280,15 +280,17 @@ async function playRecording(recipeId: string): Promise<{ success: boolean; mess
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
     // Check if page is still loading data
-    const pageInfo = await playbackWindow.webContents.executeJavaScript(`
+    let pageInfo = await playbackWindow.webContents.executeJavaScript(`
       ({
         url: window.location.href,
         title: document.title,
         hasTable: document.querySelector('table') !== null,
         rowCount: document.querySelectorAll('table tr').length,
-        hasAmountSymbols: (document.body.textContent.match(/\\$\\d+/g) || []).length
+        hasAmountSymbols: (document.body.textContent.match(/\\$\\d+/g) || []).length,
+        scrollHeight: document.documentElement.scrollHeight,
+        clientHeight: document.documentElement.clientHeight
       })
-    `).catch(() => ({ url: 'unknown', title: 'unknown', hasTable: false, rowCount: 0, hasAmountSymbols: 0 }));
+    `).catch(() => ({ url: 'unknown', title: 'unknown', hasTable: false, rowCount: 0, hasAmountSymbols: 0, scrollHeight: 0, clientHeight: 0 }));
 
     console.log('[Automation] Page ready for scraping:', pageInfo);
     console.log(`[Automation]   - URL: ${pageInfo.url}`);
@@ -296,30 +298,61 @@ async function playRecording(recipeId: string): Promise<{ success: boolean; mess
     console.log(`[Automation]   - Has table: ${pageInfo.hasTable}`);
     console.log(`[Automation]   - Table rows: ${pageInfo.rowCount}`);
     console.log(`[Automation]   - Amount symbols: ${pageInfo.hasAmountSymbols}`);
+    console.log(`[Automation]   - Page height: ${pageInfo.scrollHeight}px (viewport: ${pageInfo.clientHeight}px)`);
+
+    // Gentle scroll through existing content (no pagination, no lazy loading)
+    // This ensures we capture all transactions already loaded on the page
+    console.log('[Automation] Scrolling through existing content to capture all initially loaded transactions...');
+
+    const scrollResult = await playbackWindow.webContents.executeJavaScript(`
+      (async function() {
+        const initialRowCount = document.querySelectorAll('table tr').length;
+        const scrollHeight = document.documentElement.scrollHeight;
+        const clientHeight = document.documentElement.clientHeight;
+
+        console.log('[Scroll] Initial state:', initialRowCount, 'rows,', scrollHeight, 'px tall');
+
+        // If page is taller than viewport, scroll through it slowly
+        if (scrollHeight > clientHeight * 1.2) {
+          // Scroll to 25%, 50%, 75%, then back to top
+          const positions = [0.25, 0.5, 0.75];
+
+          for (const pos of positions) {
+            const targetY = scrollHeight * pos;
+            window.scrollTo({ top: targetY, behavior: 'smooth' });
+            console.log('[Scroll] Scrolled to', Math.round(pos * 100) + '%');
+
+            // Wait for any rendering to complete
+            await new Promise(resolve => setTimeout(resolve, 800));
+          }
+
+          // Scroll back to top
+          window.scrollTo({ top: 0, behavior: 'instant' });
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+
+        const finalRowCount = document.querySelectorAll('table tr').length;
+        console.log('[Scroll] Final state:', finalRowCount, 'rows');
+
+        return {
+          initialRows: initialRowCount,
+          finalRows: finalRowCount,
+          scrolled: scrollHeight > clientHeight * 1.2
+        };
+      })()
+    `).catch(() => ({ initialRows: 0, finalRows: 0, scrolled: false }));
+
+    console.log(`[Automation] Scroll complete: ${scrollResult.initialRows} -> ${scrollResult.finalRows} rows`);
+    pageInfo.rowCount = scrollResult.finalRows;
 
     await updatePlaybackProgress(playbackWindow, steps.length, steps.length, 'Extracting transactions...', '#3b82f6');
 
     let transactions = await scrapeTransactions(playbackWindow);
     console.log(`[Automation] Scraped ${transactions.length} transactions`);
 
-    // AI cleanup if Ollama is available
-    if (transactions.length > 0) {
-      const ollamaRunning = await ensureOllamaRunning();
-
-      if (ollamaRunning) {
-        await updatePlaybackProgress(playbackWindow, steps.length, steps.length, `AI cleanup (${transactions.length} transactions)...`, '#8b5cf6');
-
-        const statusCallback = async (msg: string) => {
-          await updatePlaybackProgress(playbackWindow!, steps.length, steps.length, msg, '#8b5cf6');
-        };
-
-        transactions = await cleanTransactionsWithAI(transactions, statusCallback);
-        console.log(`[Automation] AI cleanup complete: ${transactions.length} transactions`);
-
-        await updatePlaybackProgress(playbackWindow, steps.length, steps.length, 'AI cleanup complete ✓', '#8b5cf6');
-        await new Promise((resolve) => setTimeout(resolve, 800));
-      }
-    }
+    // AI cleanup disabled - was creating duplicate categories and invalid responses
+    // Categories will be assigned manually or through import mapping
+    console.log('[Automation] AI cleanup disabled - using raw transaction data');
 
     // Send transactions to main window
     await updatePlaybackProgress(playbackWindow, steps.length, steps.length, `Found ${transactions.length} transactions! ✓`, '#10b981');

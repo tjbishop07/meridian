@@ -347,6 +347,14 @@ export async function scrapeWithDOM(window: BrowserWindow): Promise<ScrapedTrans
       }
 
       console.log('[Scraper] After deduplication:', uniqueTransactions.length, 'unique transactions');
+
+      // Limit to first 50 transactions (most recent on initial load)
+      const LIMITED_COUNT = 50;
+      if (uniqueTransactions.length > LIMITED_COUNT) {
+        console.log('[Scraper] Limiting to first', LIMITED_COUNT, 'transactions');
+        return uniqueTransactions.slice(0, LIMITED_COUNT);
+      }
+
       return uniqueTransactions;
     })()
   `);

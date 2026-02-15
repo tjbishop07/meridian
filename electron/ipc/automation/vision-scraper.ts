@@ -59,15 +59,44 @@ async function captureFullPage(window: BrowserWindow): Promise<Buffer[]> {
 
   console.log('[Vision Scraper] Page dimensions:', dimensions);
 
-  // Calculate number of screenshots needed
+  // Capture screenshots at different scroll positions to see all initially loaded content
+  // This captures the ~50 transactions already on the page without triggering lazy loading
+  console.log('[Vision Scraper] Capturing screenshots of initially loaded content...');
+
   const viewportHeight = dimensions.clientHeight;
   const totalHeight = dimensions.scrollHeight;
-  const numScreenshots = Math.ceil(totalHeight / viewportHeight);
+  const isScrollable = totalHeight > viewportHeight * 1.2;
 
-  // For now, just capture the current viewport (most bank transaction pages fit in one screen)
-  // TODO: Add pagination/scrolling support if needed
-  const screenshot = await window.webContents.capturePage();
-  screenshots.push(screenshot.toPNG());
+  if (isScrollable) {
+    // Capture 3 screenshots: top, middle, bottom thirds
+    const positions = [0, 0.4, 0.7]; // Top, middle-ish, bottom-ish
+    const maxScreenshots = 3;
+
+    console.log(`[Vision Scraper] Page is scrollable, capturing ${maxScreenshots} screenshots`);
+
+    for (let i = 0; i < maxScreenshots; i++) {
+      const scrollY = Math.round(totalHeight * positions[i]);
+
+      await window.webContents.executeJavaScript(`window.scrollTo(0, ${scrollY})`);
+      await new Promise(resolve => setTimeout(resolve, 400)); // Wait for scroll
+
+      const screenshot = await window.webContents.capturePage();
+      screenshots.push(screenshot.toPNG());
+      console.log(`[Vision Scraper] Captured screenshot ${i + 1}/${maxScreenshots} at ${Math.round(positions[i] * 100)}%`);
+    }
+
+    // Scroll back to top
+    await window.webContents.executeJavaScript('window.scrollTo(0, 0)');
+    await new Promise(resolve => setTimeout(resolve, 300));
+  } else {
+    // Single screenshot for non-scrollable pages
+    console.log('[Vision Scraper] Page fits in viewport, capturing single screenshot');
+    await window.webContents.executeJavaScript('window.scrollTo(0, 0)');
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    const screenshot = await window.webContents.capturePage();
+    screenshots.push(screenshot.toPNG());
+  }
 
   return screenshots;
 }
@@ -97,7 +126,7 @@ async function extractTransactionsWithClaude(
   }));
 
   // Construct the prompt
-  const prompt = `You are analyzing a bank transaction page screenshot. Your job is to extract ALL visible posted transactions from the image.
+  const prompt = `You are analyzing a bank transaction page screenshot. Extract ONLY the visible posted transactions from this single viewport.
 
 WHAT TO LOOK FOR:
 - Transaction tables or lists showing financial activity
@@ -107,14 +136,15 @@ WHAT TO LOOK FOR:
 - Look for merchant names or transaction descriptions
 
 CRITICAL RULES:
-1. Skip any transactions marked as "pending" or "processing"
-2. Only include transactions that have been posted/cleared
-3. Clean merchant names (remove prefixes like "ACH", "DEBIT", "POS", "CARD PURCHASE", etc.)
-4. Use negative amounts for expenses (money going out)
-5. Use positive amounts for income (money coming in)
-6. Parse dates in any format you see (Month DD, YYYY or MM/DD/YYYY, etc.)
-7. If you see a balance column, include it
-8. If you see a category column, include it
+1. Extract ONLY transactions visible in THIS screenshot (typically 10-50 recent transactions)
+2. Skip any transactions marked as "pending" or "processing"
+3. Only include transactions that have been posted/cleared
+4. Clean merchant names (remove prefixes like "ACH", "DEBIT", "POS", "CARD PURCHASE", etc.)
+5. Use negative amounts for expenses (money going out)
+6. Use positive amounts for income (money coming in)
+7. Parse dates in any format you see (Month DD, YYYY or MM/DD/YYYY, etc.)
+8. If you see a balance column, include it
+9. Do NOT include category - leave it empty (categories will be assigned later)
 
 IMPORTANT: If you cannot find ANY transaction data in the image:
 - Return an empty array: []
@@ -128,12 +158,12 @@ Return ONLY a JSON array with this exact structure (no markdown, no explanation)
     "description": "Shake Shack",
     "amount": "-28.50",
     "balance": "2380.52",
-    "category": "Restaurants",
+    "category": "",
     "confidence": 95
   }
 ]
 
-Be thorough - extract EVERY transaction you can see in the image. Do not skip any rows.`;
+Extract every visible transaction in the screenshot. Focus on the most recent transactions shown.`;
 
   console.log('[Vision Scraper] Sending request to Claude API...');
 
