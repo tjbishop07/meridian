@@ -6,6 +6,8 @@ import PageHeader from '../components/layout/PageHeader';
 import { RecordingCard } from '../components/automation/RecordingCard';
 import { EmptyState } from '../components/automation/EmptyState';
 import { EditRecordingModal } from '../components/automation/EditRecordingModal';
+import { ClaudeVisionTab } from '../components/automation/ClaudeVisionTab';
+import { LocalAITab } from '../components/automation/LocalAITab';
 import { useCategories } from '../hooks/useCategories';
 
 interface Recording {
@@ -32,6 +34,9 @@ export function Automation() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const isImportingRef = useRef(false); // Use ref for synchronous duplicate detection
+
+  // Tabs state
+  const [activeTab, setActiveTab] = useState<'browser' | 'claude' | 'local'>('browser');
 
   // New recording modal
   const [showNewRecordingModal, setShowNewRecordingModal] = useState(false);
@@ -591,37 +596,86 @@ export function Automation() {
     <div className="flex flex-col h-full">
       <PageHeader
         title="Automation"
-        subtitle="Record and replay browser interactions with real browser (undetectable)"
+        subtitle="Automate transaction imports with browser automation and AI"
         action={
-          <button className="btn btn-primary gap-2" onClick={handleNewRecording}>
-            <Plus className="w-4 h-4" />
-            New Recording
-          </button>
+          activeTab === 'browser' ? (
+            <button className="btn btn-primary gap-2" onClick={handleNewRecording}>
+              <Plus className="w-4 h-4" />
+              New Recording
+            </button>
+          ) : null
         }
       />
 
+      {/* Tabs */}
+      <div className="border-b border-base-300 px-6">
+        <div className="flex gap-6">
+          <button
+            onClick={() => setActiveTab('browser')}
+            className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'browser'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-base-content/60 hover:text-base-content/80'
+            }`}
+          >
+            Browser Automation
+          </button>
+          <button
+            onClick={() => setActiveTab('claude')}
+            className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'claude'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-base-content/60 hover:text-base-content/80'
+            }`}
+          >
+            Claude Vision
+          </button>
+          <button
+            onClick={() => setActiveTab('local')}
+            className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === 'local'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-base-content/60 hover:text-base-content/80'
+            }`}
+          >
+            Local AI
+          </button>
+        </div>
+      </div>
+
       <div className="flex-1 overflow-auto p-6">
-        {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <span className="loading loading-spinner loading-lg"></span>
-          </div>
-        ) : recordings.length === 0 ? (
-          <EmptyState onCreateNew={handleNewRecording} />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {recordings.map((recording) => (
-              <RecordingCard
-                key={recording.id}
-                recording={recording}
-                onPlay={handlePlayRecording}
-                onEdit={(rec) => setEditingRecording(rec)}
-                onDelete={handleDeleteRecording}
-                onDuplicate={handleDuplicateRecording}
-                isPlaying={playingId === recording.id}
-              />
-            ))}
-          </div>
+        {/* Browser Automation Tab */}
+        {activeTab === 'browser' && (
+          <>
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <span className="loading loading-spinner loading-lg"></span>
+              </div>
+            ) : recordings.length === 0 ? (
+              <EmptyState onCreateNew={handleNewRecording} />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {recordings.map((recording) => (
+                  <RecordingCard
+                    key={recording.id}
+                    recording={recording}
+                    onPlay={handlePlayRecording}
+                    onEdit={(rec) => setEditingRecording(rec)}
+                    onDelete={handleDeleteRecording}
+                    onDuplicate={handleDuplicateRecording}
+                    isPlaying={playingId === recording.id}
+                  />
+                ))}
+              </div>
+            )}
+          </>
         )}
+
+        {/* Claude Vision Tab */}
+        {activeTab === 'claude' && <ClaudeVisionTab />}
+
+        {/* Local AI Tab */}
+        {activeTab === 'local' && <LocalAITab />}
       </div>
 
       <EditRecordingModal
