@@ -144,10 +144,11 @@ async function extractTransactionsWithClaude(
 
 WHAT TO LOOK FOR:
 - Transaction tables or lists showing financial activity
-- Columns typically include: Date, Description/Merchant, Amount, Balance
+- Columns typically include: Date, Description/Merchant, Amount, Balance, Category
 - Look for dollar amounts (positive or negative)
 - Look for dates in any format (Feb 04, 02/04/2024, etc.)
 - Look for merchant names or transaction descriptions
+- Look for category labels (Shopping, Groceries, Fast Food, Gas/Fuel, Auto & Transport, Bills & Utilities, etc.)
 
 CRITICAL RULES:
 1. Extract ONLY transactions visible in THIS screenshot (typically 10-50 recent transactions)
@@ -158,7 +159,7 @@ CRITICAL RULES:
 6. Use positive amounts for income (money coming in)
 7. Parse dates in any format you see (Month DD, YYYY or MM/DD/YYYY, etc.)
 8. If you see a balance column, include it
-9. Do NOT include category - leave it empty (categories will be assigned later)
+9. IMPORTANT: Extract category if visible - banks often assign categories like "Shopping", "Groceries", "Fast Food", "Gas/Fuel", "Bills & Utilities", etc. If no category is shown, leave it empty ("")
 
 IMPORTANT: If you cannot find ANY transaction data in the image:
 - Return an empty array: []
@@ -172,10 +173,12 @@ Return ONLY a JSON array with this exact structure (no markdown, no explanation)
     "description": "Shake Shack",
     "amount": "-28.50",
     "balance": "2380.52",
-    "category": "",
+    "category": "Fast Food",
     "confidence": 95
   }
 ]
+
+If the bank shows a category for the transaction, extract it exactly as shown. If no category is visible, use an empty string "".
 
 Extract every visible transaction in the screenshot. Focus on the most recent transactions shown.`;
 

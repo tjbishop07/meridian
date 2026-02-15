@@ -57,11 +57,12 @@ export function Automation() {
       console.log('[Automation] handleScrapeComplete called');
       console.log('[Automation] Arguments received:', args);
 
-      // Prevent concurrent imports
+      // Prevent concurrent imports - set flag IMMEDIATELY
       if (isImporting) {
         console.warn('[Automation] Import already in progress, ignoring duplicate event');
         return;
       }
+      setIsImporting(true); // Set immediately to block duplicate events
 
       // The data should be the first argument (event is filtered by preload)
       const data = args[0];
@@ -71,12 +72,14 @@ export function Automation() {
       if (!data) {
         console.error('[Automation] Scrape complete event received with undefined data');
         toast.error('Failed to receive scraped data');
+        setIsImporting(false);
         return;
       }
 
       if (!data.transactions || !Array.isArray(data.transactions)) {
         console.error('[Automation] Invalid transactions data:', data);
         toast.error('Invalid scraped data format');
+        setIsImporting(false);
         return;
       }
 
@@ -119,6 +122,7 @@ export function Automation() {
         if (!accountId) {
           console.error('[Automation] No accounts available for import');
           toast.error('No accounts available. Please create an account first.');
+          setIsImporting(false);
           return;
         }
 
@@ -126,7 +130,6 @@ export function Automation() {
 
         // Directly save transactions to database
         try {
-          setIsImporting(true);
           toast.loading('Saving transactions...', { id: 'import' });
 
           console.log('[Automation] ==================== SAVING TRANSACTIONS ====================');
@@ -164,38 +167,42 @@ export function Automation() {
               return null;
             }
 
-            // Look for existing category (case-insensitive, normalized comparison)
-            let category = categories.find(c => {
-              const existingNormalized = normalizeCategoryName(c.name);
-              return existingNormalized.toLowerCase() === normalizedName.toLowerCase() && c.type === type;
+            // Fetch fresh categories from database to avoid stale React state
+            const freshCategories = await window.electron.invoke('categories:get-all');
+
+            // Look for existing category that EXACTLY matches the normalized name (case-insensitive)
+            // This prevents matching "Credit Card Payment 0" when we want "Credit Card Payment"
+            let category = freshCategories.find((c: any) => {
+              return c.name.toLowerCase() === normalizedName.toLowerCase() && c.type === type;
             });
 
-            if (!category) {
-              // Create new category with normalized name
-              console.log('[Automation] Creating new category:', normalizedName, type);
-              try {
-                await window.electron.invoke('categories:create', {
-                  name: normalizedName,
-                  type: type,
-                  parent_id: null,
-                  icon: null
-                });
-
-                // Reload categories to get the new one
-                await loadCategories();
-
-                // Find the newly created category
-                category = categories.find(c => {
-                  const existingNormalized = normalizeCategoryName(c.name);
-                  return existingNormalized.toLowerCase() === normalizedName.toLowerCase() && c.type === type;
-                });
-              } catch (error) {
-                console.error('[Automation] Failed to create category:', error);
-                return null;
-              }
+            if (category) {
+              console.log('[Automation] Found existing category:', category.name, '(ID:', category.id, ')');
+              return category.id;
             }
 
-            return category?.id || null;
+            // Create new category with normalized name
+            console.log('[Automation] Creating new category:', normalizedName, type);
+            try {
+              const newCategoryId = await window.electron.invoke('categories:create', {
+                name: normalizedName,
+                type: type,
+                parent_id: null,
+                icon: null,
+                color: null,
+                is_system: false
+              });
+
+              console.log('[Automation] Created category ID:', newCategoryId);
+
+              // Reload categories in background for UI
+              loadCategories().catch(err => console.error('[Automation] Failed to reload categories:', err));
+
+              return newCategoryId;
+            } catch (error) {
+              console.error('[Automation] Failed to create category:', error);
+              return null;
+            }
           };
 
           // Convert scraped transactions to CreateTransactionInput format
@@ -211,12 +218,28 @@ export function Automation() {
             // Handle category from scrape
             let categoryId = null;
 
+            // DIAGNOSTIC: Log the raw category from scrape
+            console.log('[Automation] Transaction:', {
+              description: txn.description,
+              amount: txn.amount,
+              type,
+              scrapedCategory: txn.category,
+              hasCategoryField: 'category' in txn,
+              categoryIsTruthy: !!txn.category,
+              categoryTrimmed: txn.category ? txn.category.trim() : '(empty)'
+            });
+
             if (txn.category && txn.category.trim()) {
               // Get or create category from scraped data
+              console.log('[Automation] 🔍 Calling getOrCreateCategory with:', txn.category.trim(), type);
               categoryId = await getOrCreateCategory(txn.category.trim(), type);
+              console.log('[Automation] 📌 getOrCreateCategory returned:', categoryId);
             } else if (type === 'income' && incomeCategory) {
               // Fall back to default income category for income transactions without category
+              console.log('[Automation] 💰 Using default income category:', incomeCategory.id);
               categoryId = incomeCategory.id;
+            } else {
+              console.log('[Automation] ⚠️ No category assigned - scraped category was empty or invalid');
             }
 
             // Convert date to YYYY-MM-DD format
@@ -237,6 +260,15 @@ export function Automation() {
               console.warn('[Automation] Failed to parse date, skipping transaction:', txn.date, err);
               continue; // Skip this transaction
             }
+
+            console.log('[Automation] ✅ Adding transaction to batch:', {
+              description: txn.description,
+              date: formattedDate,
+              amount: Math.abs(amount),
+              type,
+              category_id: categoryId,
+              hasCategory: categoryId !== null
+            });
 
             transactionsToCreate.push({
               account_id: accountId,

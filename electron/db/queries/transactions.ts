@@ -490,6 +490,15 @@ export function bulkCreateTransactions(transactions: CreateTransactionInput[]): 
   const insertMany = db.transaction((txns: CreateTransactionInput[]) => {
     let count = 0;
     let skipped = 0;
+    let updated = 0;
+
+    // Reduced logging for cleaner console output
+
+    const updateStmt = db.prepare(`
+      UPDATE transactions
+      SET category_id = ?
+      WHERE id = ?
+    `);
 
     for (const txn of txns) {
       // Check for duplicates before inserting
@@ -501,11 +510,24 @@ export function bulkCreateTransactions(transactions: CreateTransactionInput[]): 
       );
 
       if (duplicates.length > 0) {
-        console.log('[Transactions] Skipping duplicate transaction:', {
-          description: txn.description,
-          date: txn.date,
-          amount: txn.amount
-        });
+        const existing = duplicates[0];
+
+        // If new transaction has a category and existing doesn't, update it
+        // This handles the case where pending transactions get categories once posted
+        if (txn.category_id && !existing.category_id) {
+          updateStmt.run(txn.category_id, existing.id);
+          updated++;
+          skipped++;
+          continue;
+        }
+
+        // If categories differ, update to the newer one from the bank
+        if (txn.category_id && existing.category_id !== txn.category_id) {
+          updateStmt.run(txn.category_id, existing.id);
+          updated++;
+          skipped++;
+          continue;
+        }
         skipped++;
         continue;
       }
@@ -532,8 +554,8 @@ export function bulkCreateTransactions(transactions: CreateTransactionInput[]): 
       }
     }
 
-    if (skipped > 0) {
-      console.log(`[Transactions] Skipped ${skipped} duplicate transactions, created ${count} new transactions`);
+    if (skipped > 0 || updated > 0) {
+      console.log(`[Transactions] Created ${count} new, updated ${updated} existing, skipped ${skipped - updated} unchanged transactions`);
     }
 
     return count;
@@ -557,18 +579,51 @@ export function findDuplicateTransactions(
   `).all(accountId, date, amount, description) as Transaction[];
 
   if (exact.length > 0) {
+    console.log('[Transactions] Found exact duplicate match');
     return exact;
   }
 
   // Fuzzy match: same account, amount, and date within ±3 days
-  const fuzzy = db.prepare(`
+  const candidates = db.prepare(`
     SELECT * FROM transactions
     WHERE account_id = ?
       AND amount = ?
       AND date BETWEEN date(?, '-3 days') AND date(?, '+3 days')
   `).all(accountId, amount, date, date) as Transaction[];
 
-  return fuzzy;
+  if (candidates.length === 0) {
+    return [];
+  }
+
+  // Filter candidates by description similarity
+  const descLower = description.toLowerCase().trim();
+  const similarTransactions = candidates.filter(txn => {
+    const existingDescLower = txn.description.toLowerCase().trim();
+
+    // Check if descriptions are very similar (one contains the other)
+    if (existingDescLower.includes(descLower) || descLower.includes(existingDescLower)) {
+      console.log('[Transactions] Found fuzzy duplicate match (substring):', {
+        new: description,
+        existing: txn.description
+      });
+      return true;
+    }
+
+    // Check if they start the same way (first 10 chars)
+    if (descLower.length >= 10 && existingDescLower.length >= 10) {
+      if (descLower.substring(0, 10) === existingDescLower.substring(0, 10)) {
+        console.log('[Transactions] Found fuzzy duplicate match (prefix):', {
+          new: description,
+          existing: txn.description
+        });
+        return true;
+      }
+    }
+
+    return false;
+  });
+
+  return similarTransactions;
 }
 
 export function deleteAllTransactions(): number {

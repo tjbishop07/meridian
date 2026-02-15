@@ -18,7 +18,7 @@ export function getCategoriesByType(type: 'income' | 'expense'): Category[] {
 
 export function createCategory(
   data: Omit<Category, 'id' | 'created_at'>
-): Category {
+): number {
   const db = getDatabase();
 
   const stmt = db.prepare(`
@@ -35,12 +35,8 @@ export function createCategory(
     data.is_system ? 1 : 0
   );
 
-  const category = getCategoryById(result.lastInsertRowid as number);
-  if (!category) {
-    throw new Error('Failed to create category');
-  }
-
-  return category;
+  // Return just the ID, not the entire category object
+  return result.lastInsertRowid as number;
 }
 
 export function updateCategory(data: Partial<Category> & { id: number }): Category {

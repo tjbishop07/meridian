@@ -25,7 +25,8 @@ export function initDatabase(): Database.Database {
   console.log('Initializing database at:', dbPath);
 
   db = new Database(dbPath, {
-    verbose: process.env.NODE_ENV === 'development' ? console.log : undefined
+    // Disabled verbose SQL logging to reduce console noise
+    // verbose: process.env.NODE_ENV === 'development' ? console.log : undefined
   });
 
   // Configure SQLite for better performance
