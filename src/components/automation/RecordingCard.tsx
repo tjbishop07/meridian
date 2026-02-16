@@ -12,6 +12,7 @@ interface Recording {
   created_at: string;
   updated_at: string;
   last_run_at?: string | null;
+  last_scraping_method?: string | null;
 }
 
 interface RecordingCardProps {
@@ -169,6 +170,17 @@ export function RecordingCard({
           )}
           {!recording.account_name && (
             <span className="badge badge-ghost badge-sm">No account</span>
+          )}
+          {recording.last_scraping_method && (
+            <span className={`badge badge-sm ${
+              recording.last_scraping_method === 'claude' ? 'badge-info' :
+              recording.last_scraping_method === 'ollama' ? 'badge-accent' :
+              'badge-neutral'
+            }`}>
+              {recording.last_scraping_method === 'claude' ? '🤖 Claude Vision' :
+               recording.last_scraping_method === 'ollama' ? '🏠 Local AI' :
+               '📄 DOM'}
+            </span>
           )}
         </div>
 

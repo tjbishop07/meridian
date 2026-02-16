@@ -23,22 +23,10 @@ export function ClaudeVisionTab() {
           making it resilient to website changes.
         </p>
 
-        {/* Vision Provider Selection */}
-        <div className="mb-6">
-          <label className="block text-sm font-medium text-base-content/80 mb-2">
-            Scraping Method
-          </label>
-          <select
-            value={settings.vision_provider}
-            onChange={(e) => updateSettings({ vision_provider: e.target.value as 'claude' | 'none' })}
-            className="w-full px-4 py-2.5 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
-          >
-            <option value="claude">Claude Vision AI (Most Reliable - Recommended)</option>
-            <option value="none">DOM Parsing Only (Legacy - Less Reliable)</option>
-          </select>
-          <p className="mt-2 text-xs text-base-content/60">
-            Claude Vision AI uses AI to read transaction pages like a human, making it resilient to website changes.
-            Cost: ~$0.01 per page (~$0.30/month for daily runs).
+        {/* Info Notice */}
+        <div className="mb-6 p-4 bg-info/10 border border-info/30 rounded-lg">
+          <p className="text-sm text-base-content/70">
+            Configure your Claude API credentials below. Select "Claude Vision AI" as the scraping method in the Browser Automation tab to use this service.
           </p>
         </div>
 
@@ -148,37 +136,25 @@ export function ClaudeVisionTab() {
         </div>
 
         {/* Status indicator */}
-        {settings.vision_provider === 'claude' && settings.claude_api_key && (
+        {settings.claude_api_key ? (
           <div className="p-4 bg-success/10 border border-success/30 rounded-lg flex items-center gap-3">
             <CheckCircle className="w-5 h-5 text-success" />
             <div>
-              <p className="text-sm font-medium text-success">Claude Vision AI Configured</p>
+              <p className="text-sm font-medium text-success">Claude API Configured</p>
               <p className="text-xs text-base-content/70 mt-0.5">
-                Automation will use AI vision for reliable transaction scraping
+                {settings.vision_provider === 'claude'
+                  ? 'Currently active - automations will use Claude Vision AI'
+                  : 'Ready to use - select "Claude Vision AI" in Browser Automation tab'}
               </p>
             </div>
           </div>
-        )}
-
-        {settings.vision_provider === 'claude' && !settings.claude_api_key && (
+        ) : (
           <div className="p-4 bg-warning/10 border border-warning/30 rounded-lg flex items-center gap-3">
             <XCircle className="w-5 h-5 text-warning" />
             <div>
               <p className="text-sm font-medium text-warning">API Key Required</p>
               <p className="text-xs text-base-content/70 mt-0.5">
-                Add your Claude API key above to enable vision-based scraping
-              </p>
-            </div>
-          </div>
-        )}
-
-        {settings.vision_provider === 'none' && (
-          <div className="p-4 bg-base-200 border border-base-300 rounded-lg flex items-center gap-3">
-            <XCircle className="w-5 h-5 text-base-content/50" />
-            <div>
-              <p className="text-sm font-medium text-base-content">DOM Parsing Mode</p>
-              <p className="text-xs text-base-content/70 mt-0.5">
-                Using legacy DOM parsing - may break when bank websites update
+                Add your Claude API key above to enable Claude Vision AI scraping
               </p>
             </div>
           </div>

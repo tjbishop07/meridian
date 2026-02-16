@@ -10,6 +10,7 @@ export interface ExportRecipe {
   created_at: string;
   updated_at: string;
   last_run_at: string | null;
+  last_scraping_method: string | null;
 }
 
 export interface ExportRecipeInput {

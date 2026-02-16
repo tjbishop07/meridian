@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 export interface AutomationSettings {
-  vision_provider: 'claude' | 'none';
+  vision_provider: 'claude' | 'ollama' | 'none';
   claude_api_key: string;
   claude_model?: string;
   retry_attempts: number;

@@ -104,11 +104,19 @@ export function LocalAITab() {
           )}
         </div>
 
-        {/* Coming Soon Notice */}
-        <div className="mb-6 p-4 bg-info/10 border border-info/30 rounded-lg">
-          <p className="text-sm font-medium text-info mb-1">🚧 Coming Soon</p>
+        {/* Info Notice */}
+        <div className="mb-6 p-4 bg-success/10 border border-success/30 rounded-lg">
+          <p className="text-sm font-medium text-success mb-1">✓ Local AI Ready</p>
           <p className="text-xs text-base-content/70">
-            Local AI integration is under development. For now, use Claude Vision AI for the most reliable transaction scraping.
+            Ollama vision models can now be used for transaction scraping. Make sure Ollama is installed and running, then select "Local Ollama" in the Browser Automation tab.
+          </p>
+        </div>
+
+        {/* Model Requirements */}
+        <div className="mb-6 p-4 bg-warning/10 border border-warning/30 rounded-lg">
+          <p className="text-sm font-medium text-warning mb-1">Vision Model Required</p>
+          <p className="text-xs text-base-content/70">
+            To use local AI for transaction scraping, you need to download <strong>llama3.2-vision</strong> model. Download it below.
           </p>
         </div>
 

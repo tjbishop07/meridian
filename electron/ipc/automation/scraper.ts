@@ -7,8 +7,9 @@ import { getAutomationSettings } from '../../db/queries/automation-settings';
 /**
  * Scrape transactions from the current page in the playback window
  * Uses vision-first approach with DOM extraction as fallback
+ * Returns transactions and the method used
  */
-export async function scrapeTransactions(window: BrowserWindow): Promise<ScrapedTransaction[]> {
+export async function scrapeTransactions(window: BrowserWindow): Promise<{ transactions: ScrapedTransaction[]; method: string }> {
   const db = getDatabase();
   const settings = getAutomationSettings(db);
 
@@ -26,7 +27,27 @@ export async function scrapeTransactions(window: BrowserWindow): Promise<Scraped
 
       if (transactions.length > 0) {
         console.log('[Scraper] ✓ Vision scraping succeeded with', transactions.length, 'transactions');
-        return transactions;
+        return { transactions, method: 'claude' };
+      } else {
+        console.log('[Scraper] ⚠️ Vision scraping returned 0 transactions, falling back to DOM');
+      }
+    } catch (error) {
+      console.warn('[Scraper] ⚠️ Vision scraping failed, falling back to DOM:', error instanceof Error ? error.message : String(error));
+    }
+  } else if (settings.vision_provider === 'ollama') {
+    console.log('[Scraper] Attempting vision-based scraping with Ollama...');
+    try {
+      const visionConfig: VisionConfig = {
+        provider: 'ollama',
+        model: 'llama3.2-vision', // Default Ollama vision model
+        ollamaEndpoint: 'http://localhost:11434',
+      };
+
+      const transactions = await scrapeWithVision(window, visionConfig);
+
+      if (transactions.length > 0) {
+        console.log('[Scraper] ✓ Vision scraping succeeded with', transactions.length, 'transactions');
+        return { transactions, method: 'ollama' };
       } else {
         console.log('[Scraper] ⚠️ Vision scraping returned 0 transactions, falling back to DOM');
       }
@@ -38,7 +59,8 @@ export async function scrapeTransactions(window: BrowserWindow): Promise<Scraped
   }
 
   // Fallback to DOM scraping
-  return scrapeWithDOM(window);
+  const transactions = await scrapeWithDOM(window);
+  return { transactions, method: 'dom' };
 }
 
 /**

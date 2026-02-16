@@ -147,6 +147,28 @@ export const migrations: Migration[] = [
         console.log('Migration 3: last_run_at column already exists');
       }
     }
+  },
+  {
+    version: 4,
+    name: 'add_export_recipes_last_scraping_method',
+    up: (db: Database.Database) => {
+      // Check if last_scraping_method column exists in export_recipes
+      const columns = db.pragma('table_info(export_recipes)') as Array<{ name: string }>;
+      const hasScrapingMethod = columns.some(col => col.name === 'last_scraping_method');
+
+      if (!hasScrapingMethod) {
+        console.log('Migration 4: Adding last_scraping_method to export_recipes');
+
+        // Add last_scraping_method column (nullable - stores 'claude', 'ollama', or 'dom')
+        db.exec(`
+          ALTER TABLE export_recipes ADD COLUMN last_scraping_method TEXT;
+        `);
+
+        console.log('Migration 4: Added last_scraping_method column to export_recipes');
+      } else {
+        console.log('Migration 4: last_scraping_method column already exists');
+      }
+    }
   }
 ];
 

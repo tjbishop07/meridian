@@ -371,8 +371,8 @@ async function playRecording(recipeId: string): Promise<{ success: boolean; mess
 
     await updatePlaybackProgress(playbackWindow, steps.length, steps.length, 'Extracting transactions...', '#3b82f6');
 
-    let transactions = await scrapeTransactions(playbackWindow);
-    console.log(`[Automation] Scraped ${transactions.length} transactions`);
+    const { transactions, method } = await scrapeTransactions(playbackWindow);
+    console.log(`[Automation] Scraped ${transactions.length} transactions using ${method} method`);
 
     // AI cleanup disabled - was creating duplicate categories and invalid responses
     // Categories will be assigned manually or through import mapping
@@ -389,11 +389,11 @@ async function playRecording(recipeId: string): Promise<{ success: boolean; mess
       });
     }
 
-    // Update last_run_at timestamp
+    // Update last_run_at timestamp and scraping method
     try {
       const db = getDatabase();
-      db.prepare('UPDATE export_recipes SET last_run_at = CURRENT_TIMESTAMP WHERE id = ?').run(recipeId);
-      console.log(`[Automation] Updated last_run_at for recipe ${recipeId}`);
+      db.prepare('UPDATE export_recipes SET last_run_at = CURRENT_TIMESTAMP, last_scraping_method = ? WHERE id = ?').run(method, recipeId);
+      console.log(`[Automation] Updated last_run_at and scraping method (${method}) for recipe ${recipeId}`);
     } catch (error) {
       console.error('[Automation] Failed to update last_run_at:', error);
     }

@@ -9,6 +9,7 @@ import { EditRecordingModal } from '../components/automation/EditRecordingModal'
 import { ClaudeVisionTab } from '../components/automation/ClaudeVisionTab';
 import { LocalAITab } from '../components/automation/LocalAITab';
 import { useCategories } from '../hooks/useCategories';
+import { useAutomationSettings } from '../hooks/useAutomationSettings';
 
 interface Recording {
   id: string;
@@ -17,15 +18,18 @@ interface Recording {
   url: string;
   steps: any[];
   account_id?: number | null;
+  account_name?: string;
   created_at: string;
   updated_at: string;
   last_run_at?: string | null;
+  last_scraping_method?: string | null;
 }
 
 export function Automation() {
   const navigate = useNavigate();
   const location = useLocation();
   const { categories, loadCategories } = useCategories();
+  const { settings: automationSettings, updateSettings: updateAutomationSettings } = useAutomationSettings();
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [loading, setLoading] = useState(true);
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -647,6 +651,30 @@ export function Automation() {
         {/* Browser Automation Tab */}
         {activeTab === 'browser' && (
           <>
+            {/* Scraping Method Selector */}
+            <div className="bg-base-100 rounded-lg p-4 mb-6">
+              <label className="block text-sm font-medium text-base-content/80 mb-2">
+                Transaction Scraping Method
+              </label>
+              <select
+                value={automationSettings.vision_provider}
+                onChange={(e) => updateAutomationSettings({ vision_provider: e.target.value as 'claude' | 'ollama' | 'none' })}
+                className="w-full max-w-md px-4 py-2.5 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
+              >
+                <option value="claude">Claude Vision AI (Recommended - Most Reliable)</option>
+                <option value="ollama">Local Ollama (Privacy-Focused - Free)</option>
+                <option value="none">DOM Parsing Only (Legacy - May Break)</option>
+              </select>
+              <p className="mt-2 text-xs text-base-content/60">
+                {automationSettings.vision_provider === 'claude' &&
+                  'Using Claude Vision AI for reliable transaction scraping. Configure in the Claude Vision tab.'}
+                {automationSettings.vision_provider === 'ollama' &&
+                  'Using local Ollama models for private transaction scraping. Requires llama3.2-vision model. Configure in the Local AI tab.'}
+                {automationSettings.vision_provider === 'none' &&
+                  'Using legacy DOM parsing - may break when bank websites update.'}
+              </p>
+            </div>
+
             {loading ? (
               <div className="flex items-center justify-center h-full">
                 <span className="loading loading-spinner loading-lg"></span>
