@@ -163,14 +163,14 @@ WHAT TO LOOK FOR:
 
 CRITICAL RULES:
 1. Extract ONLY transactions visible in THIS screenshot (typically 10-50 recent transactions)
-2. Skip any transactions marked as "pending" or "processing"
-3. Only include transactions that have been posted/cleared
-4. Clean merchant names (remove prefixes like "ACH", "DEBIT", "POS", "CARD PURCHASE", etc.)
-5. Use negative amounts for expenses (money going out)
-6. Use positive amounts for income (money coming in)
-7. Parse dates in any format you see (Month DD, YYYY or MM/DD/YYYY, etc.)
-8. If you see a balance column, include it
-9. IMPORTANT: Extract category if visible - banks often assign categories like "Shopping", "Groceries", "Fast Food", "Gas/Fuel", "Bills & Utilities", etc. If no category is shown, leave it empty ("")
+2. Include ALL transactions - both posted/cleared AND pending/processing transactions
+3. For pending/processing transactions, ALWAYS use empty string "" for the category field
+4. For posted/cleared transactions, extract the category if visible, otherwise use empty string ""
+5. Clean merchant names (remove prefixes like "ACH", "DEBIT", "POS", "CARD PURCHASE", etc.)
+6. Use negative amounts for expenses (money going out)
+7. Use positive amounts for income (money coming in)
+8. Parse dates in any format you see (Month DD, YYYY or MM/DD/YYYY, etc.)
+9. If you see a balance column, include it
 
 IMPORTANT: If you cannot find ANY transaction data in the image:
 - Return an empty array: []
@@ -344,10 +344,11 @@ WHAT TO LOOK FOR:
 
 CRITICAL RULES:
 1. Extract ONLY visible transactions in THIS screenshot
-2. Skip "pending" or "processing" transactions
-3. Clean merchant names (remove prefixes like "ACH", "DEBIT", "POS")
-4. Use negative amounts for expenses, positive for income
-5. Extract category if visible, otherwise use empty string ""
+2. Include ALL transactions - both posted/cleared AND pending/processing
+3. For pending/processing transactions, ALWAYS use empty string "" for category
+4. For posted/cleared transactions, extract category if visible, otherwise use empty string ""
+5. Clean merchant names (remove prefixes like "ACH", "DEBIT", "POS")
+6. Use negative amounts for expenses, positive for income
 
 Return ONLY a JSON array with this structure (no markdown, no explanation):
 [

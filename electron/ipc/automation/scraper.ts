@@ -263,12 +263,12 @@ export async function scrapeWithDOM(window: BrowserWindow): Promise<ScrapedTrans
               continue;
             }
 
-            // Skip pending transactions
-            if (data.description.toLowerCase().includes('pending') ||
-                data.category?.toLowerCase().includes('pending')) {
-              console.log('[Scraper] Skipping pending transaction:', data.description);
-              skippedCount++;
-              continue;
+            // Check if transaction is pending
+            const isPending = data.description.toLowerCase().includes('pending') ||
+                             data.category?.toLowerCase().includes('pending');
+
+            if (isPending) {
+              console.log('[Scraper] Found pending transaction:', data.description);
             }
 
             // Log warnings for missing fields
@@ -298,29 +298,36 @@ export async function scrapeWithDOM(window: BrowserWindow): Promise<ScrapedTrans
             // Clean balance
             let cleanBalance = data.balance.replace(/[$,]/g, '').trim();
 
-            // Clean category - remove trailing numbers, extra spaces, special chars
-            let category = data.category || '';
-            if (category) {
-              category = category
-                .replace(/\\s+\\d+$/g, '')  // Remove trailing numbers like "Allowance 0"
-                .replace(/[\\d\\(\\)]+$/g, '')  // Remove trailing numbers and parentheses
-                .replace(/\\s+/g, ' ')  // Normalize spaces
-                .trim();
-            }
+            // Handle category based on pending status
+            let category = '';
+            if (isPending) {
+              // Pending transactions get no category
+              category = '';
+            } else {
+              // Clean category - remove trailing numbers, extra spaces, special chars
+              category = data.category || '';
+              if (category) {
+                category = category
+                  .replace(/\\s+\\d+$/g, '')  // Remove trailing numbers like "Allowance 0"
+                  .replace(/[\\d\\(\\)]+$/g, '')  // Remove trailing numbers and parentheses
+                  .replace(/\\s+/g, ' ')  // Normalize spaces
+                  .trim();
+              }
 
-            // Infer category from description if not provided
-            if (!category && cleanDesc) {
-              const desc = cleanDesc.toLowerCase();
-              if (desc.includes('restaurant') || desc.includes('shack') || desc.includes('cafe') || desc.includes('pizza')) {
-                category = 'Restaurants & Dining';
-              } else if (desc.includes('gas') || desc.includes('fuel') || desc.includes('shell') || desc.includes('chevron')) {
-                category = 'Gas & Fuel';
-              } else if (desc.includes('grocery') || desc.includes('market') || desc.includes('safeway') || desc.includes('whole foods')) {
-                category = 'Groceries';
-              } else if (desc.includes('amazon') || desc.includes('target') || desc.includes('walmart')) {
-                category = 'Shopping';
-              } else if (desc.includes('netflix') || desc.includes('spotify') || desc.includes('hulu')) {
-                category = 'Entertainment';
+              // Infer category from description if not provided
+              if (!category && cleanDesc) {
+                const desc = cleanDesc.toLowerCase();
+                if (desc.includes('restaurant') || desc.includes('shack') || desc.includes('cafe') || desc.includes('pizza')) {
+                  category = 'Restaurants & Dining';
+                } else if (desc.includes('gas') || desc.includes('fuel') || desc.includes('shell') || desc.includes('chevron')) {
+                  category = 'Gas & Fuel';
+                } else if (desc.includes('grocery') || desc.includes('market') || desc.includes('safeway') || desc.includes('whole foods')) {
+                  category = 'Groceries';
+                } else if (desc.includes('amazon') || desc.includes('target') || desc.includes('walmart')) {
+                  category = 'Shopping';
+                } else if (desc.includes('netflix') || desc.includes('spotify') || desc.includes('hulu')) {
+                  category = 'Entertainment';
+                }
               }
             }
 

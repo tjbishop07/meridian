@@ -496,7 +496,11 @@ export function bulkCreateTransactions(transactions: CreateTransactionInput[]): 
 
     const updateStmt = db.prepare(`
       UPDATE transactions
-      SET category_id = ?
+      SET category_id = ?,
+          amount = ?,
+          date = ?,
+          description = ?,
+          status = ?
       WHERE id = ?
     `);
 
@@ -512,22 +516,43 @@ export function bulkCreateTransactions(transactions: CreateTransactionInput[]): 
       if (duplicates.length > 0) {
         const existing = duplicates[0];
 
-        // If new transaction has a category and existing doesn't, update it
-        // This handles the case where pending transactions get categories once posted
-        if (txn.category_id && !existing.category_id) {
-          updateStmt.run(txn.category_id, existing.id);
+        // Check if this is a pending→posted transition
+        const isPendingToPosted = !existing.category_id && txn.category_id;
+
+        // Check if any fields differ that would warrant an update
+        const needsUpdate =
+          (txn.category_id && !existing.category_id) || // Category added
+          (txn.category_id && existing.category_id !== txn.category_id) || // Category changed
+          Math.abs(existing.amount - txn.amount) > 0.001 || // Amount changed (accounting for float precision)
+          existing.date !== txn.date || // Date changed
+          existing.description !== txn.description || // Description cleaned up
+          existing.status !== (txn.status || 'cleared'); // Status changed
+
+        if (needsUpdate) {
+          // Update the existing transaction with the newer data
+          updateStmt.run(
+            txn.category_id || existing.category_id || null,
+            txn.amount,
+            txn.date,
+            txn.description,
+            txn.status || 'cleared',
+            existing.id
+          );
           updated++;
+
+          if (isPendingToPosted) {
+            console.log('[Transactions] Updated pending→posted transaction:', {
+              id: existing.id,
+              description: `${existing.description} → ${txn.description}`,
+              amount: existing.amount !== txn.amount ? `${existing.amount} → ${txn.amount}` : txn.amount,
+              category: `none → ${txn.category_id}`
+            });
+          }
           skipped++;
           continue;
         }
 
-        // If categories differ, update to the newer one from the bank
-        if (txn.category_id && existing.category_id !== txn.category_id) {
-          updateStmt.run(txn.category_id, existing.id);
-          updated++;
-          skipped++;
-          continue;
-        }
+        // No changes needed, just skip
         skipped++;
         continue;
       }
@@ -564,6 +589,54 @@ export function bulkCreateTransactions(transactions: CreateTransactionInput[]): 
   return insertMany(transactions);
 }
 
+/**
+ * Helper to normalize transaction descriptions for comparison
+ * Removes status prefixes and cleans up formatting
+ */
+function normalizeDescription(desc: string): string {
+  return desc
+    .toLowerCase()
+    .trim()
+    // Remove common status prefixes
+    .replace(/^(pending|processing|posted|cleared|authorized):\s*/i, '')
+    .replace(/\s*\(pending\)\s*/i, '')
+    .replace(/\s*\(processing\)\s*/i, '')
+    // Remove extra whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Calculate Levenshtein distance between two strings
+ * Used for fuzzy matching transaction descriptions
+ */
+function levenshteinDistance(str1: string, str2: string): number {
+  const len1 = str1.length;
+  const len2 = str2.length;
+  const matrix: number[][] = [];
+
+  for (let i = 0; i <= len1; i++) {
+    matrix[i] = [i];
+  }
+
+  for (let j = 0; j <= len2; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= len1; i++) {
+    for (let j = 1; j <= len2; j++) {
+      const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,      // deletion
+        matrix[i][j - 1] + 1,      // insertion
+        matrix[i - 1][j - 1] + cost // substitution
+      );
+    }
+  }
+
+  return matrix[len1][len2];
+}
+
 export function findDuplicateTransactions(
   accountId: number,
   date: string,
@@ -572,7 +645,10 @@ export function findDuplicateTransactions(
 ): Transaction[] {
   const db = getDatabase();
 
-  // Exact match
+  // Normalize the incoming description for better matching
+  const normalizedDesc = normalizeDescription(description);
+
+  // Step 1: Try exact match first (fastest)
   const exact = db.prepare(`
     SELECT * FROM transactions
     WHERE account_id = ? AND date = ? AND amount = ? AND description = ?
@@ -583,25 +659,36 @@ export function findDuplicateTransactions(
     return exact;
   }
 
-  // Fuzzy match: same account, amount, and date within ±3 days
+  // Step 2: Fuzzy match with date tolerance (±3 days)
+  // Use wider amount range to catch pending→posted transitions where tips/fees were added
+  const amountTolerance = 2.00; // Allow up to $2 difference (covers most tips/fees)
   const candidates = db.prepare(`
     SELECT * FROM transactions
     WHERE account_id = ?
-      AND amount = ?
+      AND ABS(amount - ?) <= ?
       AND date BETWEEN date(?, '-3 days') AND date(?, '+3 days')
-  `).all(accountId, amount, date, date) as Transaction[];
+  `).all(accountId, amount, amountTolerance, date, date) as Transaction[];
 
   if (candidates.length === 0) {
     return [];
   }
 
-  // Filter candidates by description similarity
-  const descLower = description.toLowerCase().trim();
+  // Step 3: Filter by description similarity
   const similarTransactions = candidates.filter(txn => {
     const existingDescLower = txn.description.toLowerCase().trim();
+    const existingNormalized = normalizeDescription(txn.description);
 
-    // Check if descriptions are very similar (one contains the other)
-    if (existingDescLower.includes(descLower) || descLower.includes(existingDescLower)) {
+    // Exact match on normalized descriptions (catches "Pending: Starbucks" → "Starbucks")
+    if (normalizedDesc === existingNormalized) {
+      console.log('[Transactions] Found normalized duplicate match:', {
+        new: description,
+        existing: txn.description
+      });
+      return true;
+    }
+
+    // Substring match
+    if (existingDescLower.includes(normalizedDesc) || normalizedDesc.includes(existingDescLower)) {
       console.log('[Transactions] Found fuzzy duplicate match (substring):', {
         new: description,
         existing: txn.description
@@ -609,14 +696,43 @@ export function findDuplicateTransactions(
       return true;
     }
 
-    // Check if they start the same way (first 10 chars)
-    if (descLower.length >= 10 && existingDescLower.length >= 10) {
-      if (descLower.substring(0, 10) === existingDescLower.substring(0, 10)) {
+    // Prefix match (first 10 chars)
+    if (normalizedDesc.length >= 10 && existingNormalized.length >= 10) {
+      if (normalizedDesc.substring(0, 10) === existingNormalized.substring(0, 10)) {
         console.log('[Transactions] Found fuzzy duplicate match (prefix):', {
           new: description,
           existing: txn.description
         });
         return true;
+      }
+    }
+
+    // Levenshtein distance match (for typos, small differences)
+    // Allow up to 3 character differences for short descriptions, 5 for longer ones
+    const maxDistance = normalizedDesc.length < 15 ? 3 : 5;
+    const distance = levenshteinDistance(normalizedDesc, existingNormalized);
+    if (distance <= maxDistance) {
+      console.log('[Transactions] Found fuzzy duplicate match (Levenshtein distance):', {
+        new: description,
+        existing: txn.description,
+        distance,
+        maxDistance
+      });
+      return true;
+    }
+
+    // Special case: If existing transaction has no category (likely pending),
+    // be more lenient with description matching
+    if (!txn.category_id) {
+      // Check if core merchant name is similar (first 5 chars)
+      if (normalizedDesc.length >= 5 && existingNormalized.length >= 5) {
+        if (normalizedDesc.substring(0, 5) === existingNormalized.substring(0, 5)) {
+          console.log('[Transactions] Found fuzzy duplicate match (pending transaction with similar prefix):', {
+            new: description,
+            existing: txn.description
+          });
+          return true;
+        }
       }
     }
 
