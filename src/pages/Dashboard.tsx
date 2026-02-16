@@ -76,16 +76,26 @@ export default function Dashboard() {
     );
   }
 
+  // Helper function to safely calculate percentage change
+  const calculatePercentChange = (current: number, previous: number): number | null => {
+    if (previous === 0) {
+      // If previous was 0 and current is not 0, it's infinite growth
+      // Return null to indicate we should show a different message
+      return current !== 0 ? null : 0;
+    }
+    return ((current - previous) / previous) * 100;
+  };
+
   const incomeChange = previousMonth
-    ? ((currentMonth.income - previousMonth.income) / previousMonth.income) * 100
+    ? calculatePercentChange(currentMonth.income, previousMonth.income)
     : 0;
 
   const expenseChange = previousMonth
-    ? ((currentMonth.expenses - previousMonth.expenses) / previousMonth.expenses) * 100
+    ? calculatePercentChange(currentMonth.expenses, previousMonth.expenses)
     : 0;
 
   const netChange = previousMonth
-    ? ((currentMonth.net - previousMonth.net) / previousMonth.net) * 100
+    ? calculatePercentChange(currentMonth.net, previousMonth.net)
     : 0;
 
   // Colors for pie chart
@@ -116,27 +126,25 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Month Steps */}
-        <ul className="steps steps-horizontal w-full">
+        {/* Month Tabs */}
+        <div role="tablist" className="tabs tabs-box w-full">
           {months.map((month) => {
             const isSelected = month.value === selectedMonth;
-            const isPast = month.index < selectedMonthIndex;
-            const isActive = isPast || isSelected;
 
             return (
-              <li
+              <a
                 key={month.value}
-                data-content={isSelected ? '●' : ''}
-                className={`step cursor-pointer transition-colors hover:text-primary ${
-                  isActive ? 'step-primary' : 'step-neutral'
-                } ${isSelected ? 'font-bold text-primary' : ''}`}
+                role="tab"
+                className={`tab flex-1 ${
+                  isSelected ? 'tab-active' : ''
+                }`}
                 onClick={() => setSelectedMonth(month.value)}
               >
                 {month.label}
-              </li>
+              </a>
             );
           })}
-        </ul>
+        </div>
       </div>
 
       {/* Scrollable Content */}
@@ -156,18 +164,26 @@ export default function Dashboard() {
           </p>
           {previousMonth && (
             <div className="flex items-center gap-1">
-              {incomeChange >= 0 ? (
-                <ArrowUpRight className="w-4 h-4 text-green-600" />
+              {incomeChange === null ? (
+                <span className="text-sm font-medium text-base-content/60">
+                  New data
+                </span>
               ) : (
-                <ArrowDownRight className="w-4 h-4 text-red-600" />
+                <>
+                  {incomeChange >= 0 ? (
+                    <ArrowUpRight className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <ArrowDownRight className="w-4 h-4 text-red-600" />
+                  )}
+                  <span
+                    className={`text-sm font-medium ${
+                      incomeChange >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}
+                  >
+                    {Math.abs(incomeChange).toFixed(1)}% vs last month
+                  </span>
+                </>
               )}
-              <span
-                className={`text-sm font-medium ${
-                  incomeChange >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}
-              >
-                {Math.abs(incomeChange).toFixed(1)}% vs last month
-              </span>
             </div>
           )}
         </div>
@@ -185,18 +201,26 @@ export default function Dashboard() {
           </p>
           {previousMonth && (
             <div className="flex items-center gap-1">
-              {expenseChange >= 0 ? (
-                <ArrowUpRight className="w-4 h-4 text-red-600" />
+              {expenseChange === null ? (
+                <span className="text-sm font-medium text-base-content/60">
+                  New data
+                </span>
               ) : (
-                <ArrowDownRight className="w-4 h-4 text-green-600" />
+                <>
+                  {expenseChange >= 0 ? (
+                    <ArrowUpRight className="w-4 h-4 text-red-600" />
+                  ) : (
+                    <ArrowDownRight className="w-4 h-4 text-green-600" />
+                  )}
+                  <span
+                    className={`text-sm font-medium ${
+                      expenseChange >= 0 ? 'text-red-600' : 'text-green-600'
+                    }`}
+                  >
+                    {Math.abs(expenseChange).toFixed(1)}% vs last month
+                  </span>
+                </>
               )}
-              <span
-                className={`text-sm font-medium ${
-                  expenseChange >= 0 ? 'text-red-600' : 'text-green-600'
-                }`}
-              >
-                {Math.abs(expenseChange).toFixed(1)}% vs last month
-              </span>
             </div>
           )}
         </div>
@@ -214,18 +238,26 @@ export default function Dashboard() {
           </p>
           {previousMonth && (
             <div className="flex items-center gap-1">
-              {netChange >= 0 ? (
-                <ArrowUpRight className="w-4 h-4 text-green-600" />
+              {netChange === null ? (
+                <span className="text-sm font-medium text-base-content/60">
+                  New data
+                </span>
               ) : (
-                <ArrowDownRight className="w-4 h-4 text-red-600" />
+                <>
+                  {netChange >= 0 ? (
+                    <ArrowUpRight className="w-4 h-4 text-green-600" />
+                  ) : (
+                    <ArrowDownRight className="w-4 h-4 text-red-600" />
+                  )}
+                  <span
+                    className={`text-sm font-medium ${
+                      netChange >= 0 ? 'text-green-600' : 'text-red-600'
+                    }`}
+                  >
+                    {Math.abs(netChange).toFixed(1)}% vs last month
+                  </span>
+                </>
               )}
-              <span
-                className={`text-sm font-medium ${
-                  netChange >= 0 ? 'text-green-600' : 'text-red-600'
-                }`}
-              >
-                {Math.abs(netChange).toFixed(1)}% vs last month
-              </span>
             </div>
           )}
         </div>
