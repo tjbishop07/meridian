@@ -104,8 +104,8 @@ export function registerImportHandlers(): void {
         const insertStmt = db.prepare(`
           INSERT OR IGNORE INTO transactions (
             account_id, category_id, date, description, original_description,
-            amount, type, status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            amount, balance, type, status
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         // Insert transactions in a transaction
@@ -138,6 +138,7 @@ export function registerImportHandlers(): void {
                 row.description,
                 row.original_description,
                 absAmount,
+                row.balance || null,
                 type,
                 row.status || 'cleared'
               );

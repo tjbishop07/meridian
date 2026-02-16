@@ -46,6 +46,7 @@ function parseRow(row: any, format: CSVFormat): ParsedCSVRow | null {
   const dateStr = row[format.columns.date];
   const description = row[format.columns.description];
   const amountStr = row[format.columns.amount];
+  const balanceStr = format.columns.balance ? row[format.columns.balance] : undefined;
   const category = format.columns.category ? row[format.columns.category] : undefined;
   const status = format.columns.status ? row[format.columns.status] : 'cleared';
 
@@ -54,11 +55,12 @@ function parseRow(row: any, format: CSVFormat): ParsedCSVRow | null {
     return null;
   }
 
-  // Skip pending transactions
-  if (description.toLowerCase().includes('pending') ||
-      category?.toLowerCase().includes('pending')) {
-    console.log('[CSV Parser] Skipping pending transaction:', description);
-    return null;
+  // Check if transaction is pending (will be included but with no category)
+  const isPending = description.toLowerCase().includes('pending') ||
+                    category?.toLowerCase().includes('pending');
+
+  if (isPending) {
+    console.log('[CSV Parser] Found pending transaction (will import with no category):', description);
   }
 
   // Parse date
@@ -79,6 +81,17 @@ function parseRow(row: any, format: CSVFormat): ParsedCSVRow | null {
     return null;
   }
 
+  // Parse balance (if available)
+  let balance: number | undefined;
+  if (balanceStr) {
+    try {
+      balance = parseAmount(balanceStr);
+    } catch (error) {
+      console.warn('Error parsing balance:', balanceStr, error);
+      balance = undefined;
+    }
+  }
+
   // Clean up description - take part before comma for simplified display
   const fullDescription = description.trim();
   const cleanDescription = fullDescription.includes(',')
@@ -90,7 +103,8 @@ function parseRow(row: any, format: CSVFormat): ParsedCSVRow | null {
     description: cleanDescription,
     original_description: row['Original Description']?.trim() || fullDescription,
     amount: amount, // Keep the sign! Negative = expense, Positive = income
-    category: category?.trim(),
+    balance,
+    category: isPending ? undefined : category?.trim(), // No category for pending transactions
     status: normalizeStatus(status),
   };
 }

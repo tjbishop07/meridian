@@ -31,6 +31,7 @@ export interface Transaction {
   description: string;
   original_description: string | null;
   amount: number;
+  balance: number | null;
   type: 'income' | 'expense' | 'transfer';
   status: 'pending' | 'cleared' | 'reconciled';
   notes: string | null;
@@ -156,6 +157,7 @@ export interface CreateTransactionInput {
   description: string;
   original_description?: string;
   amount: number;
+  balance?: number;
   type: 'income' | 'expense' | 'transfer';
   status?: Transaction['status'];
   notes?: string;
@@ -168,6 +170,7 @@ export interface UpdateTransactionInput {
   category_id?: number;
   description?: string;
   amount?: number;
+  balance?: number;
   date?: string;
   status?: Transaction['status'];
   notes?: string;
@@ -214,6 +217,7 @@ export interface CSVFormat {
     date: string;
     description: string;
     amount: string;
+    balance?: string;
     category?: string;
     status?: string;
   };
@@ -226,6 +230,7 @@ export interface ParsedCSVRow {
   description: string;
   original_description: string;
   amount: number;
+  balance?: number;
   category?: string;
   status?: string;
 }

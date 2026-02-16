@@ -110,8 +110,8 @@ export function createTransaction(data: CreateTransactionInput): Transaction {
       const stmt1 = db.prepare(`
         INSERT INTO transactions (
           account_id, date, description, original_description,
-          amount, type, status, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          amount, balance, type, status, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result1 = stmt1.run(
@@ -120,6 +120,7 @@ export function createTransaction(data: CreateTransactionInput): Transaction {
         data.description,
         data.original_description || null,
         data.amount,
+        data.balance || null,
         'transfer',
         data.status || 'cleared',
         data.notes || null
@@ -134,8 +135,8 @@ export function createTransaction(data: CreateTransactionInput): Transaction {
       const stmt2 = db.prepare(`
         INSERT INTO transactions (
           account_id, date, description, original_description,
-          amount, type, status, notes, linked_transaction_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          amount, balance, type, status, notes, linked_transaction_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       const result2 = stmt2.run(
@@ -144,6 +145,7 @@ export function createTransaction(data: CreateTransactionInput): Transaction {
         linkedDescription,
         data.original_description || null,
         data.amount,
+        data.balance || null,
         'transfer',
         data.status || 'cleared',
         data.notes || null,
@@ -187,8 +189,8 @@ export function createTransaction(data: CreateTransactionInput): Transaction {
   const stmt = db.prepare(`
     INSERT INTO transactions (
       account_id, category_id, date, description, original_description,
-      amount, type, status, notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      amount, balance, type, status, notes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const result = stmt.run(
@@ -198,6 +200,7 @@ export function createTransaction(data: CreateTransactionInput): Transaction {
     data.description,
     data.original_description || null,
     data.amount,
+    data.balance || null,
     data.type,
     data.status || 'cleared',
     data.notes || null
@@ -406,6 +409,17 @@ export function updateTransaction(data: UpdateTransactionInput): Transaction {
     }
   }
 
+  if (data.balance !== undefined) {
+    fields.push('balance = ?');
+    params.push(data.balance);
+
+    // If this is a transfer, update the linked transaction's balance too
+    if (currentTransaction.type === 'transfer' && currentTransaction.linked_transaction_id) {
+      db.prepare('UPDATE transactions SET balance = ? WHERE id = ?')
+        .run(data.balance, currentTransaction.linked_transaction_id);
+    }
+  }
+
   if (data.date !== undefined) {
     fields.push('date = ?');
     params.push(data.date);
@@ -483,8 +497,8 @@ export function bulkCreateTransactions(transactions: CreateTransactionInput[]): 
   const stmt = db.prepare(`
     INSERT INTO transactions (
       account_id, category_id, date, description, original_description,
-      amount, type, status, notes
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      amount, balance, type, status, notes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   const insertMany = db.transaction((txns: CreateTransactionInput[]) => {
@@ -498,6 +512,7 @@ export function bulkCreateTransactions(transactions: CreateTransactionInput[]): 
       UPDATE transactions
       SET category_id = ?,
           amount = ?,
+          balance = ?,
           date = ?,
           description = ?,
           status = ?
@@ -524,6 +539,7 @@ export function bulkCreateTransactions(transactions: CreateTransactionInput[]): 
           (txn.category_id && !existing.category_id) || // Category added
           (txn.category_id && existing.category_id !== txn.category_id) || // Category changed
           Math.abs(existing.amount - txn.amount) > 0.001 || // Amount changed (accounting for float precision)
+          (txn.balance && (!existing.balance || Math.abs(existing.balance - txn.balance) > 0.001)) || // Balance changed
           existing.date !== txn.date || // Date changed
           existing.description !== txn.description || // Description cleaned up
           existing.status !== (txn.status || 'cleared'); // Status changed
@@ -533,6 +549,7 @@ export function bulkCreateTransactions(transactions: CreateTransactionInput[]): 
           updateStmt.run(
             txn.category_id || existing.category_id || null,
             txn.amount,
+            txn.balance || existing.balance || null,
             txn.date,
             txn.description,
             txn.status || 'cleared',
@@ -565,6 +582,7 @@ export function bulkCreateTransactions(transactions: CreateTransactionInput[]): 
           txn.description,
           txn.original_description || null,
           txn.amount,
+          txn.balance || null,
           txn.type,
           txn.status || 'cleared',
           txn.notes || null

@@ -182,7 +182,7 @@ export default function Transactions() {
       </PageHeader>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-hidden p-4 flex flex-col">
         {/* Transaction List */}
         {isLoading ? (
           <div className="bg-base-100 rounded-lg shadow-sm p-6">
@@ -209,7 +209,7 @@ export default function Transactions() {
           )}
         </div>
       ) : (
-        <div className="bg-base-100 rounded-lg shadow-sm flex flex-col h-[calc(100vh-10rem)]">
+        <div className="bg-base-100 rounded-lg shadow-sm flex flex-col flex-1 overflow-hidden">
           {/* Fixed Header */}
           <div className="overflow-x-auto">
             <table className="min-w-full table-fixed">
@@ -229,6 +229,9 @@ export default function Transactions() {
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-base-content/60 uppercase tracking-wider w-32">
                   Amount
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-base-content/60 uppercase tracking-wider w-32">
+                  Balance
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-base-content/60 uppercase tracking-wider w-24">
                   Actions
@@ -253,7 +256,7 @@ export default function Transactions() {
                       : 'hover:bg-base-200'
                   }`}
                 >
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${isUncategorized ? 'text-warning' : 'text-base-content'}`}>
+                  <td className={`px-6 py-4 whitespace-nowrap text-sm w-32 ${isUncategorized ? 'text-warning' : 'text-base-content'}`}>
                     {format(parseISO(transaction.date), 'MMM d, yyyy')}
                   </td>
                   <td className={`px-6 py-4 text-sm ${isUncategorized ? 'text-warning' : 'text-base-content'}`}>
@@ -264,7 +267,7 @@ export default function Transactions() {
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-base-content/70">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-base-content/70 w-48">
                     {transaction.type === 'transfer' ? (
                       <span className="text-info font-medium">
                         Transfer {transaction.linked_account_name && `→ ${transaction.linked_account_name}`}
@@ -295,10 +298,10 @@ export default function Transactions() {
                       </select>
                     )}
                   </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm ${isUncategorized ? 'text-warning' : 'text-base-content/70'}`}>
+                  <td className={`px-6 py-4 whitespace-nowrap text-sm w-48 ${isUncategorized ? 'text-warning' : 'text-base-content/70'}`}>
                     {transaction.account_name}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right w-32">
                     <span
                       className={
                         transaction.type === 'income'
@@ -312,7 +315,14 @@ export default function Transactions() {
                       {Math.abs(transaction.amount).toFixed(2)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-mono text-base-content/70 w-32">
+                    {transaction.balance !== null && transaction.balance !== undefined ? (
+                      `$${transaction.balance.toFixed(2)}`
+                    ) : (
+                      <span className="text-base-content/40 text-xs">—</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-right w-24">
                     <div className="flex items-center justify-end gap-2">
                       <button
                         onClick={() => setEditingTransaction(transaction)}

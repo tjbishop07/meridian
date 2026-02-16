@@ -345,6 +345,7 @@ export function Automation() {
 
           for (const txn of data.transactions) {
             const amount = parseFloat(txn.amount) || 0;
+            const balance = txn.balance ? parseFloat(txn.balance) : undefined;
 
             // Determine transaction type from amount
             // Negative amounts are expenses, positive are income
@@ -396,6 +397,7 @@ export function Automation() {
               description: txn.description,
               original_description: txn.description,
               amount: Math.abs(amount), // Store as positive number
+              balance: balance, // Include the running balance from the bank
               type: type,
               status: 'cleared' as const,
               category_id: categoryId,

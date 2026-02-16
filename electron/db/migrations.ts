@@ -169,6 +169,28 @@ export const migrations: Migration[] = [
         console.log('Migration 4: last_scraping_method column already exists');
       }
     }
+  },
+  {
+    version: 5,
+    name: 'add_transactions_balance',
+    up: (db: Database.Database) => {
+      // Check if balance column exists in transactions
+      const columns = db.pragma('table_info(transactions)') as Array<{ name: string }>;
+      const hasBalance = columns.some(col => col.name === 'balance');
+
+      if (!hasBalance) {
+        console.log('Migration 5: Adding balance to transactions');
+
+        // Add balance column (nullable - stores running balance after transaction)
+        db.exec(`
+          ALTER TABLE transactions ADD COLUMN balance REAL;
+        `);
+
+        console.log('Migration 5: Added balance column to transactions');
+      } else {
+        console.log('Migration 5: balance column already exists');
+      }
+    }
   }
 ];
 
