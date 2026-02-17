@@ -41,7 +41,7 @@ export default function Ticker() {
   };
 
   return (
-    <div className="glass fixed bottom-0 left-0 right-0 z-50 px-6 py-4 flex items-center justify-between gap-4 bg-gradient-to-t from-base-300 via-base-300 to-base-300/95 shadow-[0_-8px_24px_rgba(0,0,0,0.25)]">
+    <div className="glass fixed bottom-0 left-0 right-0 z-50 px-6 py-4 flex items-center justify-between gap-4 bg-gradient-to-t from-base-300 via-base-300 to-base-300/95 shadow-[0_-4px_12px_rgba(0,0,0,0.1)]">
       {/* Message Content */}
       <div className="flex items-center gap-4 flex-1 min-w-0">
         {hasMessages ? (

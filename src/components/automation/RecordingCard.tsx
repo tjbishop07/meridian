@@ -213,15 +213,17 @@ export function RecordingCard({
                 {progress?.currentStep || 0}/{progress?.totalSteps || recording.steps.length}
               </span>
             </div>
-            <div className="w-full bg-base-300 rounded-full h-2 overflow-hidden">
-              <div
-                className="h-full transition-all duration-300 ease-out rounded-full"
-                style={{
-                  width: `${progress ? (progress.currentStep / progress.totalSteps) * 100 : 0}%`,
-                  backgroundColor: progress?.color || '#3b82f6'
-                }}
-              />
-            </div>
+            {progress && progress.currentStep >= progress.totalSteps ? (
+              // Indeterminate progress bar for scraping phase (DaisyUI)
+              <progress className="progress progress-primary w-full"></progress>
+            ) : (
+              // Normal progress bar for steps
+              <progress
+                className="progress progress-primary w-full"
+                value={progress?.currentStep || 0}
+                max={progress?.totalSteps || recording.steps.length}
+              ></progress>
+            )}
           </div>
         )}
 
