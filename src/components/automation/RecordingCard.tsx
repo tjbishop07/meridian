@@ -93,7 +93,7 @@ export function RecordingCard({
   return (
     <tr className={`hover:bg-base-200 transition-colors ${isPlaying ? 'bg-primary/5' : ''}`} style={{ position: 'relative' }}>
       {/* Name */}
-      <td>
+      <td className="whitespace-nowrap">
         <div className="flex items-center gap-2">
           <img
             src={getFaviconUrl(recording.url)}

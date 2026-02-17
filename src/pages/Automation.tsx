@@ -739,7 +739,7 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
                 <table className="table w-full">
                   <thead>
                     <tr className="border-b border-base-300">
-                      <th className="bg-base-200 w-40">Name</th>
+                      <th className="bg-base-200">Name</th>
                       <th className="bg-base-200 w-32">Account</th>
                       <th className="bg-base-200 w-16 text-center">Steps</th>
                       <th className="bg-base-200 w-48">Last Run</th>
