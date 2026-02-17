@@ -713,23 +713,39 @@ export function Automation() {
           <>
             {/* Scraping Method Selector */}
             <div className="bg-base-100 rounded-lg p-4 mb-6">
-              <label className="block text-sm font-medium text-base-content/80 mb-2">
-                Transaction Scraping Method
-              </label>
-              <select
-                value={automationSettings.vision_provider}
-                onChange={(e) => updateAutomationSettings({ vision_provider: e.target.value as 'claude' | 'ollama' })}
-                className="w-full max-w-md px-4 py-2.5 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
-              >
-                <option value="claude">Claude Vision AI (Recommended - Most Reliable)</option>
-                <option value="ollama">Local Ollama (Privacy-Focused - Free)</option>
-              </select>
-              <p className="mt-2 text-xs text-base-content/60">
-                {automationSettings.vision_provider === 'claude' &&
-                  'Using Claude Vision AI for reliable transaction scraping. Configure in the Claude Vision tab.'}
-                {automationSettings.vision_provider === 'ollama' &&
-                  'Using local Ollama models for private transaction scraping. Requires llama3.2-vision model. Configure in the Local AI tab.'}
-              </p>
+              <p className="text-sm font-medium text-base-content/80 mb-3">Transaction Scraping Method</p>
+              <div className="grid grid-cols-2 gap-3 max-w-lg">
+                {([
+                  {
+                    value: 'claude',
+                    label: 'Claude Vision AI',
+                    description: 'Most reliable. Configure in the Claude Vision tab.',
+                  },
+                  {
+                    value: 'ollama',
+                    label: 'Local Ollama',
+                    description: 'Runs on your machine. Requires llama3.2-vision.',
+                  },
+                ] as const).map((opt) => {
+                  const active = automationSettings.vision_provider === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => updateAutomationSettings({ vision_provider: opt.value })}
+                      className={`flex flex-col items-start gap-1 rounded-lg border p-4 text-left transition-all ${
+                        active
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                          : 'border-base-300 bg-base-100 hover:border-base-content/30'
+                      }`}
+                    >
+                      <span className={`font-medium text-sm ${active ? 'text-primary' : 'text-base-content'}`}>
+                        {opt.label}
+                      </span>
+                      <p className="text-xs text-base-content/60 leading-snug">{opt.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {loading ? (
@@ -743,12 +759,12 @@ export function Automation() {
                 <table className="table w-full">
                   <thead>
                     <tr className="border-b border-base-300">
-                      <th className="bg-base-200">Name</th>
-                      <th className="bg-base-200">Account</th>
-                      <th className="bg-base-200">Steps</th>
-                      <th className="bg-base-200">Last Run</th>
+                      <th className="bg-base-200 w-40">Name</th>
+                      <th className="bg-base-200 w-32">Account</th>
+                      <th className="bg-base-200 w-16 text-center">Steps</th>
+                      <th className="bg-base-200 w-48">Last Run</th>
                       <th className="bg-base-200">Status</th>
-                      <th className="bg-base-200 text-right">Actions</th>
+                      <th className="bg-base-200 w-40 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>

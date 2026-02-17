@@ -120,8 +120,8 @@ export function RecordingCard({
       </td>
 
       {/* Steps */}
-      <td className="text-sm text-base-content/70">
-        {recording.steps.length} steps
+      <td className="text-sm text-base-content/70 text-center">
+        {recording.steps.length}
       </td>
 
       {/* Last Run */}
@@ -129,13 +129,9 @@ export function RecordingCard({
         {recording.last_run_at ? (
           <span className="text-success">
             {formatLastRunTime(recording.last_run_at)}
-            {recording.last_scraping_method && (
+            {(recording.last_scraping_method === 'claude' || recording.last_scraping_method === 'ollama') && (
               <span className="text-base-content/60">
-                {' '}with {
-                  recording.last_scraping_method === 'claude' ? 'Claude' :
-                  recording.last_scraping_method === 'ollama' ? 'Ollama' :
-                  'DOM'
-                }
+                {' '}with {recording.last_scraping_method === 'claude' ? 'Claude' : 'Ollama'}
               </span>
             )}
           </span>
