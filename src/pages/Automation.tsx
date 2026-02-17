@@ -27,7 +27,7 @@ interface Recording {
   last_scraping_method?: string | null;
 }
 
-export function Automation() {
+export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate();
   const location = useLocation();
   const { categories, loadCategories } = useCategories();
@@ -57,7 +57,7 @@ export function Automation() {
 
   // Reload recordings whenever user navigates to this page
   useEffect(() => {
-    if (location.pathname === '/automation') {
+    if (location.pathname === '/automation' || location.pathname === '/import') {
       loadRecordings();
     }
   }, [location.pathname]);
@@ -658,22 +658,24 @@ export function Automation() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader
-        title="Automation"
-        subtitle="Automate transaction imports with browser automation and AI"
-        action={
-          activeTab === 'browser' ? (
-            <button className="btn btn-primary gap-2" onClick={handleNewRecording}>
-              <Plus className="w-4 h-4" />
-              New Recording
-            </button>
-          ) : null
-        }
-      />
+      {!embedded && (
+        <PageHeader
+          title="Automation"
+          subtitle="Automate transaction imports with browser automation and AI"
+          action={
+            activeTab === 'browser' ? (
+              <button className="btn btn-primary gap-2" onClick={handleNewRecording}>
+                <Plus className="w-4 h-4" />
+                New Recording
+              </button>
+            ) : null
+          }
+        />
+      )}
 
       {/* Tabs */}
       <div className="border-b border-base-300 px-6">
-        <div className="flex gap-6">
+        <div className="flex items-center gap-6">
           <button
             onClick={() => setActiveTab('browser')}
             className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
@@ -704,6 +706,12 @@ export function Automation() {
           >
             Local AI
           </button>
+          {embedded && activeTab === 'browser' && (
+            <button className="btn btn-primary btn-sm gap-2 ml-auto" onClick={handleNewRecording}>
+              <Plus className="w-4 h-4" />
+              New Recording
+            </button>
+          )}
         </div>
       </div>
 

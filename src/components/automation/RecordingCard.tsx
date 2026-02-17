@@ -127,14 +127,7 @@ export function RecordingCard({
       {/* Last Run */}
       <td className="text-sm">
         {recording.last_run_at ? (
-          <span className="text-success">
-            {formatLastRunTime(recording.last_run_at)}
-            {(recording.last_scraping_method === 'claude' || recording.last_scraping_method === 'ollama') && (
-              <span className="text-base-content/60">
-                {' '}with {recording.last_scraping_method === 'claude' ? 'Claude' : 'Ollama'}
-              </span>
-            )}
-          </span>
+          <span className="text-success">{formatLastRunTime(recording.last_run_at)}</span>
         ) : (
           <span className="text-warning">Never run</span>
         )}

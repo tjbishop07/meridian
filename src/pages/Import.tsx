@@ -3,20 +3,27 @@ import { useLocation } from 'react-router-dom';
 import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAccounts } from '../hooks/useAccounts';
+import { Automation } from './Automation';
+import PageHeader from '../components/layout/PageHeader';
 import type { CSVFormat, ImportPreview, ImportResult } from '../types';
 
 type Step = 'select' | 'preview' | 'complete';
+type ImportTab = 'automated' | 'manual';
 
 interface LocationState {
   filePath?: string;
   accountId?: number;
   format?: CSVFormat;
+  source?: string;
 }
 
 export default function Import() {
   const { accounts, loadAccounts } = useAccounts();
   const location = useLocation();
   const state = location.state as LocationState | null;
+  const [importTab, setImportTab] = useState<ImportTab>(
+    state?.source === 'automation' ? 'manual' : 'automated'
+  );
 
   const [step, setStep] = useState<Step>('select');
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -128,17 +135,36 @@ export default function Import() {
   };
 
   return (
-    <div className="flex flex-col h-full max-w-4xl mx-auto">
-      {/* Header */}
-      <div className="p-4 flex-shrink-0">
-        <h1 className="text-3xl font-bold text-base-content mb-2">Import Transactions</h1>
-        <p className="text-base-content/70 mb-4">
-          Import transactions from CSV files exported from your bank
-        </p>
-      </div>
+    <div className="flex flex-col h-full">
+      <PageHeader title="Import" subtitle="Automate or manually import your transactions">
+        {/* Tab bar */}
+        <div className="flex gap-6 -mb-4">
+          {(['automated', 'manual'] as ImportTab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setImportTab(tab)}
+              className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors capitalize ${
+                importTab === tab
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-base-content/60 hover:text-base-content/80'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      </PageHeader>
 
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
+      {/* Automated tab */}
+      {importTab === 'automated' && (
+        <div className="flex-1 overflow-hidden">
+          <Automation embedded />
+        </div>
+      )}
+
+      {/* Manual tab */}
+      {importTab === 'manual' && (
+      <div className="flex-1 overflow-y-auto px-4 pb-4 max-w-4xl mx-auto w-full pt-4">
         {/* Error Display */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 flex items-start gap-3">
@@ -294,23 +320,6 @@ export default function Import() {
                 </p>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4">
-              <div className="bg-blue-50 rounded-lg p-4">
-                <p className="text-sm text-blue-600 font-medium">Total Rows</p>
-                <p className="text-2xl font-bold text-blue-900">{preview.rows.length}</p>
-              </div>
-              <div className="bg-yellow-50 rounded-lg p-4">
-                <p className="text-sm text-yellow-600 font-medium">Duplicates</p>
-                <p className="text-2xl font-bold text-yellow-900">{preview.duplicates.length}</p>
-              </div>
-              <div className="bg-green-50 rounded-lg p-4">
-                <p className="text-sm text-green-600 font-medium">To Import</p>
-                <p className="text-2xl font-bold text-green-900">
-                  {preview.rows.length - preview.duplicates.length}
-                </p>
-              </div>
-            </div>
-
             {preview.duplicates.length > 0 && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <p className="text-yellow-800 font-medium mb-2">
@@ -436,6 +445,7 @@ export default function Import() {
         )}
       </div>
       </div>
+      )}
     </div>
   );
 }
