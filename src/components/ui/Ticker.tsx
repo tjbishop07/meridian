@@ -5,23 +5,22 @@ import { Info, CheckCircle, AlertTriangle, XCircle, ChevronLeft, ChevronRight } 
 export default function Ticker() {
   const messages = useTickerStore((state) => state.messages);
   const currentIndex = useTickerStore((state) => state.currentIndex);
-  const removeMessage = useTickerStore((state) => state.removeMessage);
   const nextMessage = useTickerStore((state) => state.nextMessage);
   const previousMessage = useTickerStore((state) => state.previousMessage);
 
-  const currentMessage = messages[currentIndex];
+  // Ensure currentIndex is valid - always show most recent if out of bounds
+  const validIndex = Math.max(0, Math.min(currentIndex, messages.length - 1));
+  const currentMessage = messages[validIndex];
   const hasMessages = messages.length > 0;
 
-  // Auto-dismiss timer
+  // Auto-correct index if it's invalid
   useEffect(() => {
-    if (!currentMessage || !currentMessage.duration) return;
-
-    const timer = setTimeout(() => {
-      removeMessage(currentMessage.id);
-    }, currentMessage.duration);
-
-    return () => clearTimeout(timer);
-  }, [currentMessage, removeMessage]);
+    if (hasMessages && validIndex !== currentIndex) {
+      console.log('[Ticker] Correcting invalid index:', currentIndex, '→', validIndex);
+      // Reset to show newest message if index is invalid
+      useTickerStore.setState({ currentIndex: 0 });
+    }
+  }, [validIndex, currentIndex, hasMessages]);
 
   // Icon based on type
   const getIcon = () => {
@@ -65,17 +64,17 @@ export default function Ticker() {
           <button
             className="btn btn-ghost btn-sm btn-circle text-base-content/70 hover:bg-base-content/10"
             onClick={previousMessage}
-            disabled={currentIndex === 0}
+            disabled={validIndex === 0}
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <span className="text-sm text-base-content/60 tabular-nums font-medium">
-            {currentIndex + 1}/{messages.length}
+            {validIndex + 1}/{messages.length}
           </span>
           <button
             className="btn btn-ghost btn-sm btn-circle text-base-content/70 hover:bg-base-content/10"
             onClick={nextMessage}
-            disabled={currentIndex === messages.length - 1}
+            disabled={validIndex === messages.length - 1}
           >
             <ChevronRight className="w-5 h-5" />
           </button>

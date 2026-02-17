@@ -1,5 +1,4 @@
-import { Play, MoreVertical, Pencil, Copy, Trash2 } from 'lucide-react';
-import { useState, useRef, useEffect } from 'react';
+import { Play, Pencil, Copy, Trash2 } from 'lucide-react';
 
 interface Recording {
   id: string;
@@ -39,23 +38,7 @@ export function RecordingCard({
   isPlaying = false,
   progress
 }: RecordingCardProps) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
   console.log('[RecordingCard]', recording.name, '- isPlaying:', isPlaying, '- progress:', progress);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-
-    if (menuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [menuOpen]);
 
   const getFaviconUrl = (url: string) => {
     try {
@@ -108,134 +91,123 @@ export function RecordingCard({
   };
 
   return (
-    <div className={`card bg-base-100 shadow-lg hover:shadow-xl transition-all ${isPlaying ? 'ring-2 ring-primary' : ''}`}>
-      <div className="card-body">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <img
-              src={getFaviconUrl(recording.url)}
-              className="w-4 h-4"
-              alt=""
-              onError={(e) => {
-                e.currentTarget.src = 'https://www.google.com/s2/favicons?domain=example.com&sz=32';
-              }}
-            />
-            <h3 className="card-title text-base">{recording.name}</h3>
-          </div>
-
-          <div className="relative" ref={menuRef}>
-            <button
-              className="btn btn-ghost btn-sm btn-circle"
-              onClick={() => setMenuOpen(!menuOpen)}
-            >
-              <MoreVertical className="w-4 h-4" />
-            </button>
-
-            {menuOpen && (
-              <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-base-200 ring-1 ring-base-300 z-50">
-                <div className="py-1">
-                  <button
-                    className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-base-300"
-                    onClick={() => {
-                      onEdit(recording);
-                      setMenuOpen(false);
-                    }}
-                  >
-                    <Pencil className="w-4 h-4" />
-                    Edit
-                  </button>
-                  <button
-                    className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-base-300"
-                    onClick={() => {
-                      onDuplicate(recording.id);
-                      setMenuOpen(false);
-                    }}
-                  >
-                    <Copy className="w-4 h-4" />
-                    Duplicate
-                  </button>
-                  <button
-                    className="flex items-center gap-2 w-full px-4 py-2 text-sm hover:bg-error hover:text-error-content text-error"
-                    onClick={() => {
-                      onDelete(recording.id);
-                      setMenuOpen(false);
-                    }}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    Delete
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="flex gap-2 flex-wrap">
+    <tr className={`hover:bg-base-200 transition-colors ${isPlaying ? 'bg-primary/5' : ''}`} style={{ position: 'relative' }}>
+      {/* Name */}
+      <td>
+        <div className="flex items-center gap-2">
+          <img
+            src={getFaviconUrl(recording.url)}
+            className="w-4 h-4"
+            alt=""
+            onError={(e) => {
+              e.currentTarget.src = 'https://www.google.com/s2/favicons?domain=example.com&sz=32';
+            }}
+          />
+          <span className="font-medium text-base-content">{recording.name}</span>
           {recording.institution && (
             <span className="badge badge-primary badge-sm">{recording.institution}</span>
           )}
-          {recording.account_name && (
-            <span className="badge badge-success badge-sm">→ {recording.account_name}</span>
-          )}
-          {!recording.account_name && (
-            <span className="badge badge-ghost badge-sm">No account</span>
-          )}
         </div>
+      </td>
 
-        <div className="flex gap-4 text-sm text-base-content/70">
-          <span>{recording.steps.length} steps</span>
-          {recording.last_run_at ? (
-            <span className="text-success">
-              Last run: {formatLastRunTime(recording.last_run_at)}
-              {recording.last_scraping_method && (
-                <> with {
-                  recording.last_scraping_method === 'claude' ? 'Claude Vision' :
+      {/* Account */}
+      <td>
+        {recording.account_name ? (
+          <span className="badge badge-success badge-sm">{recording.account_name}</span>
+        ) : (
+          <span className="badge badge-ghost badge-sm">No account</span>
+        )}
+      </td>
+
+      {/* Steps */}
+      <td className="text-sm text-base-content/70">
+        {recording.steps.length} steps
+      </td>
+
+      {/* Last Run */}
+      <td className="text-sm">
+        {recording.last_run_at ? (
+          <span className="text-success">
+            {formatLastRunTime(recording.last_run_at)}
+            {recording.last_scraping_method && (
+              <span className="text-base-content/60">
+                {' '}with {
+                  recording.last_scraping_method === 'claude' ? 'Claude' :
                   recording.last_scraping_method === 'ollama' ? 'Ollama' :
-                  'DOM parsing'
-                }</>
-              )}
-            </span>
-          ) : (
-            <span className="text-warning">Never run</span>
-          )}
-        </div>
+                  'DOM'
+                }
+              </span>
+            )}
+          </span>
+        ) : (
+          <span className="text-warning">Never run</span>
+        )}
+      </td>
 
-        {/* Progress Display */}
-        {isPlaying && (
-          <div className="mt-4 space-y-2">
-            <div className="flex items-center justify-between text-sm">
+      {/* Status/Progress */}
+      <td>
+        {isPlaying ? (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 text-xs">
               <span className="font-medium" style={{ color: progress?.color || '#3b82f6' }}>
-                {progress?.status || 'Starting automation...'}
+                {progress?.status || 'Starting...'}
               </span>
               <span className="text-base-content/60">
                 {progress?.currentStep || 0}/{progress?.totalSteps || recording.steps.length}
               </span>
             </div>
             {progress && progress.currentStep >= progress.totalSteps ? (
-              // Indeterminate progress bar for scraping phase (DaisyUI)
-              <progress className="progress progress-primary w-full"></progress>
+              <progress className="progress progress-primary w-full h-1"></progress>
             ) : (
-              // Normal progress bar for steps
               <progress
-                className="progress progress-primary w-full"
+                className="progress progress-primary w-full h-1"
                 value={progress?.currentStep || 0}
                 max={progress?.totalSteps || recording.steps.length}
               ></progress>
             )}
           </div>
+        ) : (
+          <span className="text-xs text-base-content/60">Ready</span>
         )}
+      </td>
 
-        <div className="card-actions justify-end mt-4">
+      {/* Actions */}
+      <td>
+        <div className="flex items-center justify-end gap-1">
           <button
             className="btn btn-primary btn-sm"
             onClick={() => onPlay(recording.id)}
             disabled={isPlaying}
           >
             {!isPlaying && <Play className="w-4 h-4" />}
-            {isPlaying ? 'Running...' : 'Run Automation'}
+            {isPlaying ? 'Running...' : 'Run'}
+          </button>
+
+          <button
+            className="btn btn-ghost btn-sm btn-circle"
+            onClick={() => onEdit(recording)}
+            title="Edit"
+          >
+            <Pencil className="w-4 h-4" />
+          </button>
+
+          <button
+            className="btn btn-ghost btn-sm btn-circle"
+            onClick={() => onDuplicate(recording.id)}
+            title="Duplicate"
+          >
+            <Copy className="w-4 h-4" />
+          </button>
+
+          <button
+            className="btn btn-ghost btn-sm btn-circle text-error hover:bg-error/10"
+            onClick={() => onDelete(recording.id)}
+            title="Delete"
+          >
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }

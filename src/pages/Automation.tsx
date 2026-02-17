@@ -739,26 +739,38 @@ export function Automation() {
             ) : recordings.length === 0 ? (
               <EmptyState onCreateNew={handleNewRecording} />
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {recordings.map((recording) => {
-                  const recordingProgress = progress[recording.id];
-                  console.log('[Automation] Rendering card for:', recording.id, 'type:', typeof recording.id);
-                  console.log('[Automation] Available progress keys:', Object.keys(progress));
-                  console.log('[Automation] Progress for this recording:', recordingProgress);
+              <div className="bg-base-100 rounded-lg shadow-sm overflow-x-auto">
+                <table className="table w-full">
+                  <thead>
+                    <tr className="border-b border-base-300">
+                      <th className="bg-base-200">Name</th>
+                      <th className="bg-base-200">Account</th>
+                      <th className="bg-base-200">Steps</th>
+                      <th className="bg-base-200">Last Run</th>
+                      <th className="bg-base-200">Status</th>
+                      <th className="bg-base-200 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recordings.map((recording) => {
+                      const recordingProgress = progress[recording.id];
+                      const isPlaying = playingId === recording.id;
 
-                  return (
-                    <RecordingCard
-                      key={recording.id}
-                      recording={recording}
-                      onPlay={handlePlayRecording}
-                      onEdit={(rec) => setEditingRecording(rec)}
-                      onDelete={handleDeleteRecording}
-                      onDuplicate={handleDuplicateRecording}
-                      isPlaying={playingId === recording.id}
-                      progress={recordingProgress}
-                    />
-                  );
-                })}
+                      return (
+                        <RecordingCard
+                          key={recording.id}
+                          recording={recording}
+                          onPlay={handlePlayRecording}
+                          onEdit={(rec) => setEditingRecording(rec)}
+                          onDelete={handleDeleteRecording}
+                          onDuplicate={handleDuplicateRecording}
+                          isPlaying={isPlaying}
+                          progress={recordingProgress}
+                        />
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </>
