@@ -1,4 +1,5 @@
-import { CheckCircle, XCircle, Loader, RefreshCw, Download } from 'lucide-react';
+import { CheckCircle, XCircle, Loader, RefreshCw, Download, Play } from 'lucide-react';
+import { useState } from 'react';
 import { useOllama } from '../../hooks/useOllama';
 
 const AI_MODELS = [
@@ -39,7 +40,22 @@ export function LocalAITab() {
     checkStatus: checkOllamaStatus,
     pullModel,
     openHomebrewInstall,
+    startServer,
   } = useOllama();
+
+  const [isStartingServer, setIsStartingServer] = useState(false);
+
+  const handleStartServer = async () => {
+    setIsStartingServer(true);
+    try {
+      const result = await startServer();
+      if (result.success) {
+        // Status will be refreshed automatically by startServer function
+      }
+    } finally {
+      setIsStartingServer(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -53,14 +69,35 @@ export function LocalAITab() {
               Run AI models locally on your machine for privacy and offline access. Ollama is free and open-source.
             </p>
           </div>
-          <button
-            onClick={checkOllamaStatus}
-            disabled={isCheckingOllama}
-            className="flex items-center gap-2 px-4 py-2 bg-base-200 text-base-content/80 rounded-lg hover:bg-base-300 font-medium disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${isCheckingOllama ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
+          <div className="flex gap-2">
+            {ollamaStatus.installed && !ollamaStatus.running && (
+              <button
+                onClick={handleStartServer}
+                disabled={isStartingServer}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-content rounded-lg hover:bg-primary/80 font-medium disabled:opacity-50"
+              >
+                {isStartingServer ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    Starting...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-4 h-4" />
+                    Start Server
+                  </>
+                )}
+              </button>
+            )}
+            <button
+              onClick={checkOllamaStatus}
+              disabled={isCheckingOllama}
+              className="flex items-center gap-2 px-4 py-2 bg-base-200 text-base-content/80 rounded-lg hover:bg-base-300 font-medium disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${isCheckingOllama ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
         </div>
 
         {/* Ollama Status */}

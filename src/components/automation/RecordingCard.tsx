@@ -180,23 +180,21 @@ export function RecordingCard({
           {!recording.account_name && (
             <span className="badge badge-ghost badge-sm">No account</span>
           )}
-          {recording.last_scraping_method && (
-            <span className={`badge badge-sm ${
-              recording.last_scraping_method === 'claude' ? 'badge-info' :
-              recording.last_scraping_method === 'ollama' ? 'badge-accent' :
-              'badge-neutral'
-            }`}>
-              {recording.last_scraping_method === 'claude' ? '🤖 Claude Vision' :
-               recording.last_scraping_method === 'ollama' ? '🏠 Local AI' :
-               '📄 DOM'}
-            </span>
-          )}
         </div>
 
         <div className="flex gap-4 text-sm text-base-content/70">
           <span>{recording.steps.length} steps</span>
           {recording.last_run_at ? (
-            <span className="text-success">Last run: {formatLastRunTime(recording.last_run_at)}</span>
+            <span className="text-success">
+              Last run: {formatLastRunTime(recording.last_run_at)}
+              {recording.last_scraping_method && (
+                <> with {
+                  recording.last_scraping_method === 'claude' ? 'Claude Vision' :
+                  recording.last_scraping_method === 'ollama' ? 'Ollama' :
+                  'DOM parsing'
+                }</>
+              )}
+            </span>
           ) : (
             <span className="text-warning">Never run</span>
           )}

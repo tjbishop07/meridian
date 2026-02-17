@@ -718,20 +718,17 @@ export function Automation() {
               </label>
               <select
                 value={automationSettings.vision_provider}
-                onChange={(e) => updateAutomationSettings({ vision_provider: e.target.value as 'claude' | 'ollama' | 'none' })}
+                onChange={(e) => updateAutomationSettings({ vision_provider: e.target.value as 'claude' | 'ollama' })}
                 className="w-full max-w-md px-4 py-2.5 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
               >
                 <option value="claude">Claude Vision AI (Recommended - Most Reliable)</option>
                 <option value="ollama">Local Ollama (Privacy-Focused - Free)</option>
-                <option value="none">DOM Parsing Only (Legacy - May Break)</option>
               </select>
               <p className="mt-2 text-xs text-base-content/60">
                 {automationSettings.vision_provider === 'claude' &&
                   'Using Claude Vision AI for reliable transaction scraping. Configure in the Claude Vision tab.'}
                 {automationSettings.vision_provider === 'ollama' &&
                   'Using local Ollama models for private transaction scraping. Requires llama3.2-vision model. Configure in the Local AI tab.'}
-                {automationSettings.vision_provider === 'none' &&
-                  'Using legacy DOM parsing - may break when bank websites update.'}
               </p>
             </div>
 
