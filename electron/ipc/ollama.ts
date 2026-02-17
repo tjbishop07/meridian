@@ -254,7 +254,7 @@ async function checkOllamaStatus(): Promise<OllamaStatus> {
   return status;
 }
 
-async function checkServerRunning(): Promise<boolean> {
+export async function checkServerRunning(): Promise<boolean> {
   try {
     const response = await fetch('http://localhost:11434/api/tags', {
       signal: AbortSignal.timeout(2000),

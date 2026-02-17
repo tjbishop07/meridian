@@ -7,7 +7,6 @@ import {
   Target,
   FileText,
   Settings,
-  Wallet,
   BarChart3,
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -30,8 +29,12 @@ export default function Sidebar() {
     <div className="w-64 bg-base-100 border-r border-base-300 flex flex-col">
       {/* Logo */}
       <div className="h-16 flex items-center px-6 border-b border-base-300">
-        <Wallet className="w-8 h-8 text-primary" />
-        <span className="ml-3 text-xl font-bold text-base-content">Finance</span>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" className="w-12 h-12 text-primary">
+          <path d="M12 21 C11.5 18 12.5 14 12 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          <path d="M12 15 C9.5 14 7 11.5 8 8.5 C10.5 8.5 12.5 11.5 12 15Z" fill="currentColor" opacity="0.7"/>
+          <path d="M12 11 C14.5 9.5 17 7 15.5 4.5 C13 4.5 11 7.5 12 11Z" fill="currentColor"/>
+        </svg>
+        <span className="ml-3 text-xl font-bold text-base-content">Sprout</span>
       </div>
 
       {/* Navigation */}

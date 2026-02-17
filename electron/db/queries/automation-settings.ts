@@ -9,6 +9,7 @@ export interface AutomationSettings {
   schedule_enabled: boolean;
   schedule_cron: string;
   scraping_prompt?: string;
+  prompt_welcome?: string;
 }
 
 /**
@@ -34,6 +35,7 @@ export function getAutomationSettings(db: Database.Database): AutomationSettings
     schedule_enabled: settings.schedule_enabled === 'true',
     schedule_cron: settings.schedule_cron || '0 6 * * *',
     scraping_prompt: settings.scraping_prompt || '',
+    prompt_welcome: settings.prompt_welcome || '',
   };
 }
 

@@ -17,7 +17,11 @@ import { registerExportRecipeHandlers } from './ipc/export-recipes';
 import { registerAutomationHandlers, setMainWindow } from './ipc/automation/index';
 import { registerScraperHandlers, setMainWindow as setScraperMainWindow } from './ipc/scraper';
 import { registerAIScraperHandlers, setMainWindow as setAIScraperMainWindow } from './ipc/ai-scraper';
-import { registerOllamaHandlers, setMainWindow as setOllamaMainWindow } from './ipc/ollama';
+import { registerOllamaHandlers, setMainWindow as setOllamaMainWindow, checkServerRunning } from './ipc/ollama';
+import { exec, spawn } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 import { registerPuppeteerScraperHandlers, setMainWindow as setPuppeteerMainWindow } from './ipc/puppeteer-scraper';
 import { registerAutomationSettingsHandlers } from './ipc/automation-settings';
 
@@ -30,6 +34,75 @@ let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
 
 const isDev = process.env.NODE_ENV === 'development';
+
+async function updateSplashStatus(message: string): Promise<void> {
+  if (!splashWindow || splashWindow.isDestroyed()) return;
+  try {
+    await splashWindow.webContents.executeJavaScript(`
+      const el = document.getElementById('ollama-status');
+      if (el) el.textContent = ${JSON.stringify(message)};
+    `);
+  } catch {
+    // Splash may have already closed
+  }
+}
+
+async function initOllama(): Promise<void> {
+  try {
+    await updateSplashStatus('Detecting local AI...');
+
+    // Check if Ollama is installed
+    let installed = false;
+    try {
+      await execAsync('which ollama');
+      installed = true;
+    } catch {
+      installed = false;
+    }
+
+    if (!installed) {
+      await updateSplashStatus('Local AI not found');
+      return;
+    }
+
+    // Check if server is already running
+    let running = await checkServerRunning();
+
+    // Auto-start if installed but not running
+    if (!running) {
+      await updateSplashStatus('Starting Ollama server...');
+      spawn('ollama', ['serve'], { detached: true, stdio: 'ignore' }).unref();
+
+      // Poll for up to 4 seconds
+      for (let i = 0; i < 4; i++) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        running = await checkServerRunning();
+        if (running) break;
+      }
+    }
+
+    if (!running) {
+      await updateSplashStatus('Ollama offline');
+      return;
+    }
+
+    // Fetch available models
+    const response = await fetch('http://localhost:11434/api/tags');
+    const data = await response.json();
+    const models: string[] = [...new Set<string>(
+      (data.models || []).map((m: any) => m.name.split(':')[0])
+    )];
+
+    if (models.length === 0) {
+      await updateSplashStatus('Ollama ready — no models installed');
+    } else {
+      await updateSplashStatus(`Ollama ready — ${models.join(', ')}`);
+    }
+  } catch (error) {
+    console.error('[Main] Ollama init error:', error);
+    await updateSplashStatus('Local AI unavailable');
+  }
+}
 
 function createSplashWindow() {
   splashWindow = new BrowserWindow({
@@ -100,85 +173,34 @@ function createSplashWindow() {
           animation: fadeIn 0.8s ease-out;
         }
 
-        /* Animated coin stack */
-        .coin-stack {
-          position: relative;
-          width: 180px;
-          height: 180px;
-          margin: 0 auto 40px;
-        }
-
-        .coin {
-          position: absolute;
+        /* Animated sprout icon */
+        .sprout-icon {
           width: 120px;
-          height: 40px;
-          background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
-          border-radius: 50%;
-          box-shadow:
-            0 4px 0 #b45309,
-            0 8px 20px rgba(251, 191, 36, 0.4),
-            inset 0 -2px 4px rgba(0,0,0,0.2),
-            inset 0 2px 4px rgba(255,255,255,0.3);
-          left: 50%;
-          transform: translateX(-50%);
+          height: 120px;
+          margin: 0 auto 40px;
+          display: block;
+          transform-origin: bottom center;
+          animation: sprout-grow 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both,
+                     sprout-sway 3s ease-in-out 1.4s infinite;
+          filter: drop-shadow(0 0 20px rgba(74, 222, 128, 0.4));
         }
 
-        .coin::before {
-          content: '$';
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          font-size: 24px;
-          font-weight: bold;
-          color: #78350f;
-          text-shadow: 0 1px 0 rgba(255,255,255,0.3);
-        }
-
-        .coin:nth-child(1) {
-          bottom: 60px;
-          animation: coin-appear 0.6s ease-out 0.2s both, coin-glow 2s ease-in-out 0.8s infinite;
-        }
-        .coin:nth-child(2) {
-          bottom: 40px;
-          animation: coin-appear 0.6s ease-out 0.4s both;
-        }
-        .coin:nth-child(3) {
-          bottom: 20px;
-          animation: coin-appear 0.6s ease-out 0.6s both;
-        }
-        .coin:nth-child(4) {
-          bottom: 0;
-          animation: coin-appear 0.6s ease-out 0.8s both;
-        }
-
-        @keyframes coin-appear {
+        @keyframes sprout-grow {
           from {
-            transform: translateX(-50%) translateY(-30px) scale(0.8);
+            transform: scale(0.1) translateY(30px);
             opacity: 0;
+            filter: drop-shadow(0 0 0px rgba(74, 222, 128, 0));
           }
           to {
-            transform: translateX(-50%) translateY(0) scale(1);
+            transform: scale(1) translateY(0);
             opacity: 1;
+            filter: drop-shadow(0 0 20px rgba(74, 222, 128, 0.4));
           }
         }
 
-        @keyframes coin-glow {
-          0%, 100% {
-            box-shadow:
-              0 4px 0 #b45309,
-              0 8px 20px rgba(251, 191, 36, 0.4),
-              inset 0 -2px 4px rgba(0,0,0,0.2),
-              inset 0 2px 4px rgba(255,255,255,0.3);
-          }
-          50% {
-            box-shadow:
-              0 4px 0 #b45309,
-              0 8px 40px rgba(251, 191, 36, 0.8),
-              0 0 60px rgba(251, 191, 36, 0.4),
-              inset 0 -2px 4px rgba(0,0,0,0.2),
-              inset 0 2px 4px rgba(255,255,255,0.3);
-          }
+        @keyframes sprout-sway {
+          0%, 100% { transform: rotate(-4deg); }
+          50% { transform: rotate(4deg); }
         }
 
         .app-name {
@@ -215,10 +237,10 @@ function createSplashWindow() {
 
         .loading-progress {
           height: 100%;
-          background: linear-gradient(90deg, #fbbf24 0%, #f59e0b 100%);
+          background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
           border-radius: 2px;
           animation: progress 2s ease-in-out infinite;
-          box-shadow: 0 0 10px rgba(251, 191, 36, 0.5);
+          box-shadow: 0 0 10px rgba(74, 222, 128, 0.5);
         }
 
         @keyframes progress {
@@ -235,6 +257,17 @@ function createSplashWindow() {
           animation: slideUp 0.8s ease-out 1.6s both, pulse 2s ease-in-out 2s infinite;
           letter-spacing: 1px;
           text-transform: uppercase;
+        }
+
+        .ollama-status {
+          color: #4ade80;
+          font-size: 12px;
+          margin-top: 10px;
+          font-weight: 400;
+          letter-spacing: 0.3px;
+          animation: slideUp 0.8s ease-out 1.9s both;
+          min-height: 16px;
+          opacity: 0.85;
         }
 
         @keyframes fadeIn {
@@ -268,28 +301,28 @@ function createSplashWindow() {
       </style>
     </head>
     <body>
-      <div class="particle">💵</div>
-      <div class="particle">💰</div>
-      <div class="particle">💎</div>
-      <div class="particle">💳</div>
-      <div class="particle">📊</div>
-      <div class="particle">📈</div>
-      <div class="particle">💵</div>
-      <div class="particle">💰</div>
+      <div class="particle">🌱</div>
+      <div class="particle">🍃</div>
+      <div class="particle">🌿</div>
+      <div class="particle">🌱</div>
+      <div class="particle">🍀</div>
+      <div class="particle">🌿</div>
+      <div class="particle">🍃</div>
+      <div class="particle">🌱</div>
 
       <div class="splash-container">
-        <div class="coin-stack">
-          <div class="coin"></div>
-          <div class="coin"></div>
-          <div class="coin"></div>
-          <div class="coin"></div>
-        </div>
-        <h1 class="app-name">Personal Finance</h1>
-        <p class="app-tagline">Your smart financial companion</p>
+        <svg class="sprout-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+          <path d="M12 21 C11.5 18 12.5 14 12 9" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M12 15 C9.5 14 7 11.5 8 8.5 C10.5 8.5 12.5 11.5 12 15Z" fill="#4ade80"/>
+          <path d="M12 11 C14.5 9.5 17 7 15.5 4.5 C13 4.5 11 7.5 12 11Z" fill="#22c55e"/>
+        </svg>
+        <h1 class="app-name">Sprout</h1>
+        <p class="app-tagline">watch your money grow</p>
         <div class="loading-bar">
           <div class="loading-progress"></div>
         </div>
         <p class="loading-text">Loading</p>
+        <p id="ollama-status" class="ollama-status"></p>
       </div>
     </body>
     </html>
@@ -319,7 +352,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false, // Required for better-sqlite3
     },
-    title: 'Personal Finance',
+    title: 'Sprout',
     backgroundColor: '#1d232a',
   });
 
@@ -339,7 +372,7 @@ function createWindow() {
   mainWindow.once('ready-to-show', () => {
     console.log('Main window ready to show');
 
-    // Minimum splash screen display time (2 seconds)
+    // Minimum splash screen display time (3.5 seconds to show Ollama status)
     setTimeout(() => {
       // Fade out splash
       if (splashWindow && !splashWindow.isDestroyed()) {
@@ -366,7 +399,7 @@ function createWindow() {
           mainWindow.focus();
         }
       }
-    }, 2000);
+    }, 3500);
   });
 
   console.log('Main window created');
@@ -377,6 +410,9 @@ app.whenReady().then(async () => {
   try {
     // Show splash screen immediately
     createSplashWindow();
+
+    // Start Ollama detection in background (updates splash as it progresses)
+    initOllama().catch(console.error);
 
     // Initialize database
     const db = initDatabase();

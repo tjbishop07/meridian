@@ -26,10 +26,10 @@ export default function Ticker() {
   const getIcon = () => {
     if (!currentMessage) return null;
     switch (currentMessage.type) {
-      case 'info': return <Info className="w-6 h-6 flex-shrink-0 text-info" />;
-      case 'success': return <CheckCircle className="w-6 h-6 flex-shrink-0 text-success" />;
-      case 'warning': return <AlertTriangle className="w-6 h-6 flex-shrink-0 text-warning" />;
-      case 'error': return <XCircle className="w-6 h-6 flex-shrink-0 text-error" />;
+      case 'info': return <Info className="w-5 h-5 flex-shrink-0 text-base-content" />;
+      case 'success': return <CheckCircle className="w-5 h-5 flex-shrink-0 text-base-content" />;
+      case 'warning': return <AlertTriangle className="w-5 h-5 flex-shrink-0 text-base-content" />;
+      case 'error': return <XCircle className="w-5 h-5 flex-shrink-0 text-base-content" />;
     }
   };
 
@@ -46,12 +46,12 @@ export default function Ticker() {
         {hasMessages ? (
           <>
             {getIcon()}
+            <span className="hidden sm:inline badge badge-ghost badge-sm flex-shrink-0 font-mono">
+              {formatTime(currentMessage.timestamp)}
+            </span>
             <p className="text-base text-base-content font-medium truncate">
               {currentMessage.content}
             </p>
-            <span className="hidden sm:inline text-sm text-base-content/60 flex-shrink-0">
-              {formatTime(currentMessage.timestamp)}
-            </span>
           </>
         ) : (
           <p className="text-base text-base-content/60 font-medium">Ready</p>

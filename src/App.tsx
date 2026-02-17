@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { format } from 'date-fns';
 import Layout from './components/layout/Layout';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
@@ -41,18 +40,43 @@ function App() {
     if (!welcomeShown.current) {
       welcomeShown.current = true;
 
-      const now = new Date();
-      const dayName = format(now, 'EEEE');        // "Monday"
-      const dateStr = format(now, 'MMMM d, yyyy'); // "February 15, 2026"
-      const timeStr = format(now, 'h:mm a');       // "3:45 PM"
+      const DEFAULT_WELCOME_PROMPT =
+        'Generate a single witty and funny welcome message for a personal finance app called Sprout. ' +
+        'Make it money or finance related and humorous. Keep it under 120 characters. ' +
+        'Return only the message text — no quotes, no explanation, no markdown.';
 
-      const welcomeMsg = `Welcome! Today is ${dayName}, ${dateStr} at ${timeStr}`;
+      const generateWelcome = async () => {
+        try {
+          const allSettings = await window.electron.invoke('automation-settings:get-all');
+          const prompt = allSettings.prompt_welcome || DEFAULT_WELCOME_PROMPT;
 
-      useTickerStore.getState().addMessage({
-        content: welcomeMsg,
-        type: 'info',
-        duration: 0, // Persistent - never auto-dismiss
-      });
+          const result = await window.electron.invoke('ollama:generate', {
+            model: 'llama3.2',
+            prompt,
+          });
+
+          if (result.success && result.response?.trim()) {
+            useTickerStore.getState().addMessage({
+              content: result.response.trim(),
+              type: 'info',
+              duration: 0,
+            });
+            return;
+          }
+        } catch {
+          // Fall through to fallback
+        }
+
+        // Fallback: plain date/time message
+        const now = new Date();
+        useTickerStore.getState().addMessage({
+          content: `Welcome to Sprout — ${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`,
+          type: 'info',
+          duration: 0,
+        });
+      };
+
+      generateWelcome();
     }
 
     // Set up global automation progress listener

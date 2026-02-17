@@ -127,7 +127,7 @@ export default function Dashboard() {
         </div>
 
         {/* Month Tabs */}
-        <div role="tablist" className="tabs tabs-box w-full">
+        <div role="tablist" className="tabs tabs-box w-full bg-base-300">
           {months.map((month) => {
             const isSelected = month.value === selectedMonth;
 

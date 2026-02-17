@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+  <!-- Stem -->
+  <path d="M12 21 C11.5 18 12.5 14 12 9" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Left leaf (lower, lighter) -->
+  <path d="M12 15 C9.5 14 7 11.5 8 8.5 C10.5 8.5 12.5 11.5 12 15Z" fill="#4ade80"/>
+  <!-- Right leaf (higher, darker) -->
+  <path d="M12 11 C14.5 9.5 17 7 15.5 4.5 C13 4.5 11 7.5 12 11Z" fill="#22c55e"/>
+</svg>

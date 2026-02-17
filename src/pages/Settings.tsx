@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Building2, Tag, Download, Database, Palette, ScanSearch } from 'lucide-react';
+import { Plus, Edit2, Trash2, Building2, Tag, Download, Database, Palette, ScanSearch, MessageSquare } from 'lucide-react';
 import { useAccounts } from '../hooks/useAccounts';
 import { useCategories } from '../hooks/useCategories';
 import Modal from '../components/ui/Modal';
@@ -275,28 +275,41 @@ If the bank shows a category for the transaction, extract it exactly as shown. I
 
 Extract every visible transaction in the screenshot. Focus on the most recent transactions shown.`;
 
-function PromptTab() {
+const DEFAULT_WELCOME_PROMPT =
+  'Generate a single witty and funny welcome message for a personal finance app called Sprout. ' +
+  'Make it money or finance related and humorous. Keep it under 120 characters. ' +
+  'Return only the message text — no quotes, no explanation, no markdown.';
+
+interface PromptEditorTabProps {
+  settingKey: 'scraping_prompt' | 'prompt_welcome';
+  defaultPrompt: string;
+  title: string;
+  description: string;
+  hint?: React.ReactNode;
+  rows?: number;
+}
+
+function PromptEditorTab({ settingKey, defaultPrompt, title, description, hint, rows = 14 }: PromptEditorTabProps) {
   const { settings, loading, saving, updateSettings } = useAutomationSettings();
   const [localPrompt, setLocalPrompt] = useState('');
   const [isDirty, setIsDirty] = useState(false);
 
   useEffect(() => {
     if (!loading) {
-      setLocalPrompt(settings.scraping_prompt || DEFAULT_SCRAPING_PROMPT);
+      setLocalPrompt((settings[settingKey] as string) || defaultPrompt);
       setIsDirty(false);
     }
-  }, [loading, settings.scraping_prompt]);
+  }, [loading, settings[settingKey]]);
 
   const handleSave = async () => {
-    // Save empty string if the prompt matches the default (signals "use built-in default")
-    const valueToSave = localPrompt === DEFAULT_SCRAPING_PROMPT ? '' : localPrompt;
-    await updateSettings({ scraping_prompt: valueToSave });
+    const valueToSave = localPrompt === defaultPrompt ? '' : localPrompt;
+    await updateSettings({ [settingKey]: valueToSave });
     setIsDirty(false);
   };
 
   const handleReset = async () => {
-    setLocalPrompt(DEFAULT_SCRAPING_PROMPT);
-    await updateSettings({ scraping_prompt: '' });
+    setLocalPrompt(defaultPrompt);
+    await updateSettings({ [settingKey]: '' });
     setIsDirty(false);
   };
 
@@ -308,32 +321,24 @@ function PromptTab() {
     );
   }
 
-  const isUsingDefault = !settings.scraping_prompt;
+  const isUsingDefault = !settings[settingKey];
 
   return (
     <div className="space-y-4">
       <div className="bg-base-100 rounded-lg p-6">
         <div className="flex items-start justify-between mb-2">
-          <h3 className="text-lg font-semibold text-base-content">Scraping Prompt</h3>
+          <h3 className="text-lg font-semibold text-base-content">{title}</h3>
           {isUsingDefault && (
             <span className="badge badge-ghost badge-sm">Default</span>
           )}
         </div>
-        <p className="text-sm text-base-content/70 mb-4">
-          Customize the prompt sent to the AI when scraping transactions. Edit it to fine-tune extraction for your specific bank.
-        </p>
+        <p className="text-sm text-base-content/70 mb-4">{description}</p>
 
-        <div className="mb-3 p-3 bg-info/10 border border-info/30 rounded-lg">
-          <p className="text-xs text-base-content/70">
-            The prompt must instruct the AI to return a JSON array with fields:
-            <code className="mx-1 px-1 py-0.5 bg-base-300 rounded text-xs font-mono">date</code>
-            <code className="mx-1 px-1 py-0.5 bg-base-300 rounded text-xs font-mono">description</code>
-            <code className="mx-1 px-1 py-0.5 bg-base-300 rounded text-xs font-mono">amount</code>
-            <code className="mx-1 px-1 py-0.5 bg-base-300 rounded text-xs font-mono">balance</code>
-            <code className="mx-1 px-1 py-0.5 bg-base-300 rounded text-xs font-mono">category</code>
-            <code className="mx-1 px-1 py-0.5 bg-base-300 rounded text-xs font-mono">confidence</code>
-          </p>
-        </div>
+        {hint && (
+          <div className="mb-3 p-3 bg-info/10 border border-info/30 rounded-lg">
+            {hint}
+          </div>
+        )}
 
         <textarea
           value={localPrompt}
@@ -341,7 +346,7 @@ function PromptTab() {
             setLocalPrompt(e.target.value);
             setIsDirty(true);
           }}
-          rows={18}
+          rows={rows}
           className="w-full px-4 py-3 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content font-mono text-sm resize-y"
         />
 
@@ -404,8 +409,9 @@ export default function Settings() {
   const [showClearCategoriesConfirm, setShowClearCategoriesConfirm] = useState(false);
   const [clearCategoriesStatus, setClearCategoriesStatus] = useState<string | null>(null);
   const [scrapingTab, setScrapingTab] = useState<'claude' | 'ollama' | 'prompt'>('claude');
+  const [promptsTab, setPromptsTab] = useState<'welcome'>('welcome');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
-    appearance: true, accounts: true, categories: true, scraping: true, data: true,
+    appearance: true, accounts: true, categories: true, scraping: true, prompts: true, data: true,
   });
   const toggle = (key: string) => setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
   const isOpen = (key: string) => !collapsed[key]; // default open
@@ -892,7 +898,63 @@ export default function Settings() {
             </div>
             {scrapingTab === 'claude' && <ClaudeVisionTab />}
             {scrapingTab === 'ollama' && <LocalAITab />}
-            {scrapingTab === 'prompt' && <PromptTab />}
+            {scrapingTab === 'prompt' && (
+              <PromptEditorTab
+                settingKey="scraping_prompt"
+                defaultPrompt={DEFAULT_SCRAPING_PROMPT}
+                title="Scraping Prompt"
+                description="Customize the prompt sent to the AI when scraping transactions. Edit it to fine-tune extraction for your specific bank."
+                hint={
+                  <p className="text-xs text-base-content/70">
+                    The prompt must instruct the AI to return a JSON array with fields:
+                    {['date', 'description', 'amount', 'balance', 'category', 'confidence'].map(f => (
+                      <code key={f} className="mx-1 px-1 py-0.5 bg-base-300 rounded text-xs font-mono">{f}</code>
+                    ))}
+                  </p>
+                }
+                rows={18}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Prompts Section */}
+        <div className={`collapse collapse-arrow bg-base-100 rounded-lg shadow-sm mb-6 ${isOpen('prompts') ? 'collapse-open' : 'collapse-close'}`}>
+          <div className="collapse-title" onClick={() => toggle('prompts')}>
+            <h2 className="text-xl font-semibold text-base-content flex items-center gap-2">
+              <MessageSquare className="w-5 h-5" />
+              Prompts
+            </h2>
+            <p className="text-sm text-base-content/70 mt-0.5">Customize the AI prompts used throughout the app</p>
+          </div>
+          <div className="collapse-content">
+            <div className="tabs tabs-border -mx-4 mb-4">
+              {([
+                { key: 'welcome', label: 'Welcome Message' },
+              ] as const).map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setPromptsTab(tab.key)}
+                  className={`tab ${promptsTab === tab.key ? 'tab-active' : ''}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            {promptsTab === 'welcome' && (
+              <PromptEditorTab
+                settingKey="prompt_welcome"
+                defaultPrompt={DEFAULT_WELCOME_PROMPT}
+                title="Welcome Message Prompt"
+                description="The prompt used to generate the witty welcome message shown in the ticker when the app starts. Requires Ollama to be running."
+                hint={
+                  <p className="text-xs text-base-content/70">
+                    Ollama will generate one message per session using this prompt. If Ollama is unavailable, a plain date/time message is shown as a fallback.
+                  </p>
+                }
+                rows={6}
+              />
+            )}
           </div>
         </div>
 
