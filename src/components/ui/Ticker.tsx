@@ -49,7 +49,7 @@ export default function Ticker() {
             <span className="hidden sm:inline badge badge-ghost badge-sm flex-shrink-0 font-mono">
               {formatTime(currentMessage.timestamp)}
             </span>
-            <p className="text-base text-base-content font-medium truncate">
+            <p className="text-base text-primary font-medium truncate">
               {currentMessage.content}
             </p>
           </>
