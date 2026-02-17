@@ -21,6 +21,7 @@ export async function scrapeTransactions(window: BrowserWindow): Promise<{ trans
         provider: 'claude',
         apiKey: settings.claude_api_key,
         model: settings.claude_model || 'claude-3-5-sonnet-20241022',
+        customPrompt: settings.scraping_prompt || undefined,
       };
 
       const transactions = await scrapeWithVision(window, visionConfig);
@@ -41,6 +42,7 @@ export async function scrapeTransactions(window: BrowserWindow): Promise<{ trans
         provider: 'ollama',
         model: 'llama3.2-vision', // Default Ollama vision model
         ollamaEndpoint: 'http://localhost:11434',
+        customPrompt: settings.scraping_prompt || undefined,
       };
 
       const transactions = await scrapeWithVision(window, visionConfig);

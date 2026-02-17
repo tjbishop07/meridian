@@ -1,13 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Zap, Play } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import PageHeader from '../components/layout/PageHeader';
 import { RecordingCard } from '../components/automation/RecordingCard';
 import { EmptyState } from '../components/automation/EmptyState';
 import { EditRecordingModal } from '../components/automation/EditRecordingModal';
-import { ClaudeVisionTab } from '../components/automation/ClaudeVisionTab';
-import { LocalAITab } from '../components/automation/LocalAITab';
 import { useCategories } from '../hooks/useCategories';
 import { useAutomationSettings } from '../hooks/useAutomationSettings';
 import { useTickerStore } from '../store/tickerStore';
@@ -46,9 +44,6 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [isImporting, setIsImporting] = useState(false);
   const isImportingRef = useRef(false); // Use ref for synchronous duplicate detection
-
-  // Tabs state
-  const [activeTab, setActiveTab] = useState<'browser' | 'claude' | 'local'>('browser');
 
   // New recording modal
   const [showNewRecordingModal, setShowNewRecordingModal] = useState(false);
@@ -442,9 +437,18 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
           console.log('[Automation] Recording Name:', recordingName);
           console.log('[Automation] Created:', created);
 
+          const noNewMessages = [
+            `${recordingName}: Checked the books — your wallet is as quiet as a library. No new transactions.`,
+            `${recordingName}: The bank is silent. Either you've gone off the grid or you're just really good at not spending money.`,
+            `${recordingName}: Scrubbed every corner of the page and found absolutely nothing new. Your bank account is playing hard to get.`,
+            `${recordingName}: Zero transactions imported. Your finances are apparently on vacation.`,
+            `${recordingName}: Nothing to import. The transactions must be stuck in traffic.`,
+          ];
           const tickerMessage = {
-            content: `✓ ${recordingName}: Imported ${created} transaction${created === 1 ? '' : 's'} successfully`,
-            type: 'success' as const,
+            content: created === 0
+              ? noNewMessages[Math.floor(Math.random() * noNewMessages.length)]
+              : `✓ ${recordingName}: Imported ${created} transaction${created === 1 ? '' : 's'} successfully`,
+            type: (created === 0 ? 'info' : 'success') as const,
             duration: 8000,
           };
           console.log('[Automation] Ticker message:', tickerMessage);
@@ -480,9 +484,14 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
         // Add ticker message for no transactions
         const recording = recordings.find(r => r.id === String(data.recipeId));
         const recordingName = recording?.name || 'Automation';
+        const noTxMessages = [
+          `${recordingName}: Looked everywhere — not a single transaction to be found. Either the page outsmarted us or your spending is on strike.`,
+          `${recordingName}: The page was visited, the AI squinted at it, and found… nothing. Completely transaction-free.`,
+          `${recordingName}: No transactions detected. The robots have searched and come up empty-handed.`,
+        ];
         useTickerStore.getState().addMessage({
-          content: `${recordingName}: No transactions found on page`,
-          type: 'warning',
+          content: noTxMessages[Math.floor(Math.random() * noTxMessages.length)],
+          type: 'info',
           duration: 6000,
         });
 
@@ -663,62 +672,25 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
           title="Automation"
           subtitle="Automate transaction imports with browser automation and AI"
           action={
-            activeTab === 'browser' ? (
-              <button className="btn btn-primary gap-2" onClick={handleNewRecording}>
-                <Plus className="w-4 h-4" />
-                New Recording
-              </button>
-            ) : null
+            <button className="btn btn-primary gap-2" onClick={handleNewRecording}>
+              <Plus className="w-4 h-4" />
+              New Recording
+            </button>
           }
         />
       )}
 
-      {/* Tabs */}
-      <div className="border-b border-base-300 px-6">
-        <div className="flex items-center gap-6">
-          <button
-            onClick={() => setActiveTab('browser')}
-            className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'browser'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-base-content/60 hover:text-base-content/80'
-            }`}
-          >
-            Browser Automation
+      {embedded && (
+        <div className="border-b border-base-300 px-6 py-2 flex justify-end">
+          <button className="btn btn-primary btn-sm gap-2" onClick={handleNewRecording}>
+            <Plus className="w-4 h-4" />
+            New Recording
           </button>
-          <button
-            onClick={() => setActiveTab('claude')}
-            className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'claude'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-base-content/60 hover:text-base-content/80'
-            }`}
-          >
-            Claude Vision
-          </button>
-          <button
-            onClick={() => setActiveTab('local')}
-            className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'local'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-base-content/60 hover:text-base-content/80'
-            }`}
-          >
-            Local AI
-          </button>
-          {embedded && activeTab === 'browser' && (
-            <button className="btn btn-primary btn-sm gap-2 ml-auto" onClick={handleNewRecording}>
-              <Plus className="w-4 h-4" />
-              New Recording
-            </button>
-          )}
         </div>
-      </div>
+      )}
 
       <div className="flex-1 overflow-auto p-6">
-        {/* Browser Automation Tab */}
-        {activeTab === 'browser' && (
-          <>
+        <>
             {/* Scraping Method Selector */}
             <div className="bg-base-100 rounded-lg p-4 mb-6">
               <p className="text-sm font-medium text-base-content/80 mb-3">Transaction Scraping Method</p>
@@ -727,12 +699,12 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
                   {
                     value: 'claude',
                     label: 'Claude Vision AI',
-                    description: 'Most reliable. Configure in the Claude Vision tab.',
+                    description: 'Most reliable. Configure API key in Settings.',
                   },
                   {
                     value: 'ollama',
                     label: 'Local Ollama',
-                    description: 'Runs on your machine. Requires llama3.2-vision.',
+                    description: 'Runs on your machine. Configure in Settings.',
                   },
                 ] as const).map((opt) => {
                   const active = automationSettings.vision_provider === opt.value;
@@ -797,14 +769,7 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
                 </table>
               </div>
             )}
-          </>
-        )}
-
-        {/* Claude Vision Tab */}
-        {activeTab === 'claude' && <ClaudeVisionTab />}
-
-        {/* Local AI Tab */}
-        {activeTab === 'local' && <LocalAITab />}
+        </>
       </div>
 
       <EditRecordingModal

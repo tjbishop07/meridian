@@ -11,7 +11,81 @@ export interface VisionConfig {
   model?: string; // e.g., 'claude-3-5-sonnet-20241022', 'llama3.2-vision'
   maxTokens?: number;
   ollamaEndpoint?: string; // e.g., 'http://localhost:11434'
+  customPrompt?: string; // Override default scraping prompt
 }
+
+export const DEFAULT_CLAUDE_PROMPT = `You are analyzing a bank transaction page screenshot. Extract ONLY the visible posted transactions from this single viewport.
+
+WHAT TO LOOK FOR:
+- Transaction tables or lists showing financial activity
+- Columns typically include: Date, Description/Merchant, Amount, Balance, Category
+- Look for dollar amounts (positive or negative)
+- Look for dates in any format (Feb 04, 02/04/2024, etc.)
+- Look for merchant names or transaction descriptions
+- Look for category labels (Shopping, Groceries, Fast Food, Gas/Fuel, Auto & Transport, Bills & Utilities, etc.)
+
+CRITICAL RULES:
+1. Extract ONLY transactions visible in THIS screenshot (typically 10-50 recent transactions)
+2. Include ALL transactions - both posted/cleared AND pending/processing transactions
+3. For pending/processing transactions, ALWAYS use empty string "" for the category field
+4. For posted/cleared transactions, extract the category if visible, otherwise use empty string ""
+5. Clean merchant names (remove prefixes like "ACH", "DEBIT", "POS", "CARD PURCHASE", etc.)
+6. Use negative amounts for expenses (money going out)
+7. Use positive amounts for income (money coming in)
+8. Parse dates in any format you see (Month DD, YYYY or MM/DD/YYYY, etc.)
+9. If you see a balance column, include it
+
+IMPORTANT: If you cannot find ANY transaction data in the image:
+- Return an empty array: []
+- The page might be a login screen, loading screen, or error page
+- The page might not have finished loading transaction data yet
+
+Return ONLY a JSON array with this exact structure (no markdown, no explanation):
+[
+  {
+    "date": "Feb 04, 2026",
+    "description": "Shake Shack",
+    "amount": "-28.50",
+    "balance": "2380.52",
+    "category": "Fast Food",
+    "confidence": 95
+  }
+]
+
+If the bank shows a category for the transaction, extract it exactly as shown. If no category is visible, use an empty string "".
+
+Extract every visible transaction in the screenshot. Focus on the most recent transactions shown.`;
+
+export const DEFAULT_OLLAMA_PROMPT = `You are analyzing a bank transaction page screenshot. Extract ONLY the visible posted transactions.
+
+WHAT TO LOOK FOR:
+- Transaction tables with Date, Description/Merchant, Amount, Balance, Category columns
+- Dollar amounts (positive for income, negative for expenses)
+- Dates in any format
+- Merchant names or descriptions
+- Category labels (Shopping, Groceries, Fast Food, Gas/Fuel, etc.)
+
+CRITICAL RULES:
+1. Extract ONLY visible transactions in THIS screenshot
+2. Include ALL transactions - both posted/cleared AND pending/processing
+3. For pending/processing transactions, ALWAYS use empty string "" for category
+4. For posted/cleared transactions, extract category if visible, otherwise use empty string ""
+5. Clean merchant names (remove prefixes like "ACH", "DEBIT", "POS")
+6. Use negative amounts for expenses, positive for income
+
+Return ONLY a JSON array with this structure (no markdown, no explanation):
+[
+  {
+    "date": "Feb 04, 2026",
+    "description": "Shake Shack",
+    "amount": "-28.50",
+    "balance": "2380.52",
+    "category": "Fast Food",
+    "confidence": 95
+  }
+]
+
+If no transactions are found, return: []`;
 
 /**
  * Scrape transactions using AI vision capabilities (Claude or Ollama)
@@ -150,48 +224,8 @@ async function extractTransactionsWithClaude(
     },
   }));
 
-  // Construct the prompt
-  const prompt = `You are analyzing a bank transaction page screenshot. Extract ONLY the visible posted transactions from this single viewport.
-
-WHAT TO LOOK FOR:
-- Transaction tables or lists showing financial activity
-- Columns typically include: Date, Description/Merchant, Amount, Balance, Category
-- Look for dollar amounts (positive or negative)
-- Look for dates in any format (Feb 04, 02/04/2024, etc.)
-- Look for merchant names or transaction descriptions
-- Look for category labels (Shopping, Groceries, Fast Food, Gas/Fuel, Auto & Transport, Bills & Utilities, etc.)
-
-CRITICAL RULES:
-1. Extract ONLY transactions visible in THIS screenshot (typically 10-50 recent transactions)
-2. Include ALL transactions - both posted/cleared AND pending/processing transactions
-3. For pending/processing transactions, ALWAYS use empty string "" for the category field
-4. For posted/cleared transactions, extract the category if visible, otherwise use empty string ""
-5. Clean merchant names (remove prefixes like "ACH", "DEBIT", "POS", "CARD PURCHASE", etc.)
-6. Use negative amounts for expenses (money going out)
-7. Use positive amounts for income (money coming in)
-8. Parse dates in any format you see (Month DD, YYYY or MM/DD/YYYY, etc.)
-9. If you see a balance column, include it
-
-IMPORTANT: If you cannot find ANY transaction data in the image:
-- Return an empty array: []
-- The page might be a login screen, loading screen, or error page
-- The page might not have finished loading transaction data yet
-
-Return ONLY a JSON array with this exact structure (no markdown, no explanation):
-[
-  {
-    "date": "Feb 04, 2026",
-    "description": "Shake Shack",
-    "amount": "-28.50",
-    "balance": "2380.52",
-    "category": "Fast Food",
-    "confidence": 95
-  }
-]
-
-If the bank shows a category for the transaction, extract it exactly as shown. If no category is visible, use an empty string "".
-
-Extract every visible transaction in the screenshot. Focus on the most recent transactions shown.`;
+  // Construct the prompt (use custom prompt if provided, otherwise use default)
+  const prompt = config.customPrompt || DEFAULT_CLAUDE_PROMPT;
 
   console.log('[Vision Scraper] Sending request to Claude API...');
 
@@ -332,37 +366,8 @@ async function extractTransactionsWithOllama(
   // Ollama vision API expects base64 encoded images
   const imageData = screenshots[0].toString('base64'); // Use first screenshot for now
 
-  // Construct the prompt (same as Claude but optimized for Ollama)
-  const prompt = `You are analyzing a bank transaction page screenshot. Extract ONLY the visible posted transactions.
-
-WHAT TO LOOK FOR:
-- Transaction tables with Date, Description/Merchant, Amount, Balance, Category columns
-- Dollar amounts (positive for income, negative for expenses)
-- Dates in any format
-- Merchant names or descriptions
-- Category labels (Shopping, Groceries, Fast Food, Gas/Fuel, etc.)
-
-CRITICAL RULES:
-1. Extract ONLY visible transactions in THIS screenshot
-2. Include ALL transactions - both posted/cleared AND pending/processing
-3. For pending/processing transactions, ALWAYS use empty string "" for category
-4. For posted/cleared transactions, extract category if visible, otherwise use empty string ""
-5. Clean merchant names (remove prefixes like "ACH", "DEBIT", "POS")
-6. Use negative amounts for expenses, positive for income
-
-Return ONLY a JSON array with this structure (no markdown, no explanation):
-[
-  {
-    "date": "Feb 04, 2026",
-    "description": "Shake Shack",
-    "amount": "-28.50",
-    "balance": "2380.52",
-    "category": "Fast Food",
-    "confidence": 95
-  }
-]
-
-If no transactions are found, return: []`;
+  // Construct the prompt (use custom prompt if provided, otherwise use default)
+  const prompt = config.customPrompt || DEFAULT_OLLAMA_PROMPT;
 
   console.log('[Vision Scraper] Sending request to Ollama API...');
 

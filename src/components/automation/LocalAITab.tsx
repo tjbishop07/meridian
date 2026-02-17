@@ -69,7 +69,7 @@ export function LocalAITab() {
               Run AI models locally on your machine for privacy and offline access. Ollama is free and open-source.
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2">
             {ollamaStatus.installed && !ollamaStatus.running && (
               <button
                 onClick={handleStartServer}

@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Building2, Tag, Download, Database, Palette } from 'lucide-react';
+import { Plus, Edit2, Trash2, Building2, Tag, Download, Database, Palette, ScanSearch } from 'lucide-react';
 import { useAccounts } from '../hooks/useAccounts';
 import { useCategories } from '../hooks/useCategories';
 import Modal from '../components/ui/Modal';
+import { ClaudeVisionTab } from '../components/automation/ClaudeVisionTab';
+import { LocalAITab } from '../components/automation/LocalAITab';
+import { useAutomationSettings } from '../hooks/useAutomationSettings';
 import type { Account, Category } from '../types';
 
 const THEMES = [
@@ -230,6 +233,142 @@ function CategoryForm({
   );
 }
 
+const DEFAULT_SCRAPING_PROMPT = `You are analyzing a bank transaction page screenshot. Extract ONLY the visible posted transactions from this single viewport.
+
+WHAT TO LOOK FOR:
+- Transaction tables or lists showing financial activity
+- Columns typically include: Date, Description/Merchant, Amount, Balance, Category
+- Look for dollar amounts (positive or negative)
+- Look for dates in any format (Feb 04, 02/04/2024, etc.)
+- Look for merchant names or transaction descriptions
+- Look for category labels (Shopping, Groceries, Fast Food, Gas/Fuel, Auto & Transport, Bills & Utilities, etc.)
+
+CRITICAL RULES:
+1. Extract ONLY transactions visible in THIS screenshot (typically 10-50 recent transactions)
+2. Include ALL transactions - both posted/cleared AND pending/processing transactions
+3. For pending/processing transactions, ALWAYS use empty string "" for the category field
+4. For posted/cleared transactions, extract the category if visible, otherwise use empty string ""
+5. Clean merchant names (remove prefixes like "ACH", "DEBIT", "POS", "CARD PURCHASE", etc.)
+6. Use negative amounts for expenses (money going out)
+7. Use positive amounts for income (money coming in)
+8. Parse dates in any format you see (Month DD, YYYY or MM/DD/YYYY, etc.)
+9. If you see a balance column, include it
+
+IMPORTANT: If you cannot find ANY transaction data in the image:
+- Return an empty array: []
+- The page might be a login screen, loading screen, or error page
+- The page might not have finished loading transaction data yet
+
+Return ONLY a JSON array with this exact structure (no markdown, no explanation):
+[
+  {
+    "date": "Feb 04, 2026",
+    "description": "Shake Shack",
+    "amount": "-28.50",
+    "balance": "2380.52",
+    "category": "Fast Food",
+    "confidence": 95
+  }
+]
+
+If the bank shows a category for the transaction, extract it exactly as shown. If no category is visible, use an empty string "".
+
+Extract every visible transaction in the screenshot. Focus on the most recent transactions shown.`;
+
+function PromptTab() {
+  const { settings, loading, saving, updateSettings } = useAutomationSettings();
+  const [localPrompt, setLocalPrompt] = useState('');
+  const [isDirty, setIsDirty] = useState(false);
+
+  useEffect(() => {
+    if (!loading) {
+      setLocalPrompt(settings.scraping_prompt || DEFAULT_SCRAPING_PROMPT);
+      setIsDirty(false);
+    }
+  }, [loading, settings.scraping_prompt]);
+
+  const handleSave = async () => {
+    // Save empty string if the prompt matches the default (signals "use built-in default")
+    const valueToSave = localPrompt === DEFAULT_SCRAPING_PROMPT ? '' : localPrompt;
+    await updateSettings({ scraping_prompt: valueToSave });
+    setIsDirty(false);
+  };
+
+  const handleReset = async () => {
+    setLocalPrompt(DEFAULT_SCRAPING_PROMPT);
+    await updateSettings({ scraping_prompt: '' });
+    setIsDirty(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <span className="loading loading-spinner loading-md text-base-content/50" />
+      </div>
+    );
+  }
+
+  const isUsingDefault = !settings.scraping_prompt;
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-base-100 rounded-lg p-6">
+        <div className="flex items-start justify-between mb-2">
+          <h3 className="text-lg font-semibold text-base-content">Scraping Prompt</h3>
+          {isUsingDefault && (
+            <span className="badge badge-ghost badge-sm">Default</span>
+          )}
+        </div>
+        <p className="text-sm text-base-content/70 mb-4">
+          Customize the prompt sent to the AI when scraping transactions. Edit it to fine-tune extraction for your specific bank.
+        </p>
+
+        <div className="mb-3 p-3 bg-info/10 border border-info/30 rounded-lg">
+          <p className="text-xs text-base-content/70">
+            The prompt must instruct the AI to return a JSON array with fields:
+            <code className="mx-1 px-1 py-0.5 bg-base-300 rounded text-xs font-mono">date</code>
+            <code className="mx-1 px-1 py-0.5 bg-base-300 rounded text-xs font-mono">description</code>
+            <code className="mx-1 px-1 py-0.5 bg-base-300 rounded text-xs font-mono">amount</code>
+            <code className="mx-1 px-1 py-0.5 bg-base-300 rounded text-xs font-mono">balance</code>
+            <code className="mx-1 px-1 py-0.5 bg-base-300 rounded text-xs font-mono">category</code>
+            <code className="mx-1 px-1 py-0.5 bg-base-300 rounded text-xs font-mono">confidence</code>
+          </p>
+        </div>
+
+        <textarea
+          value={localPrompt}
+          onChange={(e) => {
+            setLocalPrompt(e.target.value);
+            setIsDirty(true);
+          }}
+          rows={18}
+          className="w-full px-4 py-3 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content font-mono text-sm resize-y"
+        />
+
+        <div className="flex items-center justify-between mt-4">
+          <button
+            onClick={handleReset}
+            disabled={isUsingDefault && !isDirty}
+            className="btn btn-ghost btn-sm"
+          >
+            Reset to Default
+          </button>
+          <div className="flex items-center gap-3">
+            {saving && <span className="text-xs text-success">Saved</span>}
+            <button
+              onClick={handleSave}
+              disabled={!isDirty || saving}
+              className="btn btn-primary btn-sm"
+            >
+              Save Prompt
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Settings() {
   const { accounts, loadAccounts, createAccount, updateAccount, deleteAccount } = useAccounts();
   const { categories, loadCategories } = useCategories();
@@ -264,6 +403,12 @@ export default function Settings() {
   const [clearStatus, setClearStatus] = useState<string | null>(null);
   const [showClearCategoriesConfirm, setShowClearCategoriesConfirm] = useState(false);
   const [clearCategoriesStatus, setClearCategoriesStatus] = useState<string | null>(null);
+  const [scrapingTab, setScrapingTab] = useState<'claude' | 'ollama' | 'prompt'>('claude');
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
+    appearance: true, accounts: true, categories: true, scraping: true, data: true,
+  });
+  const toggle = (key: string) => setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
+  const isOpen = (key: string) => !collapsed[key]; // default open
 
   useEffect(() => {
     loadAccounts();
@@ -514,298 +659,296 @@ export default function Settings() {
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto px-4 pb-4">
         {/* Appearance Section */}
-      <div className="bg-base-100 rounded-lg shadow-sm p-6 mb-6">
-        <div className="mb-6">
-          <h2 className="text-xl font-semibold text-base-content flex items-center gap-2">
-            <Palette className="w-5 h-5" />
-            Appearance
-          </h2>
-          <p className="text-sm text-base-content/70">Choose a theme for the application</p>
+        <div className={`collapse collapse-arrow bg-base-100 rounded-lg shadow-sm mb-6 ${isOpen('appearance') ? 'collapse-open' : 'collapse-close'}`}>
+          <div className="collapse-title" onClick={() => toggle('appearance')}>
+            <h2 className="text-xl font-semibold text-base-content flex items-center gap-2">
+              <Palette className="w-5 h-5" />
+              Appearance
+            </h2>
+            <p className="text-sm text-base-content/70 mt-0.5">Choose a theme for the application</p>
+          </div>
+          <div className="collapse-content">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-3">
+              {THEMES.map((theme) => (
+                <button
+                  key={theme}
+                  onClick={() => handleThemeChange(theme)}
+                  data-theme={theme}
+                  className={`glass rounded-lg overflow-hidden border transition-all hover:scale-105 ${
+                    currentTheme === theme
+                      ? 'border-primary/50 ring-2 ring-primary/30 shadow-lg shadow-primary/20'
+                      : 'border-base-content/10 hover:border-base-content/20'
+                  }`}
+                >
+                  <div className="p-2">
+                    <div className="flex gap-1 mb-1.5">
+                      <div className="rounded-full w-2.5 h-2.5 bg-primary shadow-sm" />
+                      <div className="rounded-full w-2.5 h-2.5 bg-secondary shadow-sm" />
+                      <div className="rounded-full w-2.5 h-2.5 bg-accent shadow-sm" />
+                    </div>
+                    <div className="flex gap-1">
+                      <div className="rounded h-1.5 flex-1 bg-base-content/20" />
+                      <div className="rounded h-1.5 flex-1 bg-base-content/10" />
+                    </div>
+                  </div>
+                  <div className="bg-base-content/5 px-2 py-1">
+                    <p className="text-[10px] font-medium text-base-content truncate text-center capitalize">
+                      {theme}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
-
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-3">
-          {THEMES.map((theme) => (
-            <button
-              key={theme}
-              onClick={() => handleThemeChange(theme)}
-              data-theme={theme}
-              className={`glass rounded-lg overflow-hidden border transition-all hover:scale-105 ${
-                currentTheme === theme
-                  ? 'border-primary/50 ring-2 ring-primary/30 shadow-lg shadow-primary/20'
-                  : 'border-base-content/10 hover:border-base-content/20'
-              }`}
-            >
-              <div className="p-2">
-                <div className="flex gap-1 mb-1.5">
-                  <div className="rounded-full w-2.5 h-2.5 bg-primary shadow-sm" />
-                  <div className="rounded-full w-2.5 h-2.5 bg-secondary shadow-sm" />
-                  <div className="rounded-full w-2.5 h-2.5 bg-accent shadow-sm" />
-                </div>
-                <div className="flex gap-1">
-                  <div className="rounded h-1.5 flex-1 bg-base-content/20" />
-                  <div className="rounded h-1.5 flex-1 bg-base-content/10" />
-                </div>
-              </div>
-              <div className="bg-base-content/5 px-2 py-1">
-                <p className="text-[10px] font-medium text-base-content truncate text-center capitalize">
-                  {theme}
-                </p>
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
 
       {/* Accounts Section */}
-      <div className="bg-base-100 rounded-lg shadow-sm p-6 mb-6">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h2 className="text-xl font-semibold text-base-content flex items-center gap-2">
-              <Building2 className="w-5 h-5" />
-              Accounts
-            </h2>
-            <p className="text-sm text-base-content/70">Manage your bank accounts and credit cards</p>
+        <div className={`collapse collapse-arrow bg-base-100 rounded-lg shadow-sm mb-6 ${isOpen('accounts') ? 'collapse-open' : 'collapse-close'}`}>
+          <div className="collapse-title" onClick={() => toggle('accounts')}>
+            <div className="flex items-center justify-between pr-4">
+              <div>
+                <h2 className="text-xl font-semibold text-base-content flex items-center gap-2">
+                  <Building2 className="w-5 h-5" />
+                  Accounts
+                </h2>
+                <p className="text-sm text-base-content/70 mt-0.5">Manage your bank accounts and credit cards</p>
+              </div>
+              {isOpen('accounts') && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setIsCreateAccountOpen(true); }}
+                  className="btn btn-primary btn-sm gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Account
+                </button>
+              )}
+            </div>
           </div>
-          <button
-            onClick={() => setIsCreateAccountOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-content rounded-lg hover:bg-primary/80 font-medium"
-          >
-            <Plus className="w-4 h-4" />
-            Add Account
-          </button>
-        </div>
-
-        {accounts.length === 0 ? (
-          <div className="text-center py-8 bg-base-200 rounded-lg">
-            <Building2 className="w-10 h-10 text-base-content/50 mx-auto mb-2" />
-            <p className="text-base-content/70 mb-2">No accounts yet</p>
-            <button
-              onClick={() => setIsCreateAccountOpen(true)}
-              className="text-primary hover:text-primary font-medium text-sm"
-            >
-              Create your first account
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {accounts.map((account) => (
-              <div
-                key={account.id}
-                className="flex items-center justify-between p-4 border border-base-300 rounded-lg hover:border-base-content/30 transition-colors"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-3">
-                    <h3 className="font-medium text-base-content">{account.name}</h3>
-                    <span className="px-2 py-0.5 text-xs font-medium bg-base-200 text-base-content/80 rounded">
-                      {account.type.replace('_', ' ')}
-                    </span>
-                    {!account.is_active && (
-                      <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded">
-                        Inactive
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-base-content/70 mt-1">
-                    {account.institution} &middot; ${account.balance.toFixed(2)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setEditingAccount(account)}
-                    className="p-2 text-base-content/50 hover:text-primary transition-colors"
+          <div className="collapse-content">
+            {accounts.length === 0 ? (
+              <div className="text-center py-8 bg-base-200 rounded-lg">
+                <Building2 className="w-10 h-10 text-base-content/50 mx-auto mb-2" />
+                <p className="text-base-content/70 mb-2">No accounts yet</p>
+                <button
+                  onClick={() => setIsCreateAccountOpen(true)}
+                  className="text-primary font-medium text-sm"
+                >
+                  Create your first account
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {accounts.map((account) => (
+                  <div
+                    key={account.id}
+                    className="flex items-center justify-between p-4 border border-base-300 rounded-lg hover:border-base-content/30 transition-colors"
                   >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteAccount(account)}
-                    className="p-2 text-base-content/50 hover:text-red-600 transition-colors"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3">
+                        <h3 className="font-medium text-base-content">{account.name}</h3>
+                        <span className="badge badge-ghost badge-sm">{account.type.replace('_', ' ')}</span>
+                        {!account.is_active && (
+                          <span className="badge badge-error badge-sm">Inactive</span>
+                        )}
+                      </div>
+                      <p className="text-sm text-base-content/70 mt-1">
+                        {account.institution} &middot; ${account.balance.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setEditingAccount(account)} className="btn btn-ghost btn-sm btn-circle">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleDeleteAccount(account)} className="btn btn-ghost btn-sm btn-circle text-error hover:bg-error/10">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        )}
-      </div>
+        </div>
 
-      {/* Categories Section */}
-      <div className="bg-base-100 rounded-lg shadow-sm p-6 mb-6">
-        <div className="flex justify-between items-center mb-6">
-          <div>
+        {/* Categories Section */}
+        <div className={`collapse collapse-arrow bg-base-100 rounded-lg shadow-sm mb-6 ${isOpen('categories') ? 'collapse-open' : 'collapse-close'}`}>
+          <div className="collapse-title" onClick={() => toggle('categories')}>
+            <div className="flex items-center justify-between pr-4">
+              <div>
+                <h2 className="text-xl font-semibold text-base-content flex items-center gap-2">
+                  <Tag className="w-5 h-5" />
+                  Categories
+                </h2>
+                <p className="text-sm text-base-content/70 mt-0.5">Organize your transactions into categories</p>
+              </div>
+              {isOpen('categories') && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setIsCreateCategoryOpen(true); }}
+                  className="btn btn-primary btn-sm gap-2"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Category
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="collapse-content">
+            {/* Expense Categories */}
+            <div className="mb-6">
+              <div className="flex items-center gap-2 mb-3">
+                <h3 className="text-sm font-semibold text-base-content/80 uppercase tracking-wide">Expense Categories</h3>
+                <div className="badge badge-neutral badge-sm">{expenseCategories.length}</div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {expenseCategories.map((cat) => (
+                  <div key={cat.id} className="card bg-base-200 shadow-sm">
+                    <div className="card-body p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <div className="w-2 h-2 rounded-full bg-error flex-shrink-0" />
+                          <span className="font-medium text-sm text-base-content truncate" data-category-name={cat.name}>
+                            {String(cat.name).trim()}
+                          </span>
+                          {Boolean(cat.is_system) && <div className="badge badge-ghost badge-xs flex-shrink-0">system</div>}
+                        </div>
+                        <div className="join">
+                          <button onClick={() => setEditingCategory(cat)} className="btn btn-ghost btn-xs join-item" title="Edit category">
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                          {!cat.is_system && (
+                            <button onClick={() => handleDeleteCategory(cat)} className="btn btn-ghost btn-xs join-item text-error hover:bg-error/10" title="Delete category">
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Income Categories */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <h3 className="text-sm font-semibold text-base-content/80 uppercase tracking-wide">Income Categories</h3>
+                <div className="badge badge-neutral badge-sm">{incomeCategories.length}</div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {incomeCategories.map((cat) => (
+                  <div key={cat.id} className="card bg-base-200 shadow-sm">
+                    <div className="card-body p-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <div className="w-2 h-2 rounded-full bg-success flex-shrink-0" />
+                          <span className="font-medium text-sm text-base-content truncate" data-category-name={cat.name}>
+                            {String(cat.name).trim()}
+                          </span>
+                          {Boolean(cat.is_system) && <div className="badge badge-ghost badge-xs flex-shrink-0">system</div>}
+                        </div>
+                        <div className="join">
+                          <button onClick={() => setEditingCategory(cat)} className="btn btn-ghost btn-xs join-item" title="Edit category">
+                            <Edit2 className="w-3 h-3" />
+                          </button>
+                          {!cat.is_system && (
+                            <button onClick={() => handleDeleteCategory(cat)} className="btn btn-ghost btn-xs join-item text-error hover:bg-error/10" title="Delete category">
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Scraping Section */}
+        <div className={`collapse collapse-arrow bg-base-100 rounded-lg shadow-sm mb-6 ${isOpen('scraping') ? 'collapse-open' : 'collapse-close'}`}>
+          <div className="collapse-title" onClick={() => toggle('scraping')}>
             <h2 className="text-xl font-semibold text-base-content flex items-center gap-2">
-              <Tag className="w-5 h-5" />
-              Categories
+              <ScanSearch className="w-5 h-5" />
+              Scraping
             </h2>
-            <p className="text-sm text-base-content/70">Organize your transactions into categories</p>
           </div>
-          <button
-            onClick={() => setIsCreateCategoryOpen(true)}
-            className="btn btn-primary btn-sm gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Add Category
-          </button>
+          <div className="collapse-content">
+            {/* Tab bar */}
+            <div className="tabs tabs-border -mx-4 mb-4">
+              {([
+                { key: 'claude', label: 'Claude Vision AI' },
+                { key: 'ollama', label: 'Local AI (Ollama)' },
+                { key: 'prompt', label: 'Prompt' },
+              ] as const).map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setScrapingTab(tab.key)}
+                  className={`tab ${scrapingTab === tab.key ? 'tab-active' : ''}`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            {scrapingTab === 'claude' && <ClaudeVisionTab />}
+            {scrapingTab === 'ollama' && <LocalAITab />}
+            {scrapingTab === 'prompt' && <PromptTab />}
+          </div>
         </div>
 
-        {/* Expense Categories */}
-        <div className="mb-6">
-          <div className="flex items-center gap-2 mb-3">
-            <h3 className="text-sm font-semibold text-base-content/80 uppercase tracking-wide">
-              Expense Categories
-            </h3>
-            <div className="badge badge-neutral badge-sm">{expenseCategories.length}</div>
+        {/* Data Management Section */}
+        <div className={`collapse collapse-arrow bg-base-100 rounded-lg shadow-sm mb-6 ${isOpen('data') ? 'collapse-open' : 'collapse-close'}`}>
+          <div className="collapse-title" onClick={() => toggle('data')}>
+            <h2 className="text-xl font-semibold text-base-content flex items-center gap-2">
+              <Database className="w-5 h-5" />
+              Data Management
+            </h2>
+            <p className="text-sm text-base-content/70 mt-0.5">Export data and manage database records</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {expenseCategories.map((cat) => (
-              <div key={cat.id} className="card bg-base-200 shadow-sm">
-                <div className="card-body p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <div className="w-2 h-2 rounded-full bg-error flex-shrink-0" />
-                      <span
-                        className="font-medium text-sm text-base-content truncate"
-                        data-category-name={cat.name}
-                      >
-                        {String(cat.name).trim()}
-                      </span>
-                      {Boolean(cat.is_system) && (
-                        <div className="badge badge-ghost badge-xs flex-shrink-0">system</div>
-                      )}
-                    </div>
-                    <div className="btn-group btn-group-horizontal">
-                      <button
-                        onClick={() => setEditingCategory(cat)}
-                        className="btn btn-ghost btn-xs"
-                        title="Edit category"
-                      >
-                        <Edit2 className="w-3 h-3" />
-                      </button>
-                      {!cat.is_system && (
-                        <button
-                          onClick={() => handleDeleteCategory(cat)}
-                          className="btn btn-ghost btn-xs text-error hover:bg-error/10"
-                          title="Delete category"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+          <div className="collapse-content">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 border border-base-300 rounded-lg">
+                <div>
+                  <h3 className="font-medium text-base-content">Export Transactions</h3>
+                  <p className="text-sm text-base-content/70">Download all transactions as a CSV file</p>
+                </div>
+                <button onClick={handleExportCSV} className="btn btn-ghost gap-2">
+                  <Download className="w-4 h-4" />
+                  {exportStatus || 'Export CSV'}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-4 border border-base-300 rounded-lg">
+                <div>
+                  <h3 className="font-medium text-base-content">Clear All Transactions</h3>
+                  <p className="text-sm text-base-content/70">Permanently delete all transactions from the database</p>
+                </div>
+                <button onClick={() => setShowClearConfirm(true)} className="btn btn-ghost text-error gap-2">
+                  <Trash2 className="w-4 h-4" />
+                  {clearStatus || 'Clear All'}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-4 border border-base-300 rounded-lg">
+                <div>
+                  <h3 className="font-medium text-base-content">Clear All Categories</h3>
+                  <p className="text-sm text-base-content/70">Permanently delete all user-created categories (system categories are preserved)</p>
+                </div>
+                <button onClick={() => setShowClearCategoriesConfirm(true)} className="btn btn-ghost text-error gap-2">
+                  <Trash2 className="w-4 h-4" />
+                  {clearCategoriesStatus || 'Clear All'}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-4 border border-base-300 rounded-lg">
+                <div>
+                  <h3 className="font-medium text-base-content">Database Location</h3>
+                  <p className="text-sm text-base-content/70 font-mono">~/Library/Application Support/personal-finance/</p>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Income Categories */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <h3 className="text-sm font-semibold text-base-content/80 uppercase tracking-wide">
-              Income Categories
-            </h3>
-            <div className="badge badge-neutral badge-sm">{incomeCategories.length}</div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {incomeCategories.map((cat) => (
-              <div key={cat.id} className="card bg-base-200 shadow-sm">
-                <div className="card-body p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <div className="w-2 h-2 rounded-full bg-success flex-shrink-0" />
-                      <span
-                        className="font-medium text-sm text-base-content truncate"
-                        data-category-name={cat.name}
-                      >
-                        {String(cat.name).trim()}
-                      </span>
-                      {Boolean(cat.is_system) && (
-                        <div className="badge badge-ghost badge-xs flex-shrink-0">system</div>
-                      )}
-                    </div>
-                    <div className="btn-group btn-group-horizontal">
-                      <button
-                        onClick={() => setEditingCategory(cat)}
-                        className="btn btn-ghost btn-xs"
-                        title="Edit category"
-                      >
-                        <Edit2 className="w-3 h-3" />
-                      </button>
-                      {!cat.is_system && (
-                        <button
-                          onClick={() => handleDeleteCategory(cat)}
-                          className="btn btn-ghost btn-xs text-error hover:bg-error/10"
-                          title="Delete category"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Data Management Section */}
-      <div className="bg-base-100 rounded-lg shadow-sm p-6 mb-6">
-        <h2 className="text-xl font-semibold text-base-content mb-4 flex items-center gap-2">
-          <Database className="w-5 h-5" />
-          Data Management
-        </h2>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between p-4 border border-base-300 rounded-lg">
-            <div>
-              <h3 className="font-medium text-base-content">Export Transactions</h3>
-              <p className="text-sm text-base-content/70">Download all transactions as a CSV file</p>
-            </div>
-            <button
-              onClick={handleExportCSV}
-              className="flex items-center gap-2 px-4 py-2 bg-base-200 text-base-content/80 rounded-lg hover:bg-base-300 font-medium"
-            >
-              <Download className="w-4 h-4" />
-              {exportStatus || 'Export CSV'}
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between p-4 border border-base-300 rounded-lg">
-            <div>
-              <h3 className="font-medium text-base-content">Clear All Transactions</h3>
-              <p className="text-sm text-base-content/70">Permanently delete all transactions from the database</p>
-            </div>
-            <button
-              onClick={() => setShowClearConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-error/10 text-error rounded-lg hover:bg-error/20 font-medium"
-            >
-              <Trash2 className="w-4 h-4" />
-              {clearStatus || 'Clear All'}
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between p-4 border border-base-300 rounded-lg">
-            <div>
-              <h3 className="font-medium text-base-content">Clear All Categories</h3>
-              <p className="text-sm text-base-content/70">Permanently delete all user-created categories (system categories are preserved)</p>
-            </div>
-            <button
-              onClick={() => setShowClearCategoriesConfirm(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-error/10 text-error rounded-lg hover:bg-error/20 font-medium"
-            >
-              <Trash2 className="w-4 h-4" />
-              {clearCategoriesStatus || 'Clear All'}
-            </button>
-          </div>
-
-          <div className="flex items-center justify-between p-4 border border-base-300 rounded-lg">
-            <div>
-              <h3 className="font-medium text-base-content">Database Location</h3>
-              <p className="text-sm text-base-content/70 font-mono">~/Library/Application Support/personal-finance/</p>
             </div>
           </div>
         </div>
-      </div>
       </div>
 
       {/* Account Modals */}

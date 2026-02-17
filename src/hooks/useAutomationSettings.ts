@@ -8,6 +8,7 @@ export interface AutomationSettings {
   retry_delay_ms: number;
   schedule_enabled: boolean;
   schedule_cron: string;
+  scraping_prompt?: string;
 }
 
 export function useAutomationSettings() {
@@ -19,6 +20,7 @@ export function useAutomationSettings() {
     retry_delay_ms: 2000,
     schedule_enabled: false,
     schedule_cron: '0 6 * * *',
+    scraping_prompt: '',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

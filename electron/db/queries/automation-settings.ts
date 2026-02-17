@@ -8,6 +8,7 @@ export interface AutomationSettings {
   retry_delay_ms: number;
   schedule_enabled: boolean;
   schedule_cron: string;
+  scraping_prompt?: string;
 }
 
 /**
@@ -32,6 +33,7 @@ export function getAutomationSettings(db: Database.Database): AutomationSettings
     retry_delay_ms: parseInt(settings.retry_delay_ms || '2000', 10),
     schedule_enabled: settings.schedule_enabled === 'true',
     schedule_cron: settings.schedule_cron || '0 6 * * *',
+    scraping_prompt: settings.scraping_prompt || '',
   };
 }
 
