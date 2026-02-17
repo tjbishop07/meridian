@@ -14,6 +14,7 @@ import { Automation } from './pages/Automation';
 import Browser from './pages/Browser';
 import Toaster from './components/ui/Toaster';
 import { useTickerStore } from './store/tickerStore';
+import { useAutomationStore } from './store/automationStore';
 
 function App() {
   const welcomeShown = useRef(false);
@@ -54,6 +55,48 @@ function App() {
         duration: 0, // Persistent - never auto-dismiss
       });
     }
+
+    // Set up global automation progress listener
+    const handleAutomationProgress = (data: any) => {
+      console.log('[App] ========== AUTOMATION PROGRESS EVENT ==========');
+      console.log('[App] Recipe ID:', data.recipeId, '(type:', typeof data.recipeId, ')');
+      console.log('[App] Current Step:', data.currentStep);
+      console.log('[App] Total Steps:', data.totalSteps);
+      console.log('[App] Status:', data.status);
+      console.log('[App] Color:', data.color);
+
+      // Convert recipeId to string to ensure consistency
+      const recipeIdStr = String(data.recipeId);
+      console.log('[App] Normalized Recipe ID:', recipeIdStr, '(type:', typeof recipeIdStr, ')');
+
+      useAutomationStore.getState().updateProgress(recipeIdStr, {
+        currentStep: data.currentStep,
+        totalSteps: data.totalSteps,
+        status: data.status,
+        color: data.color
+      });
+
+      const currentProgress = useAutomationStore.getState().progress;
+      console.log('[App] Store updated. Progress keys:', Object.keys(currentProgress));
+      console.log('[App] Store updated. Full progress:', currentProgress);
+      console.log('[App] ================================================');
+    };
+
+    const handlePlaybackComplete = () => {
+      console.log('[App] Playback complete event received');
+      // Don't clear progress - scraping still needs to happen
+    };
+
+    console.log('[App] ===== SETTING UP GLOBAL AUTOMATION EVENT LISTENERS =====');
+    window.electron.on('automation:progress', handleAutomationProgress);
+    window.electron.on('automation:playback-complete', handlePlaybackComplete);
+    console.log('[App] Event listeners registered successfully');
+
+    return () => {
+      console.log('[App] Cleaning up global automation event listeners');
+      window.electron.removeListener('automation:progress', handleAutomationProgress);
+      window.electron.removeListener('automation:playback-complete', handlePlaybackComplete);
+    };
   }, []);
 
   return (

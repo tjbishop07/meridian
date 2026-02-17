@@ -22,6 +22,12 @@ interface RecordingCardProps {
   onDelete: (id: string) => void;
   onDuplicate: (id: string) => void;
   isPlaying?: boolean;
+  progress?: {
+    currentStep: number;
+    totalSteps: number;
+    status: string;
+    color: string;
+  };
 }
 
 export function RecordingCard({
@@ -30,10 +36,13 @@ export function RecordingCard({
   onEdit,
   onDelete,
   onDuplicate,
-  isPlaying = false
+  isPlaying = false,
+  progress
 }: RecordingCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  console.log('[RecordingCard]', recording.name, '- isPlaying:', isPlaying, '- progress:', progress);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -193,14 +202,37 @@ export function RecordingCard({
           )}
         </div>
 
+        {/* Progress Display */}
+        {isPlaying && (
+          <div className="mt-4 space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium" style={{ color: progress?.color || '#3b82f6' }}>
+                {progress?.status || 'Starting automation...'}
+              </span>
+              <span className="text-base-content/60">
+                {progress?.currentStep || 0}/{progress?.totalSteps || recording.steps.length}
+              </span>
+            </div>
+            <div className="w-full bg-base-300 rounded-full h-2 overflow-hidden">
+              <div
+                className="h-full transition-all duration-300 ease-out rounded-full"
+                style={{
+                  width: `${progress ? (progress.currentStep / progress.totalSteps) * 100 : 0}%`,
+                  backgroundColor: progress?.color || '#3b82f6'
+                }}
+              />
+            </div>
+          </div>
+        )}
+
         <div className="card-actions justify-end mt-4">
           <button
-            className={`btn btn-primary btn-sm ${isPlaying ? 'loading' : ''}`}
+            className="btn btn-primary btn-sm"
             onClick={() => onPlay(recording.id)}
             disabled={isPlaying}
           >
             {!isPlaying && <Play className="w-4 h-4" />}
-            {isPlaying ? 'Playing...' : 'Run Automation'}
+            {isPlaying ? 'Running...' : 'Run Automation'}
           </button>
         </div>
       </div>

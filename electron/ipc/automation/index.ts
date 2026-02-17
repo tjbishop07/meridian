@@ -72,11 +72,11 @@ async function playRecording(recipeId: string): Promise<{ success: boolean; mess
 
     console.log(`[Automation] Recipe has ${steps.length} steps, starting at: ${startUrl}`);
 
-    // Create playback window
+    // Create playback window (hidden - status shown on card)
     playbackWindow = new BrowserWindow({
       width: 1400,
       height: 1000,
-      show: true, // Make sure window is visible
+      show: false, // Hidden - status shown on recording card
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -198,8 +198,48 @@ async function playRecording(recipeId: string): Promise<{ success: boolean; mess
       // Update playback state (for re-injection after navigation)
       playbackState.currentStep = i + 1;
 
-      // Update progress overlay
-      await updatePlaybackProgress(playbackWindow, i + 1, steps.length);
+      // Generate descriptive status message for the current step
+      let stepDescription = '';
+      switch (step.type) {
+        case 'click':
+          if (step.identification?.text) {
+            stepDescription = `Clicking "${step.identification.text}"`;
+          } else if (step.identification?.ariaLabel) {
+            stepDescription = `Clicking ${step.identification.ariaLabel}`;
+          } else {
+            stepDescription = 'Clicking element';
+          }
+          break;
+        case 'input':
+          if (step.fieldLabel) {
+            stepDescription = `Typing into "${step.fieldLabel}"`;
+          } else if (step.identification?.placeholder) {
+            stepDescription = `Entering "${step.identification.placeholder}"`;
+          } else {
+            stepDescription = 'Entering text';
+          }
+          break;
+        case 'select':
+          if (step.value) {
+            stepDescription = `Selecting "${step.value}"`;
+          } else {
+            stepDescription = 'Selecting option';
+          }
+          break;
+        case 'navigation':
+          if (step.url) {
+            const hostname = new URL(step.url).hostname;
+            stepDescription = `Navigating to ${hostname}`;
+          } else {
+            stepDescription = 'Navigating';
+          }
+          break;
+        default:
+          stepDescription = `Executing ${step.type}`;
+      }
+
+      // Update progress overlay with step description
+      await updatePlaybackProgress(playbackWindow, i + 1, steps.length, stepDescription, '#3b82f6');
 
       // Get current URL before executing step
       const urlBefore = playbackWindow.webContents.getURL();
@@ -559,6 +599,39 @@ async function updatePlaybackProgress(
 
   const status = statusText || `${currentStep} of ${totalSteps}`;
   const color = statusColor || '#1f2937';
+
+  // Send progress to main window for card display
+  const allWindows = BrowserWindow.getAllWindows();
+  console.log('[Automation] Looking for main window...');
+  console.log('[Automation] All windows:', allWindows.map(w => ({ id: w.id, url: w.webContents.getURL(), destroyed: w.isDestroyed() })));
+
+  // Find main window - try index.html first, then fall back to first non-playback window
+  let mainWindow = allWindows.find(w => !w.isDestroyed() && w.webContents.getURL().includes('index.html'));
+  if (!mainWindow) {
+    // Fallback: use the first window that isn't the playback window
+    mainWindow = allWindows.find(w => !w.isDestroyed() && w.id !== window.id);
+  }
+
+  console.log('[Automation] Main window found:', mainWindow ? { id: mainWindow.id, url: mainWindow.webContents.getURL() } : 'NONE');
+
+  if (mainWindow && !mainWindow.isDestroyed() && playbackState?.recipeId) {
+    console.log('[Automation] Sending progress event:', {
+      recipeId: playbackState.recipeId,
+      currentStep,
+      totalSteps,
+      status,
+      color
+    });
+    mainWindow.webContents.send('automation:progress', {
+      recipeId: playbackState.recipeId,
+      currentStep,
+      totalSteps,
+      status,
+      color
+    });
+  } else {
+    console.warn('[Automation] ⚠️ Cannot send progress - mainWindow not available!');
+  }
 
   try {
     await window.webContents.executeJavaScript(`

@@ -10,6 +10,8 @@ import { ClaudeVisionTab } from '../components/automation/ClaudeVisionTab';
 import { LocalAITab } from '../components/automation/LocalAITab';
 import { useCategories } from '../hooks/useCategories';
 import { useAutomationSettings } from '../hooks/useAutomationSettings';
+import { useTickerStore } from '../store/tickerStore';
+import { useAutomationStore } from '../store/automationStore';
 
 interface Recording {
   id: string;
@@ -30,10 +32,16 @@ export function Automation() {
   const location = useLocation();
   const { categories, loadCategories } = useCategories();
   const { settings: automationSettings, updateSettings: updateAutomationSettings } = useAutomationSettings();
+  const playingId = useAutomationStore((state) => state.playingRecipeId);
+  const progress = useAutomationStore((state) => state.progress);
+  const setPlayingRecipe = useAutomationStore((state) => state.setPlayingRecipe);
+  const clearProgress = useAutomationStore((state) => state.clearProgress);
   const [recordings, setRecordings] = useState<Recording[]>([]);
   const [loading, setLoading] = useState(true);
-  const [playingId, setPlayingId] = useState<string | null>(null);
   const [editingRecording, setEditingRecording] = useState<Recording | null>(null);
+
+  console.log('[Automation] Component render - playingId:', playingId);
+  console.log('[Automation] Component render - progress:', progress);
   const [scrapedTransactions, setScrapedTransactions] = useState<any[] | null>(null);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [isImporting, setIsImporting] = useState(false);
@@ -63,12 +71,6 @@ export function Automation() {
     const handleRecordingSaved = () => {
       loadRecordings();
       toast.success('Recording saved successfully');
-    };
-
-    // Listen for playback complete events
-    const handlePlaybackComplete = () => {
-      setPlayingId(null);
-      // Don't show toast here - wait for scrape complete which shows transaction count
     };
 
     // Listen for scrape complete events
@@ -432,6 +434,28 @@ export function Automation() {
             { id: 'import', duration: 3000 }
           );
 
+          // Add ticker message with results
+          const recording = recordings.find(r => r.id === String(data.recipeId));
+          const recordingName = recording?.name || 'Automation';
+          console.log('[Automation] ========== ADDING TICKER MESSAGE ==========');
+          console.log('[Automation] Recording:', recording);
+          console.log('[Automation] Recording Name:', recordingName);
+          console.log('[Automation] Created:', created);
+
+          const tickerMessage = {
+            content: `✓ ${recordingName}: Imported ${created} transaction${created === 1 ? '' : 's'} successfully`,
+            type: 'success' as const,
+            duration: 8000,
+          };
+          console.log('[Automation] Ticker message:', tickerMessage);
+
+          useTickerStore.getState().addMessage(tickerMessage);
+          console.log('[Automation] Ticker store after add:', useTickerStore.getState().messages);
+          console.log('[Automation] ================================================');
+
+          // Clear playing state and progress after successful import
+          clearProgress(String(data.recipeId));
+
           // Navigate to transactions page to see the saved data
           setTimeout(() => {
             navigate('/transactions');
@@ -443,24 +467,37 @@ export function Automation() {
             'Failed to save transactions: ' + (error instanceof Error ? error.message : String(error)),
             { id: 'import' }
           );
+
+          // Clear playing state on error
+          clearProgress(String(data.recipeId));
         } finally {
           isImportingRef.current = false;
         setIsImporting(false);
         }
       } else {
         toast('No transactions found on page', { icon: 'ℹ️' });
+
+        // Add ticker message for no transactions
+        const recording = recordings.find(r => r.id === String(data.recipeId));
+        const recordingName = recording?.name || 'Automation';
+        useTickerStore.getState().addMessage({
+          content: `${recordingName}: No transactions found on page`,
+          type: 'warning',
+          duration: 6000,
+        });
+
+        // Clear playing state when no transactions found
+        clearProgress(String(data.recipeId));
       }
     };
 
     console.log('[Automation] Setting up event listeners');
     window.electron.on('automation:recording-saved', handleRecordingSaved);
-    window.electron.on('automation:playback-complete', handlePlaybackComplete);
     window.electron.on('automation:scrape-complete', handleScrapeComplete);
 
     return () => {
       console.log('[Automation] Cleaning up event listeners');
       window.electron.removeListener('automation:recording-saved', handleRecordingSaved);
-      window.electron.removeListener('automation:playback-complete', handlePlaybackComplete);
       window.electron.removeListener('automation:scrape-complete', handleScrapeComplete);
     };
   }, []);
@@ -478,11 +515,13 @@ export function Automation() {
         const account = accountsList.find((acc: any) => acc.id === recipe.account_id);
         return {
           ...recipe,
+          id: String(recipe.id), // Ensure ID is always a string
           steps: typeof recipe.steps === 'string' ? JSON.parse(recipe.steps) : recipe.steps,
           account_name: account?.name || null
         };
       });
       setRecordings(parsedRecipes);
+      console.log('[Automation] Loaded recordings:', parsedRecipes.map(r => ({ id: r.id, type: typeof r.id })));
     } catch (error) {
       console.error('Failed to load recordings:', error);
       toast.error('Failed to load recordings');
@@ -532,20 +571,39 @@ export function Automation() {
   };
 
   const handlePlayRecording = async (id: string) => {
+    console.log('[Automation] ========== PLAY RECORDING CLICKED ==========');
+    console.log('[Automation] ID:', id, '(type:', typeof id, ')');
+
     const recording = recordings.find(r => r.id === id);
-    if (!recording) return;
+    if (!recording) {
+      console.error('[Automation] Recording not found for ID:', id);
+      return;
+    }
 
     try {
-      setPlayingId(id);
+      // Ensure ID is a string
+      const idStr = String(id);
+      console.log('[Automation] Normalized ID:', idStr);
+      console.log('[Automation] Calling setPlayingRecipe...');
 
-      await window.electron.invoke('automation:play-recording', id);
+      setPlayingRecipe(idStr);
 
-      // Don't show toast - overlay will show progress
+      console.log('[Automation] Store after setPlayingRecipe:', {
+        playingRecipeId: useAutomationStore.getState().playingRecipeId,
+        progress: useAutomationStore.getState().progress
+      });
+
+      console.log('[Automation] Invoking automation:play-recording...');
+      const result = await window.electron.invoke('automation:play-recording', idStr);
+      console.log('[Automation] IPC result:', result);
+
+      // Don't show toast - progress will show on card
     } catch (error) {
-      console.error('Failed to play recording:', error);
+      console.error('[Automation] Failed to play recording:', error);
       toast.error('Failed to play recording');
-      setPlayingId(null);
+      clearProgress(String(id));
     }
+    console.log('[Automation] ================================================');
   };
 
   const handleEditRecording = async (id: string, name: string, institution: string, steps?: any[], accountId?: number | null) => {
@@ -685,17 +743,25 @@ export function Automation() {
               <EmptyState onCreateNew={handleNewRecording} />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {recordings.map((recording) => (
-                  <RecordingCard
-                    key={recording.id}
-                    recording={recording}
-                    onPlay={handlePlayRecording}
-                    onEdit={(rec) => setEditingRecording(rec)}
-                    onDelete={handleDeleteRecording}
-                    onDuplicate={handleDuplicateRecording}
-                    isPlaying={playingId === recording.id}
-                  />
-                ))}
+                {recordings.map((recording) => {
+                  const recordingProgress = progress[recording.id];
+                  console.log('[Automation] Rendering card for:', recording.id, 'type:', typeof recording.id);
+                  console.log('[Automation] Available progress keys:', Object.keys(progress));
+                  console.log('[Automation] Progress for this recording:', recordingProgress);
+
+                  return (
+                    <RecordingCard
+                      key={recording.id}
+                      recording={recording}
+                      onPlay={handlePlayRecording}
+                      onEdit={(rec) => setEditingRecording(rec)}
+                      onDelete={handleDeleteRecording}
+                      onDuplicate={handleDuplicateRecording}
+                      isPlaying={playingId === recording.id}
+                      progress={recordingProgress}
+                    />
+                  );
+                })}
               </div>
             )}
           </>

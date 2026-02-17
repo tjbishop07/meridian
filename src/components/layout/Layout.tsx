@@ -4,14 +4,12 @@ import Ticker from '../ui/Ticker';
 
 export default function Layout() {
   return (
-    <div className="flex h-screen bg-base-200">
+    <div className="flex h-screen bg-base-200 relative">
       <Sidebar />
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <main className="flex-1 overflow-hidden">
-          <Outlet />
-        </main>
-        <Ticker />
-      </div>
+      <main className="flex-1 overflow-hidden pb-14">
+        <Outlet />
+      </main>
+      <Ticker />
     </div>
   );
 }

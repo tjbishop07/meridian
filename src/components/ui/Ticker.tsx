@@ -26,12 +26,11 @@ export default function Ticker() {
   // Icon based on type
   const getIcon = () => {
     if (!currentMessage) return null;
-    const iconClass = "w-6 h-6 flex-shrink-0 text-info-content";
     switch (currentMessage.type) {
-      case 'info': return <Info className={iconClass} />;
-      case 'success': return <CheckCircle className={iconClass} />;
-      case 'warning': return <AlertTriangle className={iconClass} />;
-      case 'error': return <XCircle className={iconClass} />;
+      case 'info': return <Info className="w-6 h-6 flex-shrink-0 text-info" />;
+      case 'success': return <CheckCircle className="w-6 h-6 flex-shrink-0 text-success" />;
+      case 'warning': return <AlertTriangle className="w-6 h-6 flex-shrink-0 text-warning" />;
+      case 'error': return <XCircle className="w-6 h-6 flex-shrink-0 text-error" />;
     }
   };
 
@@ -42,21 +41,21 @@ export default function Ticker() {
   };
 
   return (
-    <div className="bg-info px-6 py-4 flex items-center justify-between gap-4 shadow-[0_-4px_16px_rgba(0,0,0,0.2)]">
+    <div className="glass fixed bottom-0 left-0 right-0 z-50 px-6 py-4 flex items-center justify-between gap-4 bg-gradient-to-t from-base-300 via-base-300 to-base-300/95 shadow-[0_-8px_24px_rgba(0,0,0,0.25)]">
       {/* Message Content */}
       <div className="flex items-center gap-4 flex-1 min-w-0">
         {hasMessages ? (
           <>
             {getIcon()}
-            <p className="text-base text-info-content font-medium truncate">
+            <p className="text-base text-base-content font-medium truncate">
               {currentMessage.content}
             </p>
-            <span className="hidden sm:inline text-sm text-info-content/70 flex-shrink-0">
+            <span className="hidden sm:inline text-sm text-base-content/60 flex-shrink-0">
               {formatTime(currentMessage.timestamp)}
             </span>
           </>
         ) : (
-          <p className="text-base text-info-content/70 font-medium">Ready</p>
+          <p className="text-base text-base-content/60 font-medium">Ready</p>
         )}
       </div>
 
@@ -64,17 +63,17 @@ export default function Ticker() {
       {messages.length > 1 && (
         <div className="flex items-center gap-2 flex-shrink-0">
           <button
-            className="btn btn-ghost btn-sm btn-circle text-info-content hover:bg-info-content/10"
+            className="btn btn-ghost btn-sm btn-circle text-base-content/70 hover:bg-base-content/10"
             onClick={previousMessage}
             disabled={currentIndex === 0}
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <span className="text-sm text-info-content/70 tabular-nums font-medium">
+          <span className="text-sm text-base-content/60 tabular-nums font-medium">
             {currentIndex + 1}/{messages.length}
           </span>
           <button
-            className="btn btn-ghost btn-sm btn-circle text-info-content hover:bg-info-content/10"
+            className="btn btn-ghost btn-sm btn-circle text-base-content/70 hover:bg-base-content/10"
             onClick={nextMessage}
             disabled={currentIndex === messages.length - 1}
           >

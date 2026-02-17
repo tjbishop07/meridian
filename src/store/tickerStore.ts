@@ -12,7 +12,8 @@ export const useTickerStore = create<TickerState>((set, get) => ({
       timestamp: Date.now(),
     };
     set((state) => ({
-      messages: [...state.messages, newMessage]
+      messages: [newMessage, ...state.messages], // Prepend new messages (newest first)
+      currentIndex: 0 // Always show the newest message
     }));
   },
 

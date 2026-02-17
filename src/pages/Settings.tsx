@@ -529,24 +529,24 @@ export default function Settings() {
               key={theme}
               onClick={() => handleThemeChange(theme)}
               data-theme={theme}
-              className={`rounded-lg overflow-hidden border-2 transition-all hover:scale-105 ${
+              className={`glass rounded-lg overflow-hidden border transition-all hover:scale-105 ${
                 currentTheme === theme
-                  ? 'border-primary ring-2 ring-primary/30'
-                  : 'border-base-300'
+                  ? 'border-primary/50 ring-2 ring-primary/30 shadow-lg shadow-primary/20'
+                  : 'border-base-content/10 hover:border-base-content/20'
               }`}
             >
-              <div className="bg-base-100 p-2">
+              <div className="p-2">
                 <div className="flex gap-1 mb-1.5">
-                  <div className="rounded-full w-2.5 h-2.5 bg-primary" />
-                  <div className="rounded-full w-2.5 h-2.5 bg-secondary" />
-                  <div className="rounded-full w-2.5 h-2.5 bg-accent" />
+                  <div className="rounded-full w-2.5 h-2.5 bg-primary shadow-sm" />
+                  <div className="rounded-full w-2.5 h-2.5 bg-secondary shadow-sm" />
+                  <div className="rounded-full w-2.5 h-2.5 bg-accent shadow-sm" />
                 </div>
                 <div className="flex gap-1">
                   <div className="rounded h-1.5 flex-1 bg-base-content/20" />
                   <div className="rounded h-1.5 flex-1 bg-base-content/10" />
                 </div>
               </div>
-              <div className="bg-base-200 px-2 py-1">
+              <div className="bg-base-content/5 px-2 py-1">
                 <p className="text-[10px] font-medium text-base-content truncate text-center capitalize">
                   {theme}
                 </p>
