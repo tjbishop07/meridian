@@ -263,7 +263,8 @@ export default function Transactions() {
                 return (
                 <tr
                   key={transaction.id}
-                  className={`transition-colors ${
+                  onClick={() => setEditingTransaction(transaction)}
+                  className={`cursor-pointer transition-colors ${
                     isUncategorized
                       ? 'bg-warning/10 hover:bg-warning/20 border-l-4 border-warning'
                       : 'hover:bg-base-200'
@@ -288,7 +289,9 @@ export default function Transactions() {
                     ) : (
                       <select
                         value={transaction.category_id ?? ''}
+                        onClick={(e) => e.stopPropagation()}
                         onChange={async (e) => {
+                          e.stopPropagation();
                           const category_id = e.target.value ? Number(e.target.value) : undefined;
                           try {
                             await updateTransaction({ id: transaction.id, category_id }, true);
@@ -338,14 +341,14 @@ export default function Transactions() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right w-24">
                     <div className="flex items-center justify-end gap-2">
                       <button
-                        onClick={() => setEditingTransaction(transaction)}
+                        onClick={(e) => { e.stopPropagation(); setEditingTransaction(transaction); }}
                         className="p-1 text-base-content/50 hover:text-primary transition-colors"
                         title="Edit"
                       >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       <button
-                        onClick={() => handleDelete(transaction.id)}
+                        onClick={(e) => { e.stopPropagation(); handleDelete(transaction.id); }}
                         disabled={deletingId === transaction.id}
                         className="p-1 text-base-content/50 hover:text-red-600 transition-colors disabled:opacity-50"
                         title="Delete"
