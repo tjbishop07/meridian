@@ -21,42 +21,39 @@ export function createCategory(
 ): number {
   const db = getDatabase();
 
-  // DEFENSE IN DEPTH: Sanitize category name before database insert
-  // Remove any trailing numbers or suspicious characters
+  // Normalize: strip trailing numbers/brackets, collapse whitespace
   let cleanName = data.name
     .trim()
-    // Remove ALL trailing digits
     .replace(/\s*\d+\s*$/g, '')
-    // Remove trailing punctuation with numbers
     .replace(/\s*[\(\)\[\]\{\}]\s*\d*\s*$/g, '')
-    // Normalize spaces
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Log if we cleaned the name
-  if (cleanName !== data.name) {
-    console.log(`[DB] 🧹 Category name sanitized: "${data.name}" → "${cleanName}"`);
-  }
+  if (!cleanName) cleanName = data.name.trim();
 
-  // Validate we didn't make it empty
-  if (!cleanName || cleanName.length === 0) {
-    console.error(`[DB] ❌ Category name became empty after sanitization: "${data.name}"`);
-    cleanName = data.name; // Use original if cleaning failed
-  }
-
-  // Final check for trailing digits
+  // Final pass if trailing digit survived
   if (/\d$/.test(cleanName)) {
-    console.warn(`[DB] ⚠️ Category still has trailing digit: "${cleanName}"`);
     cleanName = cleanName.replace(/\s*\d+$/g, '').trim();
-    console.log(`[DB] 🧹 Extra cleaning pass: "${cleanName}"`);
   }
 
-  const stmt = db.prepare(`
-    INSERT INTO categories (name, type, parent_id, icon, color, is_system)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `);
+  if (cleanName !== data.name.trim()) {
+    console.log(`[DB] Category name sanitized: "${data.name}" → "${cleanName}"`);
+  }
 
-  const result = stmt.run(
+  // Return existing ID if already present (case-insensitive)
+  const existing = db.prepare(
+    'SELECT id FROM categories WHERE LOWER(name) = LOWER(?) AND type = ?'
+  ).get(cleanName, data.type) as { id: number } | undefined;
+
+  if (existing) {
+    return existing.id;
+  }
+
+  // INSERT OR IGNORE as a safety net (UNIQUE index prevents duplicates at DB level)
+  const result = db.prepare(`
+    INSERT OR IGNORE INTO categories (name, type, parent_id, icon, color, is_system)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(
     cleanName,
     data.type,
     data.parent_id || null,
@@ -65,8 +62,16 @@ export function createCategory(
     data.is_system ? 1 : 0
   );
 
-  // Return just the ID, not the entire category object
-  return result.lastInsertRowid as number;
+  if (result.lastInsertRowid) {
+    return result.lastInsertRowid as number;
+  }
+
+  // Race-condition fallback: another process inserted between our SELECT and INSERT
+  const inserted = db.prepare(
+    'SELECT id FROM categories WHERE LOWER(name) = LOWER(?) AND type = ?'
+  ).get(cleanName, data.type) as { id: number };
+
+  return inserted.id;
 }
 
 export function updateCategory(data: Partial<Category> & { id: number }): Category {

@@ -191,6 +191,42 @@ export const migrations: Migration[] = [
         console.log('Migration 5: balance column already exists');
       }
     }
+  },
+  {
+    version: 6,
+    name: 'deduplicate_categories_unique_index',
+    up: (db: Database.Database) => {
+      console.log('Migration 6: Deduplicating categories and adding unique index');
+
+      // Re-point any transactions that reference a duplicate category to the surviving one
+      db.exec(`
+        UPDATE transactions
+        SET category_id = (
+          SELECT MIN(c2.id)
+          FROM categories c2
+          WHERE LOWER(c2.name) = LOWER((SELECT name FROM categories WHERE id = transactions.category_id))
+            AND c2.type = (SELECT type FROM categories WHERE id = transactions.category_id)
+        )
+        WHERE category_id IN (
+          SELECT id FROM categories
+          WHERE id NOT IN (SELECT MIN(id) FROM categories GROUP BY LOWER(name), type)
+        );
+      `);
+
+      // Delete the duplicate rows, keeping the lowest id for each (name, type) pair
+      db.exec(`
+        DELETE FROM categories
+        WHERE id NOT IN (SELECT MIN(id) FROM categories GROUP BY LOWER(name), type);
+      `);
+
+      // Add unique index to prevent future duplicates
+      db.exec(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_unique
+        ON categories(LOWER(name), type);
+      `);
+
+      console.log('Migration 6: Done');
+    }
   }
 ];
 

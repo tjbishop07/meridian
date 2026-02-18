@@ -158,175 +158,73 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
             c => c.type === 'income' && (c.name.toLowerCase() === 'income' || c.name.toLowerCase().includes('income'))
           );
 
-          // Helper function to normalize category names
-          const normalizeCategoryName = (name: string): string => {
-            return name
+          // Single normalization function used everywhere — must match what the DB layer stores
+          const normalizeCategory = (name: string): string => {
+            let n = name
               .trim()
-              .replace(/\s+\d+$/g, '')  // Remove trailing numbers like "Allowance 0"
-              .replace(/[\d\(\)]+$/g, '')  // Remove trailing numbers and parentheses
-              .replace(/\s+/g, ' ')  // Normalize multiple spaces to single space
-              .trim();
-          };
-
-          /**
-           * FINAL SANITIZATION - Remove ANY suspicious characters before database save
-           * This is the last line of defense to ensure clean category names
-           */
-          const sanitizeCategoryForDatabase = (name: string): string => {
-            const original = name;
-
-            let cleaned = name
-              .trim()
-              // Remove ALL trailing digits (be aggressive)
-              .replace(/\s*\d+\s*$/g, '')
-              // Remove trailing spaces again
-              .trim()
-              // Remove any remaining trailing punctuation with numbers
-              .replace(/\s*[\(\)\[\]\{\}]\s*\d*\s*$/g, '')
-              // Remove multiple spaces
+              .replace(/\s*\d+\s*$/g, '')        // strip trailing numbers ("Groceries 1" → "Groceries")
+              .replace(/\s*[\(\)\[\]\{\}]\s*\d*\s*$/g, '') // strip trailing "(1)" etc.
               .replace(/\s+/g, ' ')
-              // Final trim
               .trim();
-
-            // Log if we made changes
-            if (original !== cleaned) {
-              console.log(`[Automation] 🧹 SANITIZED: "${original}" → "${cleaned}"`);
-            }
-
-            // Validate result
-            if (!cleaned || cleaned.length === 0) {
-              console.error(`[Automation] ❌ SANITIZATION FAILED: "${original}" became empty!`);
-              return original; // Return original rather than empty string
-            }
-
-            // Check if still has trailing digits (should never happen)
-            if (/\d$/.test(cleaned)) {
-              console.warn(`[Automation] ⚠️ WARNING: Category still has trailing digit: "${cleaned}"`);
-              // One more aggressive pass
-              cleaned = cleaned.replace(/\s*\d+$/g, '').trim();
-              console.log(`[Automation] 🧹 EXTRA PASS: Now "${cleaned}"`);
-            }
-
-            return cleaned;
+            return n || name.trim();
           };
 
-          /**
-           * Extract, normalize, and batch-create categories from scraped transactions
-           * Returns a map: normalized category name + type → category_id
-           */
+          // Extract, normalize, and get-or-create categories from scraped transactions.
+          // Returns: normalizedName:type → category_id
           const batchProcessCategories = async (
             scrapedTransactions: any[]
           ): Promise<Map<string, number>> => {
-            console.log('[Automation] ==================== BATCH PROCESSING CATEGORIES ====================');
-
-            // Step 1: Extract unique categories from scraped data
-            const uniqueCategories = new Map<string, { type: 'income' | 'expense', originalNames: Set<string> }>();
+            // Step 1: Collect unique (normalizedName, type) pairs
+            const uniqueCategories = new Map<string, 'income' | 'expense'>();
 
             for (const txn of scrapedTransactions) {
-              if (!txn.category || !txn.category.trim()) continue;
-
+              if (!txn.category?.trim()) continue;
               const amount = parseFloat(txn.amount) || 0;
               const type = amount < 0 ? 'expense' : 'income';
-              const normalizedName = normalizeCategoryName(txn.category.trim());
-
-              // Skip empty or "pending" categories
-              if (!normalizedName || normalizedName.toLowerCase().includes('pending')) {
-                continue;
-              }
-
-              // Group by normalized name
-              if (!uniqueCategories.has(normalizedName)) {
-                uniqueCategories.set(normalizedName, { type, originalNames: new Set() });
-              }
-              uniqueCategories.get(normalizedName)!.originalNames.add(txn.category.trim());
+              const norm = normalizeCategory(txn.category.trim());
+              if (!norm || norm.toLowerCase().includes('pending')) continue;
+              // First occurrence of this name wins for type
+              if (!uniqueCategories.has(norm)) uniqueCategories.set(norm, type);
             }
 
-            console.log(`[Automation] Found ${uniqueCategories.size} unique categories to process`);
-            console.log('[Automation] Categories:', Array.from(uniqueCategories.entries()).map(([name, data]) =>
-              `${name} (${data.type}) from [${Array.from(data.originalNames).join(', ')}]`
-            ));
+            console.log(`[Automation] Categories to resolve: ${uniqueCategories.size}`);
 
-            // Step 2: Fetch existing categories once
+            // Step 2: Fetch all existing categories and build lookup (case-insensitive)
             const existingCategories = await window.electron.invoke('categories:get-all');
-            console.log(`[Automation] Found ${existingCategories.length} existing categories in database`);
-
-            // Step 3: Build map of existing categories
             const categoryMap = new Map<string, number>();
             for (const cat of existingCategories) {
-              const key = `${cat.name.toLowerCase()}:${cat.type}`;
-              categoryMap.set(key, cat.id);
+              categoryMap.set(`${cat.name.toLowerCase()}:${cat.type}`, cat.id);
             }
 
-            // Step 4: Identify categories that need to be created
-            const categoriesToCreate: Array<{ name: string; type: 'income' | 'expense' }> = [];
+            // Step 3: Get or create each category; use the same key throughout
+            for (const [norm, type] of uniqueCategories) {
+              const key = `${norm.toLowerCase()}:${type}`;
+              if (categoryMap.has(key)) continue; // already exists
 
-            for (const [normalizedName, data] of uniqueCategories) {
-              const key = `${normalizedName.toLowerCase()}:${data.type}`;
-
-              if (!categoryMap.has(key)) {
-                categoriesToCreate.push({ name: normalizedName, type: data.type });
+              try {
+                // categories:create is now a get-or-create at the DB level
+                const newId = await window.electron.invoke('categories:create', {
+                  name: norm,
+                  type,
+                  parent_id: null,
+                  icon: null,
+                  color: null,
+                  is_system: false
+                });
+                categoryMap.set(key, newId);
+              } catch (error) {
+                console.error(`[Automation] Failed to get/create category "${norm}":`, error);
               }
             }
 
-            console.log(`[Automation] Need to create ${categoriesToCreate.length} new categories`);
-
-            // Step 5: Batch create new categories
-            if (categoriesToCreate.length > 0) {
-              console.log('[Automation] Creating categories:', categoriesToCreate.map(c => `${c.name} (${c.type})`).join(', '));
-
-              for (const cat of categoriesToCreate) {
-                try {
-                  console.log(`[Automation]   🔍 BEFORE SANITIZATION: "${cat.name}" (type: ${cat.type})`);
-                  console.log(`[Automation]      - Length: ${cat.name.length}`);
-                  console.log(`[Automation]      - Char codes: [${Array.from(cat.name).map(c => c.charCodeAt(0)).join(', ')}]`);
-                  console.log(`[Automation]      - Last char: "${cat.name[cat.name.length - 1]}" (code: ${cat.name.charCodeAt(cat.name.length - 1)})`);
-
-                  // FINAL SANITIZATION - Clean category name right before database save
-                  const sanitizedName = sanitizeCategoryForDatabase(cat.name);
-
-                  console.log(`[Automation]   📝 AFTER SANITIZATION: "${sanitizedName}" (type: ${cat.type})`);
-                  console.log(`[Automation]      - Length: ${sanitizedName.length}`);
-                  console.log(`[Automation]      - Last char: "${sanitizedName[sanitizedName.length - 1]}" (code: ${sanitizedName.charCodeAt(sanitizedName.length - 1)})`);
-
-                  const newId = await window.electron.invoke('categories:create', {
-                    name: sanitizedName,
-                    type: cat.type,
-                    parent_id: null,
-                    icon: null,
-                    color: null,
-                    is_system: false
-                  });
-
-                  // Verify what was actually created
-                  const createdCategory = await window.electron.invoke('categories:get-all');
-                  const justCreated = createdCategory.find((c: any) => c.id === newId);
-                  console.log(`[Automation]   ✅ VERIFIED IN DB: "${justCreated?.name}" (ID: ${newId})`);
-                  if (justCreated?.name !== sanitizedName) {
-                    console.error(`[Automation]   🚨 MISMATCH! Sent "${sanitizedName}" but DB has "${justCreated?.name}"`);
-                  }
-
-                  // Use sanitized name for the map key
-                  const key = `${sanitizedName.toLowerCase()}:${cat.type}`;
-                  categoryMap.set(key, newId);
-                } catch (error) {
-                  console.error(`[Automation]   ✗ Failed to create "${cat.name}":`, error);
-                }
-              }
-            }
-
-            // Step 6: Build final lookup map: normalized name + type → category_id
+            // Step 4: Build final lookup using the same key format
             const lookupMap = new Map<string, number>();
-            for (const [normalizedName, data] of uniqueCategories) {
-              const key = `${normalizedName.toLowerCase()}:${data.type}`;
-              const categoryId = categoryMap.get(key);
-              if (categoryId) {
-                lookupMap.set(`${normalizedName}:${data.type}`, categoryId);
-              }
+            for (const [norm, type] of uniqueCategories) {
+              const id = categoryMap.get(`${norm.toLowerCase()}:${type}`);
+              if (id) lookupMap.set(`${norm}:${type}`, id);
             }
 
-            console.log('[Automation] Category map built:', lookupMap.size, 'mappings');
-            console.log('[Automation] ==================== CATEGORY PROCESSING COMPLETE ====================');
-
+            console.log(`[Automation] Category map built: ${lookupMap.size} mappings`);
             return lookupMap;
           };
 
@@ -348,7 +246,7 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
             let categoryId = null;
 
             if (txn.category && txn.category.trim()) {
-              const normalizedName = normalizeCategoryName(txn.category.trim());
+              const normalizedName = normalizeCategory(txn.category.trim());
               const lookupKey = `${normalizedName}:${type}`;
               categoryId = categoryLookupMap.get(lookupKey) || null;
 
