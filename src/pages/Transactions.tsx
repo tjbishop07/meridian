@@ -29,6 +29,7 @@ export default function Transactions() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
+  const [showUncategorized, setShowUncategorized] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -96,6 +97,9 @@ export default function Transactions() {
       if (transactionMonth !== selectedMonth) return false;
     }
 
+    // Uncategorized filter
+    if (showUncategorized && (t.category_id || t.type === 'transfer')) return false;
+
     return true;
   });
 
@@ -108,7 +112,7 @@ export default function Transactions() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedMonth, selectedAccountId]);
+  }, [searchQuery, selectedMonth, selectedAccountId, showUncategorized]);
 
   if (error) {
     return (
@@ -144,7 +148,7 @@ export default function Transactions() {
         }
       >
         {/* Filters */}
-        <div className="flex gap-4">
+        <div className="flex gap-3 items-center">
           {/* Search */}
           <div className="flex-1 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-base-content/50" />
@@ -153,7 +157,7 @@ export default function Transactions() {
               placeholder="Search transactions..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+              className="input w-full pl-10"
             />
           </div>
 
@@ -162,14 +166,14 @@ export default function Transactions() {
             type="month"
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(e.target.value)}
-            className="px-4 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
+            className="input"
           />
 
           {/* Account Filter */}
           <select
             value={selectedAccountId || ''}
             onChange={(e) => setSelectedAccount(e.target.value ? Number(e.target.value) : null)}
-            className="px-4 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+            className="select"
           >
             <option value="">All Accounts</option>
             {accounts.map((account) => (
@@ -178,6 +182,15 @@ export default function Transactions() {
               </option>
             ))}
           </select>
+
+          {/* Uncategorized Filter */}
+          <button
+            className={`btn btn-sm gap-2 ${showUncategorized ? 'btn-warning' : 'btn-ghost border border-base-300'}`}
+            onClick={() => setShowUncategorized((v) => !v)}
+          >
+            <Filter className="w-4 h-4" />
+            Uncategorized
+          </button>
         </div>
       </PageHeader>
 
@@ -285,7 +298,7 @@ export default function Transactions() {
                             toast.error(errorMsg);
                           }
                         }}
-                        className="px-2 py-1 border border-base-300 rounded bg-base-100 text-sm text-base-content focus:ring-2 focus:ring-primary focus:border-primary cursor-pointer"
+                        className="select select-sm w-full"
                       >
                         <option value="">Uncategorized</option>
                         {categories
