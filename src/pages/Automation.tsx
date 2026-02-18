@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
-import toast from 'react-hot-toast';
 import PageHeader from '../components/layout/PageHeader';
 import { RecordingCard } from '../components/automation/RecordingCard';
 import { EmptyState } from '../components/automation/EmptyState';
@@ -65,7 +64,6 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
     // Listen for recording saved events
     const handleRecordingSaved = () => {
       loadRecordings();
-      toast.success('Recording saved successfully');
     };
 
     // Listen for scrape complete events
@@ -88,7 +86,7 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
 
       if (!data) {
         console.error('[Automation] Scrape complete event received with undefined data');
-        toast.error('Failed to receive scraped data');
+        useTickerStore.getState().addMessage({ content: 'Automation failed: no data received', type: 'error', duration: 6000 });
         isImportingRef.current = false;
         setIsImporting(false);
         return;
@@ -96,7 +94,7 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
 
       if (!data.transactions || !Array.isArray(data.transactions)) {
         console.error('[Automation] Invalid transactions data:', data);
-        toast.error('Invalid scraped data format');
+        useTickerStore.getState().addMessage({ content: 'Automation failed: invalid data format', type: 'error', duration: 6000 });
         isImportingRef.current = false;
         setIsImporting(false);
         return;
@@ -140,7 +138,7 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
 
         if (!accountId) {
           console.error('[Automation] No accounts available for import');
-          toast.error('No accounts available. Please create an account first.');
+          useTickerStore.getState().addMessage({ content: 'No accounts available — please create an account first', type: 'error', duration: 6000 });
           isImportingRef.current = false;
         setIsImporting(false);
           return;
@@ -150,8 +148,6 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
 
         // Directly save transactions to database
         try {
-          toast.loading('Saving transactions...', { id: 'import' });
-
           console.log('[Automation] ==================== SAVING TRANSACTIONS ====================');
           console.log('[Automation] Account ID:', accountId);
           console.log('[Automation] Total transactions:', data.transactions.length);
@@ -423,12 +419,6 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
           loadCategories().catch(err => console.error('[Automation] Failed to reload categories:', err));
           loadRecordings().catch(err => console.error('[Automation] Failed to reload recordings:', err));
 
-          // Update the loading toast to success (same id to replace it)
-          toast.success(
-            `Saved ${created} transactions!`,
-            { id: 'import', duration: 3000 }
-          );
-
           // Add ticker message with results
           const recording = recordings.find(r => r.id === String(data.recipeId));
           const recordingName = recording?.name || 'Automation';
@@ -466,11 +456,11 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
           }, 1500);
         } catch (error) {
           console.error('[Automation] Failed to save transactions:', error);
-          // Update the loading toast to error (same id to replace it)
-          toast.error(
-            'Failed to save transactions: ' + (error instanceof Error ? error.message : String(error)),
-            { id: 'import' }
-          );
+          useTickerStore.getState().addMessage({
+            content: 'Failed to save transactions: ' + (error instanceof Error ? error.message : String(error)),
+            type: 'error',
+            duration: 8000,
+          });
 
           // Clear playing state on error
           clearProgress(String(data.recipeId));
@@ -479,8 +469,6 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
         setIsImporting(false);
         }
       } else {
-        toast('No transactions found on page', { icon: 'ℹ️' });
-
         // Add ticker message for no transactions
         const recording = recordings.find(r => r.id === String(data.recipeId));
         const recordingName = recording?.name || 'Automation';
@@ -533,7 +521,6 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
       console.log('[Automation] Loaded recordings:', parsedRecipes.map(r => ({ id: r.id, type: typeof r.id })));
     } catch (error) {
       console.error('Failed to load recordings:', error);
-      toast.error('Failed to load recordings');
     } finally {
       setLoading(false);
     }
@@ -558,24 +545,20 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
 
   const handleStartRecording = async () => {
     if (!selectedAccountId) {
-      toast.error('Please select an account first');
+      useTickerStore.getState().addMessage({ content: 'Please select an account first', type: 'warning', duration: 4000 });
       return;
     }
 
     try {
       setShowNewRecordingModal(false);
-      toast.loading('Opening recording browser...', { duration: 1000 });
-
       const result = await window.electron.invoke('automation:start-recording', startUrl, selectedAccountId);
 
-      if (result.success) {
-        toast.success('Recording browser opened! Navigate, interact, then click "Start Recording".');
-      } else {
-        toast.error('Failed to open recording browser');
+      if (!result.success) {
+        useTickerStore.getState().addMessage({ content: 'Failed to open recording browser', type: 'error', duration: 5000 });
       }
     } catch (error) {
       console.error('Failed to start recording:', error);
-      toast.error('Failed to start recording');
+      useTickerStore.getState().addMessage({ content: 'Failed to start recording', type: 'error', duration: 5000 });
     }
   };
 
@@ -606,10 +589,9 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
       const result = await window.electron.invoke('automation:play-recording', idStr);
       console.log('[Automation] IPC result:', result);
 
-      // Don't show toast - progress will show on card
     } catch (error) {
       console.error('[Automation] Failed to play recording:', error);
-      toast.error('Failed to play recording');
+      useTickerStore.getState().addMessage({ content: 'Failed to play recording', type: 'error', duration: 5000 });
       clearProgress(String(id));
     }
     console.log('[Automation] ================================================');
@@ -625,10 +607,8 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
         account_id: accountId
       });
       await loadRecordings();
-      toast.success('Recording updated successfully');
     } catch (error) {
       console.error('Failed to update recording:', error);
-      toast.error('Failed to update recording');
     }
   };
 
@@ -639,10 +619,8 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
     try {
       await window.electron.invoke('export-recipes:delete', id);
       await loadRecordings();
-      toast.success('Recording deleted successfully');
     } catch (error) {
       console.error('Failed to delete recording:', error);
-      toast.error('Failed to delete recording');
     }
   };
 
@@ -658,10 +636,8 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
         steps: JSON.stringify(original.steps)
       });
       await loadRecordings();
-      toast.success('Recording duplicated successfully');
     } catch (error) {
       console.error('Failed to duplicate recording:', error);
-      toast.error('Failed to duplicate recording');
     }
   };
 
@@ -849,7 +825,6 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
                 onClick={() => {
                   // Copy as JSON to clipboard
                   navigator.clipboard.writeText(JSON.stringify(scrapedTransactions, null, 2));
-                  toast.success('Copied to clipboard!');
                 }}
                 className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium"
               >

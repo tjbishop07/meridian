@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+
+    <!-- Background: deep forest green -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0%"   stop-color="#0e2f1e"/>
+      <stop offset="100%" stop-color="#040e07"/>
+    </linearGradient>
+
+    <!-- Subtle top-left inner light on bg -->
+    <radialGradient id="bgShine" cx="28%" cy="18%" r="52%">
+      <stop offset="0%"   stop-color="#205c38" stop-opacity="0.75"/>
+      <stop offset="100%" stop-color="#205c38" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Bottom centre glow (plant reflection) -->
+    <radialGradient id="bgGlow" cx="50%" cy="88%" r="38%">
+      <stop offset="0%"   stop-color="#22c55e" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#22c55e" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Stem: dark base → vivid tip -->
+    <linearGradient id="stemGrad" x1="0" y1="400" x2="0" y2="110"
+                    gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#14532d"/>
+      <stop offset="100%" stop-color="#4ade80"/>
+    </linearGradient>
+
+    <!-- Left leaf: bright tip (left) → deep base (right) -->
+    <linearGradient id="leafL" x1="138" y1="247" x2="260" y2="247"
+                    gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#86efac"/>
+      <stop offset="55%"  stop-color="#22c55e"/>
+      <stop offset="100%" stop-color="#15803d"/>
+    </linearGradient>
+
+    <!-- Right leaf: deep base (left) → bright tip (right) -->
+    <linearGradient id="leafR" x1="252" y1="166" x2="376" y2="166"
+                    gradientUnits="userSpaceOnUse">
+      <stop offset="0%"   stop-color="#166534"/>
+      <stop offset="45%"  stop-color="#22c55e"/>
+      <stop offset="100%" stop-color="#86efac"/>
+    </linearGradient>
+
+    <!-- Bud: bright centre → vivid edge -->
+    <radialGradient id="budGrad" cx="42%" cy="38%" r="62%">
+      <stop offset="0%"   stop-color="#d1fae5"/>
+      <stop offset="100%" stop-color="#4ade80"/>
+    </radialGradient>
+
+    <!-- Soft plant glow layer (blurred duplicate behind) -->
+    <filter id="plantGlow" x="-35%" y="-35%" width="170%" height="170%">
+      <feGaussianBlur stdDeviation="16"/>
+    </filter>
+
+    <!-- Leaf depth shadow -->
+    <filter id="leafDrop" x="-8%" y="-8%" width="116%" height="116%">
+      <feDropShadow dx="-2" dy="4" stdDeviation="6"
+                    flood-color="#031a0a" flood-opacity="0.55"/>
+    </filter>
+
+  </defs>
+
+  <!-- ── Background ───────────────────────────────────────── -->
+  <rect width="512" height="512" rx="115" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="115" fill="url(#bgShine)"/>
+  <rect width="512" height="512" rx="115" fill="url(#bgGlow)"/>
+
+  <!-- ── Plant ambient glow (behind all plant parts) ────────── -->
+  <g filter="url(#plantGlow)" opacity="0.30">
+    <path d="M 258,298 C 218,255 166,220 138,192
+             C 160,240 218,280 258,298 Z"          fill="#22c55e"/>
+    <path d="M 252,216 C 296,184 346,144 376,110
+             C 360,92  296,174 252,216 Z"           fill="#22c55e"/>
+    <path d="M 256,155 C 244,136 244,116 256,104
+             C 268,116 268,136 256,155 Z"           fill="#4ade80"/>
+  </g>
+
+  <!-- ── Stem ──────────────────────────────────────────────── -->
+  <path
+    d="M 256,400 C 248,354 264,288 256,155"
+    stroke="url(#stemGrad)"
+    stroke-width="17"
+    stroke-linecap="round"
+    fill="none"
+  />
+
+  <!-- ── Left leaf ─────────────────────────────────────────── -->
+  <!--  Top (outer) edge sweeps wide; bottom (inner) edge is
+        a tighter return — creating a natural asymmetric blade.  -->
+  <path
+    d="M 258,298
+       C 220,258 168,222 138,192
+       C 160,242 218,278 258,298 Z"
+    fill="url(#leafL)"
+    filter="url(#leafDrop)"
+  />
+  <!-- Left leaf highlight (outer edge) -->
+  <path
+    d="M 258,298 C 220,258 168,222 138,192"
+    stroke="#d1fae5" stroke-width="1.5" fill="none"
+    stroke-linecap="round" opacity="0.35"
+  />
+  <!-- Left leaf vein -->
+  <path
+    d="M 258,298 C 212,264 170,228 138,192"
+    stroke="#a7f3d0" stroke-width="1.5" fill="none"
+    stroke-linecap="round" opacity="0.50"
+  />
+
+  <!-- ── Right leaf ─────────────────────────────────────────── -->
+  <path
+    d="M 252,216
+       C 296,184 346,144 376,110
+       C 360,130 295,176 252,216 Z"
+    fill="url(#leafR)"
+    filter="url(#leafDrop)"
+  />
+  <!-- Right leaf highlight (outer edge) -->
+  <path
+    d="M 252,216 C 296,184 346,144 376,110"
+    stroke="#d1fae5" stroke-width="1.5" fill="none"
+    stroke-linecap="round" opacity="0.35"
+  />
+  <!-- Right leaf vein -->
+  <path
+    d="M 252,216 C 300,182 348,146 376,110"
+    stroke="#a7f3d0" stroke-width="1.5" fill="none"
+    stroke-linecap="round" opacity="0.50"
+  />
+
+  <!-- ── Terminal bud (top of stem) ────────────────────────── -->
+  <path
+    d="M 256,155
+       C 244,136 244,116 256,104
+       C 268,116 268,136 256,155 Z"
+    fill="url(#budGrad)"
+  />
+
+</svg>
