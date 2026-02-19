@@ -1,5 +1,17 @@
 // Database Models
 
+export interface Tag {
+  id: number;
+  name: string;
+  color: string;
+  created_at: string;
+}
+
+export interface TagStat extends Tag {
+  count: number;
+  total_amount: number;
+}
+
 export interface Account {
   id: number;
   name: string;
@@ -425,6 +437,18 @@ export interface ElectronAPI {
   invoke(channel: 'ollama:open-download-page'): Promise<void>;
   invoke(channel: 'ollama:generate', data: { model: string; prompt: string; stream?: boolean }): Promise<{ success: boolean; response?: string; error?: string }>;
 
+  // Tags
+  invoke(channel: 'tags:get-all'): Promise<Tag[]>;
+  invoke(channel: 'tags:create', data: { name: string; color: string }): Promise<number>;
+  invoke(channel: 'tags:update', data: { id: number; name?: string; color?: string }): Promise<Tag>;
+  invoke(channel: 'tags:delete', id: number): Promise<void>;
+  invoke(channel: 'tags:get-for-transaction', transactionId: number): Promise<Tag[]>;
+  invoke(channel: 'tags:set-for-transaction', transactionId: number, tagIds: number[]): Promise<void>;
+  invoke(channel: 'tags:get-stats'): Promise<TagStat[]>;
+  invoke(channel: 'tags:auto-tag'): Promise<{ tagged: number }>;
+  invoke(channel: 'tags:get-transactions', tagId: number): Promise<Transaction[]>;
+  invoke(channel: 'tags:get-all-transaction-tags'): Promise<Array<{ transaction_id: number; tag_id: number; tag_name: string; tag_color: string }>>;
+
   // AI Scraper
   invoke(channel: 'ai-scraper:check-model'): Promise<{ installed: boolean }>;
   invoke(channel: 'ai-scraper:open-browser', options: { accountId: number; startUrl: string }): Promise<{ success: boolean; error?: string }>;
@@ -446,6 +470,7 @@ export interface ElectronAPI {
   on(channel: 'scraper:transactions-found', callback: (data: { accountId: number; transactions: any[] }) => void): void;
   on(channel: 'ollama:pull-progress', callback: (data: string) => void): void;
   on(channel: 'ollama:install-progress', callback: (data: string) => void): void;
+  on(channel: 'tags:auto-tag-progress', callback: (data: { done: number; total: number }) => void): void;
   removeListener(channel: string, callback: (...args: any[]) => void): void;
 }
 

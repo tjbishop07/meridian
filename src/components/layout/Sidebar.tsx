@@ -8,12 +8,14 @@ import {
   FileText,
   Settings,
   BarChart3,
+  Tag,
 } from 'lucide-react';
 import clsx from 'clsx';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Transactions', href: '/transactions', icon: Receipt },
+  { name: 'Tags', href: '/tags', icon: Tag },
   { name: 'Import', href: '/import', icon: Upload },
   { name: 'Budgets', href: '/budgets', icon: Wallet2 },
   { name: 'Goals', href: '/goals', icon: Target },

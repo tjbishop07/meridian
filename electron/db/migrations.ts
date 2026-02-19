@@ -227,6 +227,53 @@ export const migrations: Migration[] = [
 
       console.log('Migration 6: Done');
     }
+  },
+  {
+    version: 7,
+    name: 'add_tags',
+    up: (db: Database.Database) => {
+      console.log('Migration 7: Creating tags tables');
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS tags (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          color TEXT NOT NULL DEFAULT '#6366f1',
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_tags_name_lower
+        ON tags(LOWER(name));
+
+        CREATE TABLE IF NOT EXISTS transaction_tags (
+          transaction_id INTEGER NOT NULL,
+          tag_id INTEGER NOT NULL,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          PRIMARY KEY (transaction_id, tag_id),
+          FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE,
+          FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+        );
+      `);
+
+      // Seed default tags
+      const defaultTags = [
+        { name: 'Subscriptions', color: '#8b5cf6' },
+        { name: 'Recurring', color: '#3b82f6' },
+        { name: 'Business', color: '#0ea5e9' },
+        { name: 'Travel', color: '#f59e0b' },
+        { name: 'Healthcare', color: '#10b981' },
+        { name: 'Dining Out', color: '#ef4444' },
+      ];
+
+      const insert = db.prepare(
+        'INSERT OR IGNORE INTO tags (name, color) VALUES (?, ?)'
+      );
+      for (const tag of defaultTags) {
+        insert.run(tag.name, tag.color);
+      }
+
+      console.log('Migration 7: Done');
+    }
   }
 ];
 

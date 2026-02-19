@@ -4,11 +4,11 @@ import toast from 'react-hot-toast';
 import { useTransactions } from '../hooks/useTransactions';
 import { useAccounts } from '../hooks/useAccounts';
 import { useCategories } from '../hooks/useCategories';
-import { useStore } from '../store';
+import { useTags } from '../hooks/useTags';
 import Modal from '../components/ui/Modal';
 import TransactionForm from '../components/transactions/TransactionForm';
 import PageHeader from '../components/layout/PageHeader';
-import type { Transaction, CreateTransactionInput } from '../types';
+import type { Transaction, CreateTransactionInput, Tag } from '../types';
 import { format, parseISO } from 'date-fns';
 
 export default function Transactions() {
@@ -24,12 +24,16 @@ export default function Transactions() {
 
   const { accounts, loadAccounts, selectedAccountId, setSelectedAccount } = useAccounts();
   const { categories, loadCategories } = useCategories();
+  const { tags, loadTags, setTagsForTransaction } = useTags();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
   const [showUncategorized, setShowUncategorized] = useState(false);
+  const [selectedTagId, setSelectedTagId] = useState<number | null>(null);
+  // Map of transaction_id → Tag[]
+  const [transactionTags, setTransactionTags] = useState<Map<number, Tag[]>>(new Map());
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
@@ -38,15 +42,43 @@ export default function Transactions() {
   useEffect(() => {
     loadAccounts();
     loadCategories();
+    loadTags();
     loadTransactions();
   }, []);
 
-  const handleCreate = async (data: CreateTransactionInput) => {
-    await createTransaction(data);
+  // Refresh transaction tags whenever transactions or tags change
+  const refreshTagMap = async () => {
+    try {
+      const rows = await window.electron.invoke('tags:get-all-transaction-tags');
+      const map = new Map<number, Tag[]>();
+      for (const row of rows) {
+        const existing = map.get(row.transaction_id) || [];
+        existing.push({ id: row.tag_id, name: row.tag_name, color: row.tag_color, created_at: '' });
+        map.set(row.transaction_id, existing);
+      }
+      setTransactionTags(map);
+    } catch (err) {
+      console.error('Failed to load transaction tags', err);
+    }
+  };
+
+  // Load tag map once after the initial transaction fetch completes.
+  useEffect(() => {
+    if (transactions.length > 0) refreshTagMap();
+  }, [transactions.length > 0]);
+
+  const handleCreate = async (data: CreateTransactionInput, tagIds: number[]) => {
+    const tx = await createTransaction(data);
+    // Tags saved after create (need the ID first); explicit refresh ensures
+    // badges appear immediately without waiting for the next transaction reload.
+    if (tx && tagIds.length > 0) {
+      await setTagsForTransaction((tx as any).id, tagIds);
+      await refreshTagMap();
+    }
     setIsCreateModalOpen(false);
   };
 
-  const handleUpdate = async (data: CreateTransactionInput) => {
+  const handleUpdate = async (data: CreateTransactionInput, tagIds: number[]) => {
     if (!editingTransaction) return;
     const updateData: any = {
       id: editingTransaction.id,
@@ -60,7 +92,16 @@ export default function Transactions() {
       notes: data.notes,
       to_account_id: data.to_account_id
     };
-    await updateTransaction(updateData);
+    // skipRefresh=true: update single row in store without reloading the list,
+    // preserving scroll position.
+    await updateTransaction(updateData, true);
+    await setTagsForTransaction(editingTransaction.id, tagIds);
+    // Update only this row's tags in the map — no full re-fetch needed.
+    setTransactionTags((prev) => {
+      const next = new Map(prev);
+      next.set(editingTransaction.id, tags.filter((t) => tagIds.includes(t.id)));
+      return next;
+    });
     setEditingTransaction(null);
   };
 
@@ -93,12 +134,18 @@ export default function Transactions() {
 
     // Month filter
     if (selectedMonth) {
-      const transactionMonth = t.date.substring(0, 7); // Extract YYYY-MM
+      const transactionMonth = t.date.substring(0, 7);
       if (transactionMonth !== selectedMonth) return false;
     }
 
     // Uncategorized filter
     if (showUncategorized && (t.category_id || t.type === 'transfer')) return false;
+
+    // Tag filter
+    if (selectedTagId) {
+      const txTags = transactionTags.get(t.id) || [];
+      if (!txTags.some((tag) => tag.id === selectedTagId)) return false;
+    }
 
     return true;
   });
@@ -112,7 +159,7 @@ export default function Transactions() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, selectedMonth, selectedAccountId, showUncategorized]);
+  }, [searchQuery, selectedMonth, selectedAccountId, showUncategorized, selectedTagId]);
 
   if (error) {
     return (
@@ -179,6 +226,20 @@ export default function Transactions() {
             {accounts.map((account) => (
               <option key={account.id} value={account.id}>
                 {account.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Tag Filter */}
+          <select
+            value={selectedTagId || ''}
+            onChange={(e) => setSelectedTagId(e.target.value ? Number(e.target.value) : null)}
+            className="select select-sm"
+          >
+            <option value="">All Tags</option>
+            {tags.map((tag) => (
+              <option key={tag.id} value={tag.id}>
+                {tag.name}
               </option>
             ))}
           </select>
@@ -278,6 +339,20 @@ export default function Transactions() {
                     {transaction.original_description && transaction.original_description !== transaction.description && (
                       <div className={`text-xs truncate max-w-md ${isUncategorized ? 'text-warning/80' : 'text-base-content/60'}`}>
                         {transaction.original_description}
+                      </div>
+                    )}
+                    {/* Tag badges */}
+                    {(transactionTags.get(transaction.id) || []).length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {(transactionTags.get(transaction.id) || []).map((tag) => (
+                          <span
+                            key={tag.id}
+                            className="badge badge-xs"
+                            style={{ backgroundColor: tag.color, color: '#fff', borderColor: tag.color }}
+                          >
+                            {tag.name}
+                          </span>
+                        ))}
                       </div>
                     )}
                   </td>

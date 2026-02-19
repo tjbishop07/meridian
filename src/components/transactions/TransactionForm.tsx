@@ -1,18 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCategories } from '../../hooks/useCategories';
+import { useTags } from '../../hooks/useTags';
 import type { Transaction, CreateTransactionInput } from '../../types';
 import { format } from 'date-fns';
+import { X } from 'lucide-react';
 
 interface TransactionFormProps {
   transaction?: Transaction;
-  onSubmit: (data: CreateTransactionInput) => Promise<void>;
+  onSubmit: (data: CreateTransactionInput, tagIds: number[]) => Promise<void>;
   onCancel: () => void;
 }
 
 export default function TransactionForm({ transaction, onSubmit, onCancel }: TransactionFormProps) {
   const { accounts } = useAccounts();
   const { categories, getCategoriesByType } = useCategories();
+  const { tags, loadTags } = useTags();
+
+  const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
 
   const [formData, setFormData] = useState<CreateTransactionInput>({
     account_id: transaction?.account_id || 0,
@@ -29,6 +34,16 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Load tags and existing tags for this transaction
+  useEffect(() => {
+    loadTags();
+    if (transaction?.id) {
+      window.electron.invoke('tags:get-for-transaction', transaction.id).then((existingTags) => {
+        setSelectedTagIds(existingTags.map((t) => t.id));
+      });
+    }
+  }, [transaction?.id]);
 
   // Filter categories by transaction type (not applicable for transfers)
   const filteredCategories = formData.type !== 'transfer' ? getCategoriesByType(formData.type) : [];
@@ -61,7 +76,7 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
 
     setIsSubmitting(true);
     try {
-      await onSubmit(formData);
+      await onSubmit(formData, selectedTagIds);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save transaction');
     } finally {
@@ -262,6 +277,59 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
           rows={3}
           placeholder="Optional notes..."
         />
+      </div>
+
+      {/* Tags */}
+      <div>
+        <label className="block text-sm font-medium text-base-content/80 mb-2">
+          Tags
+        </label>
+        {/* Assigned tags as removable chips */}
+        <div className="flex flex-wrap gap-2 mb-2">
+          {selectedTagIds.map((tagId) => {
+            const tag = tags.find((t) => t.id === tagId);
+            if (!tag) return null;
+            return (
+              <span
+                key={tagId}
+                className="badge gap-1"
+                style={{ backgroundColor: tag.color, color: '#fff', borderColor: tag.color }}
+              >
+                {tag.name}
+                <button
+                  type="button"
+                  onClick={() => setSelectedTagIds((prev) => prev.filter((id) => id !== tagId))}
+                  className="opacity-80 hover:opacity-100"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            );
+          })}
+          {selectedTagIds.length === 0 && (
+            <span className="text-sm text-base-content/40">No tags assigned</span>
+          )}
+        </div>
+        {/* Dropdown to add tags */}
+        <select
+          value=""
+          onChange={(e) => {
+            const id = Number(e.target.value);
+            if (id && !selectedTagIds.includes(id)) {
+              setSelectedTagIds((prev) => [...prev, id]);
+            }
+          }}
+          className="select select-sm w-full"
+        >
+          <option value="">Add a tag...</option>
+          {tags
+            .filter((t) => !selectedTagIds.includes(t.id))
+            .map((tag) => (
+              <option key={tag.id} value={tag.id}>
+                {tag.name}
+              </option>
+            ))}
+        </select>
       </div>
 
       {/* Actions */}

@@ -144,6 +144,18 @@ const electronAPI: ElectronAPI = {
       'puppeteer:extract-transactions',
       'puppeteer:close-browser',
 
+      // Tags
+      'tags:get-all',
+      'tags:create',
+      'tags:update',
+      'tags:delete',
+      'tags:get-for-transaction',
+      'tags:set-for-transaction',
+      'tags:get-stats',
+      'tags:auto-tag',
+      'tags:get-transactions',
+      'tags:get-all-transaction-tags',
+
       // File operations
       'dialog:open-file',
     ];
@@ -170,6 +182,7 @@ const electronAPI: ElectronAPI = {
       'scraper:transactions-found',
       'ollama:pull-progress',
       'ollama:install-progress',
+      'tags:auto-tag-progress',
     ];
 
     if (validReceiveChannels.includes(channel)) {
@@ -193,6 +206,7 @@ const electronAPI: ElectronAPI = {
       'scraper:transactions-found',
       'ollama:pull-progress',
       'ollama:install-progress',
+      'tags:auto-tag-progress',
     ];
 
     if (validReceiveChannels.includes(channel)) {

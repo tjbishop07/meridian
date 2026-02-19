@@ -10,6 +10,7 @@ import Bills from './pages/Bills';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
 import Browser from './pages/Browser';
+import Tags from './pages/Tags';
 import Toaster from './components/ui/Toaster';
 import { useTickerStore } from './store/tickerStore';
 import { useAutomationStore } from './store/automationStore';
@@ -130,6 +131,7 @@ function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="transactions" element={<Transactions />} />
+          <Route path="tags" element={<Tags />} />
           <Route path="import" element={<Import />} />
           <Route path="automation" element={<Navigate to="/import" replace />} />
           <Route path="browser" element={<Browser />} />

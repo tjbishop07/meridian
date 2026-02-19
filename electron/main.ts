@@ -24,6 +24,7 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 import { registerPuppeteerScraperHandlers, setMainWindow as setPuppeteerMainWindow } from './ipc/puppeteer-scraper';
 import { registerAutomationSettingsHandlers } from './ipc/automation-settings';
+import { registerTagHandlers } from './ipc/tags';
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -437,7 +438,8 @@ app.whenReady().then(async () => {
     registerAIScraperHandlers();
     registerOllamaHandlers();
     registerPuppeteerScraperHandlers();
-    console.log('[Main] Automation, scraper, Ollama, and Puppeteer handlers registered');
+    registerTagHandlers();
+    console.log('[Main] Automation, scraper, Ollama, Puppeteer, and tag handlers registered');
 
     // File dialog handler
     ipcMain.handle('dialog:open-file', async (_, options) => {
