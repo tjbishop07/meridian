@@ -13,12 +13,42 @@ import { Textarea } from '@/components/ui/textarea';
 import { FormField } from '@/components/ui/FormField';
 import { cn } from '@/lib/utils';
 
-const THEMES = ['dark', 'light', 'money'];
+const THEMES = [
+  'dark', 'light', 'money',
+  'ghibli-studio', 'marvel', 'clean-slate', 'spotify',
+  'neo-brutalism', 'marshmallow', 'art-deco', 'claude',
+  'material-design', 'summer', 'vs-code',
+];
+
+const DARK_THEMES = new Set([
+  'dark', 'ghibli-studio', 'marvel', 'clean-slate', 'spotify',
+  'neo-brutalism', 'marshmallow', 'art-deco', 'claude',
+  'material-design', 'summer', 'vs-code',
+]);
+
+const THEME_LABELS: Record<string, string> = {
+  dark: 'Perplexity', light: 'Light', money: 'Money',
+  'ghibli-studio': 'Ghibli', marvel: 'Marvel', 'clean-slate': 'Clean Slate',
+  spotify: 'Spotify', 'neo-brutalism': 'Neo Brutal',
+  marshmallow: 'Marshmallow', 'art-deco': 'Art Deco', claude: 'Claude',
+  'material-design': 'Material', summer: 'Summer', 'vs-code': 'VS Code',
+};
 
 const THEME_PREVIEWS: Record<string, { bg: string; dots: string[]; text: string }> = {
-  dark:  { bg: '#1d2331', dots: ['#818cf8', '#4ade80', '#f472b6'], text: '#94a3b8' },
-  light: { bg: '#f8fafc', dots: ['#4f46e5', '#16a34a', '#db2777'], text: '#475569' },
-  money: { bg: '#0f1f10', dots: ['#16a34a', '#065f46', '#4ade80'], text: '#86efac' },
+  dark:             { bg: '#1c2030', dots: ['#5b9fd0', '#50b8c0', '#4878b8'], text: '#6888a8' },
+  light:            { bg: '#f8fafc', dots: ['#4f46e5', '#16a34a', '#db2777'], text: '#475569' },
+  money:            { bg: '#0f1f10', dots: ['#16a34a', '#065f46', '#4ade80'], text: '#86efac' },
+  'ghibli-studio':  { bg: '#1d1308', dots: ['#6c7a3a', '#b07830', '#407c80'], text: '#aa9068' },
+  marvel:           { bg: '#190d0a', dots: ['#aa3020', '#4858a0', '#c0a028'], text: '#907868' },
+  'clean-slate':    { bg: '#181d38', dots: ['#7060e0', '#5848d0', '#3a45b8'], text: '#8090b8' },
+  spotify:          { bg: '#0e1025', dots: ['#1db954', '#506090', '#40909c'], text: '#7080a8' },
+  'neo-brutalism':  { bg: '#000000', dots: ['#d05030', '#d0c825', '#5558d0'], text: '#d8d8d8' },
+  marshmallow:      { bg: '#262626', dots: ['#d070a0', '#b070c0', '#7090c8'], text: '#c0c0d8' },
+  'art-deco':       { bg: '#383838', dots: ['#c8a020', '#a06030', '#887820'], text: '#d4c880' },
+  claude:           { bg: '#2d2d2d', dots: ['#c07040', '#7860c0', '#907870'], text: '#b8a888' },
+  'material-design':{ bg: '#180f18', dots: ['#5a40d0', '#409060', '#b050c0'], text: '#a898a8' },
+  summer:           { bg: '#2a1f10', dots: ['#c06030', '#c8a030', '#c07030'], text: '#d4b888' },
+  'vs-code':        { bg: '#181c2a', dots: ['#4878b0', '#407870', '#6858b0'], text: '#6080a8' },
 };
 
 const selectClass = 'w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring text-sm disabled:opacity-50';
@@ -610,7 +640,7 @@ export default function Settings() {
   const handleThemeChange = async (theme: string) => {
     setCurrentTheme(theme);
     document.documentElement.setAttribute('data-theme', theme);
-    if (theme === 'dark') {
+    if (DARK_THEMES.has(theme)) {
       document.documentElement.classList.add('dark');
     } else {
       document.documentElement.classList.remove('dark');
@@ -820,7 +850,7 @@ export default function Settings() {
           isOpen={isOpen('appearance')}
           onToggle={() => toggle('appearance')}
         >
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-3">
             {THEMES.map((theme) => {
               const preview = THEME_PREVIEWS[theme];
               return (
@@ -828,7 +858,7 @@ export default function Settings() {
                   key={theme}
                   onClick={() => handleThemeChange(theme)}
                   className={cn(
-                    'rounded-xl overflow-hidden border-2 transition-all hover:scale-105 w-28',
+                    'rounded-xl overflow-hidden border-2 transition-all hover:scale-105 w-24',
                     currentTheme === theme
                       ? 'border-primary shadow-lg shadow-primary/20'
                       : 'border-border hover:border-muted-foreground/40'
@@ -837,7 +867,7 @@ export default function Settings() {
                   <div className="p-3" style={{ backgroundColor: preview.bg }}>
                     <div className="flex gap-1 mb-2">
                       {preview.dots.map((dot, i) => (
-                        <div key={i} className="rounded-full w-3 h-3" style={{ backgroundColor: dot }} />
+                        <div key={i} className="rounded-full w-2.5 h-2.5" style={{ backgroundColor: dot }} />
                       ))}
                     </div>
                     <div className="flex gap-1">
@@ -850,10 +880,10 @@ export default function Settings() {
                     style={{ backgroundColor: preview.bg, borderTop: `1px solid ${preview.text}25` }}
                   >
                     <p
-                      className="text-xs font-medium truncate text-center capitalize"
+                      className="text-xs font-medium truncate text-center"
                       style={{ color: preview.text }}
                     >
-                      {theme}
+                      {THEME_LABELS[theme] ?? theme}
                     </p>
                   </div>
                 </button>

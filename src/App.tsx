@@ -26,7 +26,12 @@ function App() {
         const selectedTheme = theme || 'dark';
         document.documentElement.setAttribute('data-theme', selectedTheme);
         // Add .dark class so shadcn dark: variants activate
-        if (selectedTheme === 'dark') {
+        const darkThemes = new Set([
+          'dark', 'ghibli-studio', 'marvel', 'clean-slate', 'spotify',
+          'neo-brutalism', 'marshmallow', 'art-deco', 'claude',
+          'material-design', 'summer', 'vs-code',
+        ]);
+        if (darkThemes.has(selectedTheme)) {
           document.documentElement.classList.add('dark');
         } else {
           document.documentElement.classList.remove('dark');

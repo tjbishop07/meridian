@@ -134,7 +134,7 @@ export default function OllamaSetup() {
                       Homebrew is required to install Ollama. Install it first, then refresh this page.
                     </p>
                     <div className="flex gap-2">
-                      <Button size="sm" onClick={openHomebrewInstall} className="gap-1 bg-warning text-white hover:bg-warning/90">
+                      <Button size="sm" variant="warning" onClick={openHomebrewInstall} className="gap-1">
                         <ExternalLink className="w-4 h-4" />
                         Install Homebrew
                       </Button>

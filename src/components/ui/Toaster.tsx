@@ -1,29 +1,29 @@
+import { useState, useEffect } from 'react';
 import { Toaster as Sonner } from 'sonner';
 
 export default function Toaster() {
+  const [isDark, setIsDark] = useState(
+    () => document.documentElement.classList.contains('dark')
+  );
+
+  useEffect(() => {
+    const el = document.documentElement;
+    const observer = new MutationObserver(() =>
+      setIsDark(el.classList.contains('dark'))
+    );
+    observer.observe(el, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <Sonner
+      theme={isDark ? 'dark' : 'light'}
       position="top-center"
-      style={{
-        '--normal-bg':        'var(--card)',
-        '--normal-border':    'var(--border)',
-        '--normal-text':      'var(--card-foreground)',
-        '--success-bg':       'var(--card)',
-        '--success-border':   'var(--border)',
-        '--success-text':     'var(--card-foreground)',
-        '--error-bg':         'var(--card)',
-        '--error-border':     'var(--border)',
-        '--error-text':       'var(--card-foreground)',
-        '--warning-bg':       'var(--card)',
-        '--warning-border':   'var(--border)',
-        '--warning-text':     'var(--card-foreground)',
-        '--info-bg':          'var(--card)',
-        '--info-border':      'var(--border)',
-        '--info-text':        'var(--card-foreground)',
-      } as React.CSSProperties}
       toastOptions={{
         duration: 6000,
         classNames: {
+          toast: 'bg-card! border-border! text-card-foreground! shadow-lg!',
+          title: 'text-card-foreground! font-medium!',
           description: 'text-muted-foreground!',
         },
       }}

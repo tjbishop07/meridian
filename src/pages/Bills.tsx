@@ -365,7 +365,7 @@ export default function Bills() {
             <Textarea value={paymentNotes} onChange={(e) => setPaymentNotes(e.target.value)} rows={2} placeholder="Optional notes..." />
           </FormField>
           <div className="flex gap-3 pt-4">
-            <Button type="submit" disabled={isSubmitting} className="flex-1 bg-success hover:bg-success/90 text-success-foreground">
+            <Button type="submit" variant="success" disabled={isSubmitting} className="flex-1">
               {isSubmitting ? 'Recording...' : 'Record Payment'}
             </Button>
             <Button type="button" variant="outline" onClick={() => { setPayingBill(null); setError(null); }} disabled={isSubmitting}>
