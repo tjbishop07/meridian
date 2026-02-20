@@ -14,6 +14,7 @@ import Tags from './pages/Tags';
 import Toaster from './components/ui/Toaster';
 import { useTickerStore } from './store/tickerStore';
 import { useAutomationStore } from './store/automationStore';
+import { toast } from 'sonner';
 
 function App() {
   const welcomeShown = useRef(false);
@@ -47,6 +48,14 @@ function App() {
     // Show welcome message only once
     if (!welcomeShown.current) {
       welcomeShown.current = true;
+
+      setTimeout(() => {
+        const now = new Date();
+        toast.success('Sprout loaded', {
+          description: now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) +
+            ' · ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+        });
+      }, 300);
 
       const DEFAULT_WELCOME_PROMPT =
         'Generate a single witty and funny welcome message for a personal finance app called Sprout. ' +

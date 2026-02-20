@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Search, Filter, Edit2, Trash2, Camera } from 'lucide-react';
 import { Sparkline } from '@/components/ui/Sparkline';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import { useTransactions } from '../hooks/useTransactions';
 import { useAccounts } from '../hooks/useAccounts';
 import { useCategories } from '../hooks/useCategories';

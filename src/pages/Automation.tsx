@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import PageHeader from '../components/layout/PageHeader';
@@ -26,7 +26,12 @@ interface Recording {
   last_scraping_method?: string | null;
 }
 
-export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
+export interface AutomationHandle {
+  openNewRecording: () => void;
+}
+
+export const Automation = forwardRef<AutomationHandle, { embedded?: boolean }>(
+function Automation({ embedded = false }, ref) {
   const navigate = useNavigate();
   const location = useLocation();
   const { categories, loadCategories } = useCategories();
@@ -401,6 +406,8 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
     setShowNewRecordingModal(true);
   };
 
+  useImperativeHandle(ref, () => ({ openNewRecording: handleNewRecording }));
+
   const handleStartRecording = async () => {
     if (!selectedAccountId) {
       useTickerStore.getState().addMessage({ content: 'Please select an account first', type: 'warning', duration: 4000 });
@@ -515,55 +522,8 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
         />
       )}
 
-      {embedded && (
-        <div className="border-b border-border px-6 py-2 flex justify-end">
-          <Button size="sm" onClick={handleNewRecording}>
-            <Plus className="w-4 h-4 mr-2" />
-            New Recording
-          </Button>
-        </div>
-      )}
-
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto">
         <>
-          {/* Scraping Method Selector */}
-          <div className="bg-card rounded-xl border border-border p-4 mb-6">
-            <p className="text-sm font-medium text-muted-foreground mb-3">Transaction Scraping Method</p>
-            <div className="grid grid-cols-2 gap-3 max-w-lg">
-              {([
-                {
-                  value: 'claude',
-                  label: 'Claude Vision AI',
-                  description: 'Most reliable. Configure API key in Settings.',
-                },
-                {
-                  value: 'ollama',
-                  label: 'Local Ollama',
-                  description: 'Runs on your machine. Configure in Settings.',
-                },
-              ] as const).map((opt) => {
-                const active = automationSettings.vision_provider === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    onClick={() => updateAutomationSettings({ vision_provider: opt.value })}
-                    className={cn(
-                      'flex flex-col items-start gap-1 rounded-lg border p-4 text-left transition-all',
-                      active
-                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                        : 'border-border bg-card hover:border-muted-foreground/30'
-                    )}
-                  >
-                    <span className={cn('font-medium text-sm', active ? 'text-primary' : 'text-foreground')}>
-                      {opt.label}
-                    </span>
-                    <p className="text-xs text-muted-foreground leading-snug">{opt.description}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {loading ? (
             <div className="flex items-center justify-center h-48">
               <div className="w-8 h-8 border-2 border-muted border-t-primary rounded-full animate-spin" />
@@ -571,19 +531,19 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
           ) : recordings.length === 0 ? (
             <EmptyState onCreateNew={handleNewRecording} />
           ) : (
-            <div className="bg-card rounded-xl border border-border shadow-sm overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="bg-muted px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
-                    <th className="bg-muted px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-32">Account</th>
-                    <th className="bg-muted px-4 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-16">Steps</th>
-                    <th className="bg-muted px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-48">Last Run</th>
-                    <th className="bg-muted px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
-                    <th className="bg-muted px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-40">Actions</th>
+            <div className="overflow-x-auto">
+              <table className="min-w-full table-fixed">
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-border/60">
+                    <th className="bg-card px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Name</th>
+                    <th className="bg-card px-4 py-2.5 text-left text-xs font-medium text-muted-foreground w-32">Account</th>
+                    <th className="bg-card px-4 py-2.5 text-center text-xs font-medium text-muted-foreground w-16">Steps</th>
+                    <th className="bg-card px-4 py-2.5 text-left text-xs font-medium text-muted-foreground w-48">Last Run</th>
+                    <th className="bg-card px-4 py-2.5 text-left text-xs font-medium text-muted-foreground">Status</th>
+                    <th className="bg-card w-36" />
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-border/50">
                   {recordings.map((recording) => {
                     const recordingProgress = progress[recording.id];
                     const isPlaying = playingId === recording.id;
@@ -785,4 +745,4 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
       )}
     </div>
   );
-}
+});

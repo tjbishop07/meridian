@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Upload, FileText, CheckCircle, AlertCircle, Check } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle, Check, Plus } from 'lucide-react';
 import { useAccounts } from '../hooks/useAccounts';
-import { Automation } from './Automation';
+import { Automation, type AutomationHandle } from './Automation';
+import { useAutomationSettings } from '../hooks/useAutomationSettings';
 import PageHeader from '../components/layout/PageHeader';
 import type { CSVFormat, ImportPreview, ImportResult } from '../types';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,8 @@ const STEPS = [
 
 export default function Import() {
   const { accounts, loadAccounts } = useAccounts();
+  const { settings: automationSettings, updateSettings: updateAutomationSettings } = useAutomationSettings();
+  const automationRef = useRef<AutomationHandle>(null);
   const location = useLocation();
   const state = location.state as LocationState | null;
   const [importTab, setImportTab] = useState<ImportTab>(
@@ -115,8 +118,8 @@ export default function Import() {
 
   return (
     <div className="flex flex-col h-full">
-      <PageHeader title="Import" subtitle="Automate or manually import your transactions">
-        <div className="flex gap-6 -mb-4">
+      <PageHeader>
+        <div className="flex gap-6">
           {(['automated', 'manual'] as ImportTab[]).map((tab) => (
             <button
               key={tab}
@@ -134,9 +137,44 @@ export default function Import() {
         </div>
       </PageHeader>
 
+      {/* Toolbar — shown for automated tab */}
+      {importTab === 'automated' && (
+        <div className="flex items-center gap-3 px-6 h-11 border-b border-border flex-shrink-0">
+          <span className="text-xs text-muted-foreground font-medium">AI Model</span>
+          <Separator orientation="vertical" className="h-4" />
+          <div className="flex items-center rounded-md border border-border overflow-hidden">
+            {([
+              { value: 'claude', label: 'Claude Vision' },
+              { value: 'ollama', label: 'Local Ollama' },
+            ] as const).map((opt, idx) => (
+              <Button
+                key={opt.value}
+                variant="ghost"
+                size="sm"
+                onClick={() => updateAutomationSettings({ vision_provider: opt.value })}
+                className={cn(
+                  'h-7 px-3 text-xs rounded-none',
+                  idx > 0 && 'border-l border-border',
+                  automationSettings.vision_provider === opt.value
+                    ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {opt.label}
+              </Button>
+            ))}
+          </div>
+          <div className="flex-1" />
+          <Button size="sm" onClick={() => automationRef.current?.openNewRecording()}>
+            <Plus className="w-3.5 h-3.5 mr-1.5" />
+            New Recording
+          </Button>
+        </div>
+      )}
+
       {importTab === 'automated' && (
         <div className="flex-1 overflow-hidden">
-          <Automation embedded />
+          <Automation ref={automationRef} embedded />
         </div>
       )}
 

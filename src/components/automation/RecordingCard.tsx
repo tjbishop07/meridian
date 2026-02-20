@@ -91,7 +91,7 @@ export function RecordingCard({
     : 0;
 
   return (
-    <tr className={cn('transition-colors', isPlaying ? 'bg-primary/5' : 'hover:bg-muted/50')} style={{ position: 'relative' }}>
+    <tr className={cn('group transition-all', isPlaying ? 'bg-primary/5' : 'hover:bg-muted/30')}>
       {/* Name */}
       <td className="px-4 py-3 whitespace-nowrap">
         <div className="flex items-center gap-2">
@@ -164,7 +164,7 @@ export function RecordingCard({
       </td>
 
       {/* Actions */}
-      <td className="px-4 py-3">
+      <td className="px-2 py-3">
         <div className="flex items-center justify-end gap-1">
           <Button
             size="sm"
@@ -175,29 +175,31 @@ export function RecordingCard({
             {isPlaying ? 'Running...' : 'Run'}
           </Button>
 
-          <button
-            className="p-1.5 rounded-full text-muted-foreground hover:bg-muted transition-colors"
-            onClick={() => onEdit(recording)}
-            title="Edit"
-          >
-            <Pencil className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => onEdit(recording)}
+              title="Edit"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
 
-          <button
-            className="p-1.5 rounded-full text-muted-foreground hover:bg-muted transition-colors"
-            onClick={() => onDuplicate(recording.id)}
-            title="Duplicate"
-          >
-            <Copy className="w-4 h-4" />
-          </button>
+            <button
+              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => onDuplicate(recording.id)}
+              title="Duplicate"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
 
-          <button
-            className="p-1.5 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-            onClick={() => onDelete(recording.id)}
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+            <button
+              className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+              onClick={() => onDelete(recording.id)}
+              title="Delete"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </td>
     </tr>

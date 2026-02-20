@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, ArrowRight, RotateCw, Home, Download, FileText, Circle, Trash2, Edit } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import { useStore } from '../store';
 import { useNavigate } from 'react-router-dom';
 import { EditRecipeModal } from '../components/automation/EditRecipeModal';

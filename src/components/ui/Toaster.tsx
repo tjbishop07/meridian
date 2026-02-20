@@ -1,26 +1,30 @@
-import { Toaster as HotToaster } from 'react-hot-toast';
+import { Toaster as Sonner } from 'sonner';
 
 export default function Toaster() {
   return (
-    <HotToaster
+    <Sonner
       position="top-center"
-      containerStyle={{
-        top: 10,
-        zIndex: 99999,
-      }}
+      style={{
+        '--normal-bg':        'var(--card)',
+        '--normal-border':    'var(--border)',
+        '--normal-text':      'var(--card-foreground)',
+        '--success-bg':       'var(--card)',
+        '--success-border':   'var(--border)',
+        '--success-text':     'var(--card-foreground)',
+        '--error-bg':         'var(--card)',
+        '--error-border':     'var(--border)',
+        '--error-text':       'var(--card-foreground)',
+        '--warning-bg':       'var(--card)',
+        '--warning-border':   'var(--border)',
+        '--warning-text':     'var(--card-foreground)',
+        '--info-bg':          'var(--card)',
+        '--info-border':      'var(--border)',
+        '--info-text':        'var(--card-foreground)',
+      } as React.CSSProperties}
       toastOptions={{
-        duration: 4000,
-        className: 'toast-base',
-        style: {
-          zIndex: 99999,
-        },
-        success: {
-          duration: 3000,
-          className: 'toast-success',
-        },
-        error: {
-          duration: 5000,
-          className: 'toast-error',
+        duration: 6000,
+        classNames: {
+          description: 'text-muted-foreground!',
         },
       }}
     />
