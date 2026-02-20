@@ -327,17 +327,17 @@ export default function Transactions() {
                   onClick={() => setEditingTransaction(transaction)}
                   className={`cursor-pointer transition-colors ${
                     isUncategorized
-                      ? 'bg-warning/10 hover:bg-warning/20 border-l-4 border-warning'
+                      ? 'bg-violet-500/10 hover:bg-violet-500/15'
                       : 'hover:bg-base-200'
                   }`}
                 >
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm w-32 ${isUncategorized ? 'text-warning' : 'text-base-content'}`}>
+                  <td className={`px-6 py-4 whitespace-nowrap text-sm w-32 ${isUncategorized ? 'text-violet-400' : 'text-base-content'}`}>
                     {format(parseISO(transaction.date), 'MMM d, yyyy')}
                   </td>
-                  <td className={`px-6 py-4 text-sm ${isUncategorized ? 'text-warning' : 'text-base-content'}`}>
+                  <td className={`px-6 py-4 text-sm ${isUncategorized ? 'text-violet-400' : 'text-base-content'}`}>
                     <div className="font-medium">{transaction.description}</div>
                     {transaction.original_description && transaction.original_description !== transaction.description && (
-                      <div className={`text-xs truncate max-w-md ${isUncategorized ? 'text-warning/80' : 'text-base-content/60'}`}>
+                      <div className={`text-xs truncate max-w-md ${isUncategorized ? 'text-violet-400/70' : 'text-base-content/60'}`}>
                         {transaction.original_description}
                       </div>
                     )}
@@ -389,20 +389,20 @@ export default function Transactions() {
                       </select>
                     )}
                   </td>
-                  <td className={`px-6 py-4 whitespace-nowrap text-sm w-48 ${isUncategorized ? 'text-warning' : 'text-base-content/70'}`}>
+                  <td className={`px-6 py-4 whitespace-nowrap text-sm w-48 ${isUncategorized ? 'text-violet-400' : 'text-base-content/70'}`}>
                     {transaction.account_name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-right w-32">
                     <span
-                      className={
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tabular-nums ${
                         transaction.type === 'income'
-                          ? 'text-green-600 font-medium'
+                          ? 'bg-emerald-500/15 text-emerald-400'
                           : transaction.type === 'transfer'
-                          ? 'text-blue-600 font-medium'
-                          : 'text-red-600'
-                      }
+                          ? 'bg-sky-500/15 text-sky-400'
+                          : 'bg-rose-500/15 text-rose-400'
+                      }`}
                     >
-                      {transaction.type === 'income' ? '+' : transaction.type === 'transfer' ? '→' : '-'}$
+                      {transaction.type === 'income' ? '+' : transaction.type === 'transfer' ? '⇄' : '−'}$
                       {Math.abs(transaction.amount).toFixed(2)}
                     </span>
                   </td>

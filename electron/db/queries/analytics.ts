@@ -46,6 +46,7 @@ export function getCategoryBreakdown(
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     WHERE t.type = ?
+      AND LOWER(COALESCE(c.name, '')) != 'transfer'
       AND t.date >= ?
       AND t.date <= ?
     GROUP BY c.id, c.name
@@ -106,6 +107,7 @@ export function getTopExpenseCategories(month: string, limit: number = 5): Categ
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     WHERE t.type = 'expense'
+      AND LOWER(COALESCE(c.name, '')) != 'transfer'
       AND strftime('%Y-%m', t.date) = ?
     GROUP BY c.id, c.name
     ORDER BY amount DESC
