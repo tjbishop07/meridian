@@ -1,21 +1,9 @@
 import { useEffect, useState } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import {
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
+import { ResponsiveLine } from '@nivo/line';
+import { ResponsivePie } from '@nivo/pie';
 import { format, startOfMonth, subMonths, parseISO } from 'date-fns';
+import { nivoTheme, CHART_COLORS, tooltipStyle } from '../lib/nivoTheme';
 import type { MonthlyStats, CategoryBreakdown, SpendingTrend, Transaction } from '../types';
 import SpendingHeatmap from '../components/dashboard/SpendingHeatmap';
 
@@ -97,8 +85,34 @@ export default function Dashboard() {
     ? calculatePercentChange(currentMonth.net, previousMonth.net)
     : 0;
 
-  // Colors for pie chart
-  const COLORS = ['#0ea5e9', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444'];
+  // Nivo Line data: [{id, color, data: [{x, y}]}]
+  const trendLineData = [
+    {
+      id: 'Income',
+      color: '#10b981',
+      data: trends.map((t) => ({
+        x: format(new Date(t.month + '-01'), 'MMM'),
+        y: t.income,
+      })),
+    },
+    {
+      id: 'Expenses',
+      color: '#ef4444',
+      data: trends.map((t) => ({
+        x: format(new Date(t.month + '-01'), 'MMM'),
+        y: t.expenses,
+      })),
+    },
+  ];
+
+  // Nivo Pie data
+  const pieData = topCategories.map((cat, i) => ({
+    id: cat.category_name,
+    label: cat.category_name,
+    value: cat.amount,
+    color: CHART_COLORS[i % CHART_COLORS.length],
+    percentage: cat.percentage,
+  }));
 
   // Generate all months for current year
   const currentYear = format(new Date(), 'yyyy');
@@ -265,43 +279,87 @@ export default function Dashboard() {
         {/* Spending Trends */}
         <div className="bg-base-100 rounded-lg shadow-sm p-6">
           <h2 className="text-lg font-semibold text-base-content mb-4">Spending Trends (6 Months)</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={trends}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
-              <Legend />
-              <Line type="monotone" dataKey="income" stroke="#10b981" strokeWidth={2} />
-              <Line type="monotone" dataKey="expenses" stroke="#ef4444" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
+          <div style={{ height: 280 }}>
+            <ResponsiveLine
+              data={trendLineData}
+              theme={nivoTheme}
+              margin={{ top: 10, right: 16, bottom: 44, left: 60 }}
+              xScale={{ type: 'point' }}
+              yScale={{ type: 'linear', min: 0, max: 'auto', stacked: false }}
+              curve="monotoneX"
+              enableArea
+              areaOpacity={0.08}
+              colors={(d) => d.color}
+              lineWidth={2.5}
+              pointSize={6}
+              pointColor="#1d232a"
+              pointBorderWidth={2}
+              pointBorderColor={{ from: 'serieColor' }}
+              enableGridX={false}
+              axisLeft={{
+                tickSize: 0,
+                tickPadding: 8,
+                tickValues: 5,
+                format: (v) => `$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`,
+              }}
+              axisBottom={{ tickSize: 0, tickPadding: 8 }}
+              useMesh
+              tooltip={({ point }) => (
+                <div style={tooltipStyle}>
+                  <span style={{ color: point.serieColor, marginRight: 6 }}>●</span>
+                  <strong>{point.serieId}</strong>:{' '}
+                  ${(point.data.y as number).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+              )}
+              legends={[{
+                anchor: 'bottom',
+                direction: 'row',
+                translateY: 40,
+                itemWidth: 80,
+                itemHeight: 14,
+                symbolSize: 10,
+                symbolShape: 'circle',
+              }]}
+            />
+          </div>
         </div>
 
         {/* Top Categories */}
         <div className="bg-base-100 rounded-lg shadow-sm p-6">
           <h2 className="text-lg font-semibold text-base-content mb-4">Top Expense Categories</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={topCategories}
-                cx="50%"
-                cy="50%"
-                labelLine={false}
-                label={({ category_name, percentage }) =>
-                  `${category_name}: ${percentage.toFixed(1)}%`
-                }
-                outerRadius={80}
-                fill="#8884d8"
-                dataKey="amount"
-              >
-                {topCategories.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
-            </PieChart>
-          </ResponsiveContainer>
+          <div style={{ height: 280 }}>
+            <ResponsivePie
+              data={pieData}
+              theme={nivoTheme}
+              margin={{ top: 16, right: 16, bottom: 56, left: 16 }}
+              innerRadius={0.6}
+              padAngle={0.5}
+              cornerRadius={3}
+              colors={(d) => d.data.color}
+              borderWidth={0}
+              enableArcLabels={false}
+              arcLinkLabelsSkipAngle={10}
+              arcLinkLabelsTextColor="#a6adba"
+              arcLinkLabelsThickness={1}
+              arcLinkLabelsColor={{ from: 'color' }}
+              arcLinkLabel={(d) => `${(d.data as any).percentage.toFixed(1)}%`}
+              tooltip={({ datum }) => (
+                <div style={tooltipStyle}>
+                  <span style={{ color: datum.color, marginRight: 6 }}>●</span>
+                  <strong>{datum.label}</strong>: ${datum.value.toFixed(2)}
+                </div>
+              )}
+              legends={[{
+                anchor: 'bottom',
+                direction: 'row',
+                translateY: 48,
+                itemWidth: 90,
+                itemHeight: 14,
+                symbolSize: 10,
+                symbolShape: 'circle',
+              }]}
+            />
+          </div>
         </div>
       </div>
 

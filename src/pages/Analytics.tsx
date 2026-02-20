@@ -1,25 +1,10 @@
 import { useEffect, useState } from 'react';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
-import {
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
+import { ResponsiveLine } from '@nivo/line';
+import { ResponsiveBar } from '@nivo/bar';
+import { ResponsivePie } from '@nivo/pie';
 import type { SpendingTrend, CategoryBreakdown } from '../types';
-
-const COLORS = ['#0ea5e9', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#6366f1', '#14b8a6', '#f97316', '#a855f7'];
+import { nivoTheme, CHART_COLORS, tooltipStyle } from '../lib/nivoTheme';
 
 export default function Analytics() {
   const [trends, setTrends] = useState<SpendingTrend[]>([]);
@@ -148,49 +133,101 @@ export default function Analytics() {
       {/* Income vs Expenses Area Chart */}
       <div className="bg-base-100 rounded-lg shadow-sm p-6 mb-6">
         <h2 className="text-lg font-semibold text-base-content mb-4">Income vs Expenses Over Time</h2>
-        <ResponsiveContainer width="100%" height={350}>
-          <AreaChart data={trends}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" />
-            <YAxis />
-            <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
-            <Legend />
-            <Area
-              type="monotone"
-              dataKey="income"
-              stroke="#10b981"
-              fill="#10b981"
-              fillOpacity={0.1}
-              strokeWidth={2}
-            />
-            <Area
-              type="monotone"
-              dataKey="expenses"
-              stroke="#ef4444"
-              fill="#ef4444"
-              fillOpacity={0.1}
-              strokeWidth={2}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
+        <div style={{ height: 320 }}>
+          <ResponsiveLine
+            data={[
+              {
+                id: 'Income',
+                color: '#10b981',
+                data: trends.map((t) => ({
+                  x: format(new Date(t.month + '-01'), trendMonths >= 24 ? 'MMM yy' : 'MMM'),
+                  y: t.income,
+                })),
+              },
+              {
+                id: 'Expenses',
+                color: '#ef4444',
+                data: trends.map((t) => ({
+                  x: format(new Date(t.month + '-01'), trendMonths >= 24 ? 'MMM yy' : 'MMM'),
+                  y: t.expenses,
+                })),
+              },
+            ]}
+            theme={nivoTheme}
+            margin={{ top: 10, right: 16, bottom: 48, left: 64 }}
+            xScale={{ type: 'point' }}
+            yScale={{ type: 'linear', min: 0, max: 'auto', stacked: false }}
+            curve="monotoneX"
+            enableArea
+            areaOpacity={0.08}
+            colors={(d) => d.color}
+            lineWidth={2.5}
+            pointSize={5}
+            pointColor="#1d232a"
+            pointBorderWidth={2}
+            pointBorderColor={{ from: 'serieColor' }}
+            enableGridX={false}
+            axisLeft={{
+              tickSize: 0,
+              tickPadding: 8,
+              tickValues: 5,
+              format: (v) => `$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`,
+            }}
+            axisBottom={{ tickSize: 0, tickPadding: 8 }}
+            useMesh
+            tooltip={({ point }) => (
+              <div style={tooltipStyle}>
+                <span style={{ color: point.serieColor, marginRight: 6 }}>●</span>
+                <strong>{point.serieId}</strong>:{' '}
+                ${(point.data.y as number).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            )}
+            legends={[{
+              anchor: 'bottom',
+              direction: 'row',
+              translateY: 44,
+              itemWidth: 80,
+              itemHeight: 14,
+              symbolSize: 10,
+              symbolShape: 'circle',
+            }]}
+          />
+        </div>
       </div>
 
       {/* Net Savings Bar Chart */}
       <div className="bg-base-100 rounded-lg shadow-sm p-6 mb-6">
         <h2 className="text-lg font-semibold text-base-content mb-4">Monthly Net Savings</h2>
-        <ResponsiveContainer width="100%" height={300}>
-          <BarChart data={trends}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="month" />
-            <YAxis />
-            <Tooltip formatter={(value: number) => `$${value.toFixed(2)}`} />
-            <Bar dataKey="net" fill="#6366f1">
-              {trends.map((entry, index) => (
-                <Cell key={index} fill={entry.net >= 0 ? '#10b981' : '#ef4444'} />
-              ))}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        <div style={{ height: 280 }}>
+          <ResponsiveBar
+            data={trends.map((t) => ({
+              month: format(new Date(t.month + '-01'), trendMonths >= 24 ? 'MMM yy' : 'MMM'),
+              net: t.net,
+            }))}
+            theme={nivoTheme}
+            keys={['net']}
+            indexBy="month"
+            margin={{ top: 10, right: 16, bottom: 44, left: 64 }}
+            padding={0.35}
+            colors={({ data }) => (data['net'] as number) >= 0 ? '#10b981' : '#ef4444'}
+            enableLabel={false}
+            enableGridX={false}
+            borderRadius={3}
+            axisLeft={{
+              tickSize: 0,
+              tickPadding: 8,
+              tickValues: 5,
+              format: (v) => `$${Math.abs(v) >= 1000 ? `${(Math.abs(v) / 1000).toFixed(0)}k` : v}`,
+            }}
+            axisBottom={{ tickSize: 0, tickPadding: 8 }}
+            tooltip={({ value, color }) => (
+              <div style={tooltipStyle}>
+                <span style={{ color, marginRight: 6 }}>●</span>
+                Net: ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+            )}
+          />
+        </div>
       </div>
 
       {/* Category Breakdowns */}
@@ -216,36 +253,39 @@ export default function Analytics() {
           </div>
           {expenseCategories.length > 0 ? (
             <>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={expenseCategories}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={90}
-                    fill="#8884d8"
-                    dataKey="amount"
-                    labelLine={false}
-                  >
-                    {expenseCategories.map((_, index) => (
-                      <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number) => `$${value.toFixed(2)}`}
-                    labelFormatter={(_, payload) =>
-                      payload?.[0]?.payload?.category_name || ''
-                    }
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <div style={{ height: 220 }}>
+                <ResponsivePie
+                  data={expenseCategories.map((cat, i) => ({
+                    id: cat.category_name,
+                    label: cat.category_name,
+                    value: cat.amount,
+                    color: CHART_COLORS[i % CHART_COLORS.length],
+                    percentage: cat.percentage,
+                  }))}
+                  theme={nivoTheme}
+                  margin={{ top: 12, right: 12, bottom: 12, left: 12 }}
+                  innerRadius={0.6}
+                  padAngle={0.5}
+                  cornerRadius={3}
+                  colors={(d) => d.data.color}
+                  borderWidth={0}
+                  enableArcLabels={false}
+                  enableArcLinkLabels={false}
+                  tooltip={({ datum }) => (
+                    <div style={tooltipStyle}>
+                      <span style={{ color: datum.color, marginRight: 6 }}>●</span>
+                      <strong>{datum.label}</strong>: ${datum.value.toFixed(2)} ({(datum.data as any).percentage.toFixed(1)}%)
+                    </div>
+                  )}
+                />
+              </div>
               <div className="mt-4 space-y-2">
                 {expenseCategories.slice(0, 8).map((cat, i) => (
                   <div key={cat.category_id} className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
                       <div
                         className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                        style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
                       />
                       <span className="text-base-content/80">{cat.category_name}</span>
                     </div>
@@ -267,36 +307,39 @@ export default function Analytics() {
           <h2 className="text-lg font-semibold text-base-content mb-4">Income Categories</h2>
           {incomeCategories.length > 0 ? (
             <>
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={incomeCategories}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={90}
-                    fill="#8884d8"
-                    dataKey="amount"
-                    labelLine={false}
-                  >
-                    {incomeCategories.map((_, index) => (
-                      <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: number) => `$${value.toFixed(2)}`}
-                    labelFormatter={(_, payload) =>
-                      payload?.[0]?.payload?.category_name || ''
-                    }
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+              <div style={{ height: 220 }}>
+                <ResponsivePie
+                  data={incomeCategories.map((cat, i) => ({
+                    id: cat.category_name,
+                    label: cat.category_name,
+                    value: cat.amount,
+                    color: CHART_COLORS[i % CHART_COLORS.length],
+                    percentage: cat.percentage,
+                  }))}
+                  theme={nivoTheme}
+                  margin={{ top: 12, right: 12, bottom: 12, left: 12 }}
+                  innerRadius={0.6}
+                  padAngle={0.5}
+                  cornerRadius={3}
+                  colors={(d) => d.data.color}
+                  borderWidth={0}
+                  enableArcLabels={false}
+                  enableArcLinkLabels={false}
+                  tooltip={({ datum }) => (
+                    <div style={tooltipStyle}>
+                      <span style={{ color: datum.color, marginRight: 6 }}>●</span>
+                      <strong>{datum.label}</strong>: ${datum.value.toFixed(2)} ({(datum.data as any).percentage.toFixed(1)}%)
+                    </div>
+                  )}
+                />
+              </div>
               <div className="mt-4 space-y-2">
                 {incomeCategories.slice(0, 8).map((cat, i) => (
                   <div key={cat.category_id} className="flex items-center justify-between text-sm">
                     <div className="flex items-center gap-2">
                       <div
                         className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                        style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
                       />
                       <span className="text-base-content/80">{cat.category_name}</span>
                     </div>

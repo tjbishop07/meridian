@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Plus, Sparkles, Trash2, X, Pencil } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
-import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid,
-} from 'recharts';
+import { ResponsiveBar } from '@nivo/bar';
+import { nivoTheme, tooltipStyle } from '../lib/nivoTheme';
 import { useTags } from '../hooks/useTags';
 import { useTickerStore } from '../store/tickerStore';
 import Modal from '../components/ui/Modal';
@@ -223,6 +222,11 @@ export default function Tags() {
     }
     return row;
   });
+  // Chart display data with formatted month labels
+  const chartDisplayData = chartData.map((row) => ({
+    ...row,
+    month: format(new Date((row.month as string) + '-01'), 'MMM'),
+  }));
   const tagColorMap = new Map(monthlyData.map((r) => [r.tag_name, r.tag_color]));
 
   // Table: tags as rows, months as columns
@@ -428,23 +432,44 @@ export default function Tags() {
                 <h2 className="text-sm font-semibold text-base-content/70 mb-4 uppercase tracking-wide">
                   Monthly Spend by Tag
                 </h2>
-                <ResponsiveContainer width="100%" height={280}>
-                  <BarChart data={chartData} margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="oklch(var(--b3))" />
-                    <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
-                    <Tooltip formatter={(v: number) => [`$${v.toFixed(2)}`]} />
-                    <Legend />
-                    {chartTags.map((tagName) => (
-                      <Bar
-                        key={tagName}
-                        dataKey={tagName}
-                        stackId="a"
-                        fill={tagColorMap.get(tagName) ?? '#6366f1'}
-                      />
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
+                <div style={{ height: 280 }}>
+                  <ResponsiveBar
+                    data={chartDisplayData}
+                    theme={nivoTheme}
+                    keys={chartTags}
+                    indexBy="month"
+                    groupMode="stacked"
+                    margin={{ top: 0, right: 16, bottom: 48, left: 56 }}
+                    padding={0.35}
+                    colors={({ id }) => tagColorMap.get(id as string) ?? '#6366f1'}
+                    enableLabel={false}
+                    enableGridX={false}
+                    borderRadius={2}
+                    axisLeft={{
+                      tickSize: 0,
+                      tickPadding: 8,
+                      tickValues: 5,
+                      format: (v) => `$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`,
+                    }}
+                    axisBottom={{ tickSize: 0, tickPadding: 8 }}
+                    tooltip={({ id, value, color }) => (
+                      <div style={tooltipStyle}>
+                        <span style={{ color, marginRight: 6 }}>●</span>
+                        <strong>{id}</strong>: ${(value as number).toFixed(2)}
+                      </div>
+                    )}
+                    legends={[{
+                      dataFrom: 'keys',
+                      anchor: 'bottom',
+                      direction: 'row',
+                      translateY: 44,
+                      itemWidth: 90,
+                      itemHeight: 14,
+                      symbolSize: 10,
+                      symbolShape: 'circle',
+                    }]}
+                  />
+                </div>
               </div>
 
               {/* Month-over-month table */}
