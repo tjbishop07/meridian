@@ -157,6 +157,14 @@ const electronAPI: ElectronAPI = {
       'tags:get-all-transaction-tags',
       'tags:get-monthly-stats',
 
+      // Receipts
+      'receipt:start-server',
+      'receipt:stop-server',
+      'receipt:get-for-transaction',
+      'receipt:get-image-data',
+      'receipt:link-transaction',
+      'receipt:delete',
+
       // File operations
       'dialog:open-file',
     ];
@@ -184,6 +192,9 @@ const electronAPI: ElectronAPI = {
       'ollama:pull-progress',
       'ollama:install-progress',
       'tags:auto-tag-progress',
+      'receipt:uploaded',
+      'receipt:analysis-progress',
+      'receipt:error',
     ];
 
     if (validReceiveChannels.includes(channel)) {
@@ -208,6 +219,9 @@ const electronAPI: ElectronAPI = {
       'ollama:pull-progress',
       'ollama:install-progress',
       'tags:auto-tag-progress',
+      'receipt:uploaded',
+      'receipt:analysis-progress',
+      'receipt:error',
     ];
 
     if (validReceiveChannels.includes(channel)) {

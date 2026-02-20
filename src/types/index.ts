@@ -314,6 +314,33 @@ export interface SpendingTrend {
   net: number;
 }
 
+// Receipt Types
+
+export interface ReceiptItem {
+  name: string;
+  amount: number;
+  category_id: number | null;
+  category_name: string | null;
+}
+
+export interface ReceiptData {
+  merchant: string | null;
+  date: string | null;
+  total: number | null;
+  tax: number | null;
+  items: ReceiptItem[];
+}
+
+export interface Receipt {
+  id: number;
+  transaction_id: number | null;
+  file_path: string;
+  file_name: string;
+  extracted_data: ReceiptData | null;
+  ai_model: string | null;
+  created_at: string;
+}
+
 // Export Recipe/Automation Types
 
 export interface RecordingStep {
@@ -460,6 +487,14 @@ export interface ElectronAPI {
   invoke(channel: 'tags:get-transactions', tagId: number): Promise<Transaction[]>;
   invoke(channel: 'tags:get-all-transaction-tags'): Promise<Array<{ transaction_id: number; tag_id: number; tag_name: string; tag_color: string }>>;
 
+  // Receipts
+  invoke(channel: 'receipt:start-server'): Promise<{ url: string; token: string } | { error: string }>;
+  invoke(channel: 'receipt:stop-server'): Promise<void>;
+  invoke(channel: 'receipt:get-for-transaction', transactionId: number): Promise<Receipt | null>;
+  invoke(channel: 'receipt:get-image-data', filePath: string): Promise<string | null>;
+  invoke(channel: 'receipt:link-transaction', receiptId: number, transactionId: number): Promise<void>;
+  invoke(channel: 'receipt:delete', receiptId: number): Promise<void>;
+
   // AI Scraper
   invoke(channel: 'ai-scraper:check-model'): Promise<{ installed: boolean }>;
   invoke(channel: 'ai-scraper:open-browser', options: { accountId: number; startUrl: string }): Promise<{ success: boolean; error?: string }>;
@@ -482,6 +517,9 @@ export interface ElectronAPI {
   on(channel: 'ollama:pull-progress', callback: (data: string) => void): void;
   on(channel: 'ollama:install-progress', callback: (data: string) => void): void;
   on(channel: 'tags:auto-tag-progress', callback: (data: { done: number; total: number }) => void): void;
+  on(channel: 'receipt:uploaded', callback: (data: { receiptId: number; extractedData: ReceiptData | null }) => void): void;
+  on(channel: 'receipt:analysis-progress', callback: (data: { step: string; imageDataUrl?: string }) => void): void;
+  on(channel: 'receipt:error', callback: (data: { message: string }) => void): void;
   removeListener(channel: string, callback: (...args: any[]) => void): void;
 }
 

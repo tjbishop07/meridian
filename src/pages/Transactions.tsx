@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Search, Filter, Edit2, Trash2 } from 'lucide-react';
+import { Search, Filter, Edit2, Trash2, Camera } from 'lucide-react';
 import { Sparkline } from '@/components/ui/Sparkline';
 import toast from 'react-hot-toast';
 import { useTransactions } from '../hooks/useTransactions';
@@ -7,7 +7,8 @@ import { useAccounts } from '../hooks/useAccounts';
 import { useCategories } from '../hooks/useCategories';
 import { useTags } from '../hooks/useTags';
 import TransactionForm from '../components/transactions/TransactionForm';
-import type { Transaction, CreateTransactionInput, Tag } from '../types';
+import { ReceiptCapture } from '../components/receipts/ReceiptCapture';
+import type { Transaction, CreateTransactionInput, Tag, Receipt } from '../types';
 import { format, parseISO } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +29,8 @@ export default function Transactions() {
   const { tags, loadTags, setTagsForTransaction } = useTags();
 
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
+  const [showReceiptCapture, setShowReceiptCapture] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
   const [showUncategorized, setShowUncategorized] = useState(false);
@@ -62,6 +65,19 @@ export default function Transactions() {
   useEffect(() => {
     if (transactions.length > 0) refreshTagMap();
   }, [transactions.length > 0]);
+
+  useEffect(() => {
+    if (editingTransaction) {
+      setEditingReceipt(null);
+      setShowReceiptCapture(false);
+      window.electron.invoke('receipt:get-for-transaction', editingTransaction.id)
+        .then((receipt) => setEditingReceipt(receipt))
+        .catch(console.error);
+    } else {
+      setEditingReceipt(null);
+      setShowReceiptCapture(false);
+    }
+  }, [editingTransaction?.id]);
 
   const handleUpdate = async (data: CreateTransactionInput, tagIds: number[]) => {
     if (!editingTransaction) return;
@@ -503,23 +519,51 @@ export default function Transactions() {
           editingTransaction ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
+        {/* Drawer header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
           <h2 className="text-sm font-semibold text-foreground">Edit Transaction</h2>
-          <button
-            onClick={() => setEditingTransaction(null)}
-            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setShowReceiptCapture(true)}
+              title="Capture receipt"
+              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <Camera className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setEditingTransaction(null)}
+              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
         </div>
+
+        {/* Receipt capture overlay */}
+        {showReceiptCapture && editingTransaction && (
+          <ReceiptCapture
+            transactionId={editingTransaction.id}
+            onDone={(receiptId, extractedData) => {
+              setShowReceiptCapture(false);
+              // Reload receipt from DB to get full row
+              window.electron.invoke('receipt:get-for-transaction', editingTransaction.id)
+                .then((r) => setEditingReceipt(r))
+                .catch(console.error);
+            }}
+            onCancel={() => setShowReceiptCapture(false)}
+          />
+        )}
+
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {editingTransaction && (
             <TransactionForm
               transaction={editingTransaction}
+              receipt={editingReceipt}
               onSubmit={handleUpdate}
               onCancel={() => setEditingTransaction(null)}
+              onReceiptDeleted={() => setEditingReceipt(null)}
             />
           )}
         </div>

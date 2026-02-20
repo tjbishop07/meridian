@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAccounts } from '../../hooks/useAccounts';
 import { useCategories } from '../../hooks/useCategories';
 import { useTags } from '../../hooks/useTags';
-import type { Transaction, CreateTransactionInput } from '../../types';
+import type { Transaction, CreateTransactionInput, Receipt } from '../../types';
+import { ReceiptViewer } from '../receipts/ReceiptViewer';
 import { format } from 'date-fns';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -13,14 +14,16 @@ import { Label } from '@/components/ui/label';
 
 interface TransactionFormProps {
   transaction?: Transaction;
+  receipt?: Receipt | null;
   onSubmit: (data: CreateTransactionInput, tagIds: number[]) => Promise<void>;
   onCancel: () => void;
+  onReceiptDeleted?: () => void;
 }
 
 const selectClass =
   'w-full h-9 px-3 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50';
 
-export default function TransactionForm({ transaction, onSubmit, onCancel }: TransactionFormProps) {
+export default function TransactionForm({ transaction, receipt, onSubmit, onCancel, onReceiptDeleted }: TransactionFormProps) {
   const { accounts } = useAccounts();
   const { getCategoriesByType } = useCategories();
   const { tags, loadTags } = useTags();
@@ -265,6 +268,11 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
             ))}
         </select>
       </div>
+
+      {/* Receipt */}
+      {receipt && onReceiptDeleted && (
+        <ReceiptViewer receipt={receipt} onDeleted={onReceiptDeleted} />
+      )}
 
       {/* Actions — sticky at bottom */}
       <div className="sticky bottom-0 bg-card pt-4 pb-2 border-t border-border mt-2 flex gap-2">

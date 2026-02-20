@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Building2, Tag, Download, Database, Palette, ScanSearch, MessageSquare, ChevronDown } from 'lucide-react';
+import { Plus, Edit2, Trash2, Building2, Tag, Download, Database, Palette, ScanSearch, MessageSquare, ChevronDown, Camera } from 'lucide-react';
 import { useAccounts } from '../hooks/useAccounts';
 import { useCategories } from '../hooks/useCategories';
 import Modal from '../components/ui/Modal';
@@ -227,6 +227,23 @@ const DEFAULT_WELCOME_PROMPT =
   'Make it money or finance related and humorous. Keep it under 120 characters. ' +
   'Return only the message text — no quotes, no explanation, no markdown.';
 
+const DEFAULT_RECEIPT_PROMPT =
+  'Analyze this receipt image and return ONLY a JSON object — no explanation, no markdown.\n\n' +
+  'Available expense categories: {categories}\n\n' +
+  '{\n' +
+  '  "merchant": "store name or null",\n' +
+  '  "date": "YYYY-MM-DD or null",\n' +
+  '  "total": number or null,\n' +
+  '  "tax": number or null,\n' +
+  '  "items": [\n' +
+  '    {\n' +
+  '      "name": "item description",\n' +
+  '      "amount": number,\n' +
+  '      "category_name": "best match from category list, or null"\n' +
+  '    }\n' +
+  '  ]\n' +
+  '}';
+
 interface PromptEditorTabProps {
   settingKey: 'scraping_prompt' | 'prompt_welcome';
   defaultPrompt: string;
@@ -324,6 +341,163 @@ function PromptEditorTab({ settingKey, defaultPrompt, title, description, hint, 
   );
 }
 
+// ── Receipt settings components ──────────────────────────────────────────────
+function ReceiptModelTab() {
+  const [aiModel, setAiModel] = useState('ollama');
+  const [ollamaModel, setOllamaModel] = useState('llama3.2-vision');
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      window.electron.invoke('settings:get', 'receipt_ai_model'),
+      window.electron.invoke('settings:get', 'receipt_ollama_model'),
+    ]).then(([model, olModel]) => {
+      if (model) setAiModel(model);
+      if (olModel) setOllamaModel(olModel);
+    }).catch(console.error);
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await window.electron.invoke('settings:set', { key: 'receipt_ai_model', value: aiModel });
+      await window.electron.invoke('settings:set', { key: 'receipt_ollama_model', value: ollamaModel });
+      setSavedMsg(true);
+      setTimeout(() => setSavedMsg(false), 2000);
+    } catch (err) {
+      console.error('Failed to save receipt settings:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="bg-card rounded-lg p-6 border border-border space-y-4">
+      <h3 className="text-lg font-semibold text-foreground">AI Model</h3>
+
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium text-foreground">Analysis Provider</label>
+        <select
+          value={aiModel}
+          onChange={(e) => setAiModel(e.target.value)}
+          className={selectClass}
+        >
+          <option value="ollama">Local AI (Ollama)</option>
+          <option value="claude">Claude API</option>
+        </select>
+      </div>
+
+      {aiModel === 'ollama' && (
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium text-foreground">Ollama Model</label>
+          <Input
+            type="text"
+            value={ollamaModel}
+            onChange={(e) => setOllamaModel(e.target.value)}
+            placeholder="e.g. llama3.2-vision"
+          />
+          <p className="text-xs text-muted-foreground">Must be a vision-capable model installed in Ollama.</p>
+        </div>
+      )}
+
+      {aiModel === 'claude' && (
+        <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg">
+          <p className="text-xs text-muted-foreground">
+            Uses the Claude API key configured in <strong>Scraping → Claude Vision AI</strong>.
+          </p>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3">
+        {savedMsg && <span className="text-xs text-success">Saved</span>}
+        <Button size="sm" onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ReceiptPromptEditor() {
+  const [prompt, setPrompt] = useState(DEFAULT_RECEIPT_PROMPT);
+  const [isDirty, setIsDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [isDefault, setIsDefault] = useState(true);
+
+  useEffect(() => {
+    window.electron.invoke('settings:get', 'receipt_prompt').then((val) => {
+      if (val) {
+        setPrompt(val);
+        setIsDefault(false);
+      } else {
+        setPrompt(DEFAULT_RECEIPT_PROMPT);
+        setIsDefault(true);
+      }
+      setIsDirty(false);
+    }).catch(console.error);
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const valueToSave = prompt === DEFAULT_RECEIPT_PROMPT ? '' : prompt;
+      await window.electron.invoke('settings:set', { key: 'receipt_prompt', value: valueToSave });
+      setIsDefault(valueToSave === '');
+      setIsDirty(false);
+    } catch (err) {
+      console.error('Failed to save receipt prompt:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReset = async () => {
+    setPrompt(DEFAULT_RECEIPT_PROMPT);
+    await window.electron.invoke('settings:set', { key: 'receipt_prompt', value: '' });
+    setIsDefault(true);
+    setIsDirty(false);
+  };
+
+  return (
+    <div className="bg-card rounded-lg p-6 border border-border space-y-4">
+      <div className="flex items-start justify-between">
+        <h3 className="text-lg font-semibold text-foreground">Receipt Analysis Prompt</h3>
+        {isDefault && (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-muted text-muted-foreground">
+            Default
+          </span>
+        )}
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Customize the prompt sent to the AI when analyzing receipt photos.
+      </p>
+      <div className="p-3 bg-primary/10 border border-primary/30 rounded-lg">
+        <p className="text-xs text-muted-foreground">
+          Use <code className="px-1 py-0.5 bg-muted rounded font-mono">{'{categories}'}</code> as a placeholder for the category list. Return valid JSON only.
+        </p>
+      </div>
+      <Textarea
+        value={prompt}
+        onChange={(e) => { setPrompt(e.target.value); setIsDirty(true); }}
+        rows={14}
+        className="font-mono text-sm resize-y"
+      />
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" size="sm" onClick={handleReset} disabled={isDefault && !isDirty}>
+          Reset to Default
+        </Button>
+        <div className="flex items-center gap-3">
+          {saving && <span className="text-xs text-success">Saved</span>}
+          <Button size="sm" onClick={handleSave} disabled={!isDirty || saving}>
+            Save Prompt
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Section wrapper with collapsible header ──────────────────────────────────
 function Section({
   id,
@@ -411,8 +585,9 @@ export default function Settings() {
   const [clearCategoriesStatus, setClearCategoriesStatus] = useState<string | null>(null);
   const [scrapingTab, setScrapingTab] = useState<'claude' | 'ollama' | 'prompt'>('claude');
   const [promptsTab, setPromptsTab] = useState<'welcome'>('welcome');
+  const [receiptTab, setReceiptTab] = useState<'model' | 'prompt'>('model');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
-    appearance: true, accounts: true, categories: true, scraping: true, prompts: true, data: true,
+    appearance: true, accounts: true, categories: true, scraping: true, prompts: true, receipt_scanning: true, data: true,
   });
   const toggle = (key: string) => setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
   const isOpen = (key: string) => !collapsed[key];
@@ -955,6 +1130,39 @@ export default function Settings() {
               rows={6}
             />
           )}
+        </Section>
+
+        {/* ── Receipt Scanning ── */}
+        <Section
+          id="receipt_scanning"
+          icon={<Camera className="w-5 h-5" />}
+          title="Receipt Scanning"
+          subtitle="Capture and analyze receipts with AI from your phone"
+          isOpen={isOpen('receipt_scanning')}
+          onToggle={() => toggle('receipt_scanning')}
+        >
+          {/* Inner tab bar */}
+          <div className="flex border-b border-border mb-6 -mx-6 px-6">
+            {([
+              { key: 'model' as const, label: 'Model' },
+              { key: 'prompt' as const, label: 'Prompt' },
+            ]).map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setReceiptTab(tab.key)}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium -mb-px border-b-2 transition-colors',
+                  receiptTab === tab.key
+                    ? 'text-primary border-primary'
+                    : 'text-muted-foreground border-transparent hover:text-foreground'
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {receiptTab === 'model' && <ReceiptModelTab />}
+          {receiptTab === 'prompt' && <ReceiptPromptEditor />}
         </Section>
 
         {/* ── Data Management ── */}

@@ -287,6 +287,29 @@ export const migrations: Migration[] = [
         console.log('Migration 8: description column already exists');
       }
     }
+  },
+  {
+    version: 9,
+    name: 'add_receipts',
+    up: (db: Database.Database) => {
+      console.log('Migration 9: Creating receipts table');
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS receipts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          transaction_id INTEGER,
+          file_path TEXT NOT NULL,
+          file_name TEXT NOT NULL,
+          extracted_data TEXT,
+          ai_model TEXT,
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_receipts_transaction
+        ON receipts(transaction_id);
+      `);
+      console.log('Migration 9: Done');
+    }
   }
 ];
 

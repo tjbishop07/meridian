@@ -25,6 +25,7 @@ const execAsync = promisify(exec);
 import { registerPuppeteerScraperHandlers, setMainWindow as setPuppeteerMainWindow } from './ipc/puppeteer-scraper';
 import { registerAutomationSettingsHandlers } from './ipc/automation-settings';
 import { registerTagHandlers } from './ipc/tags';
+import { registerReceiptHandlers, setReceiptMainWindow } from './ipc/receipt';
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -137,35 +138,6 @@ function createSplashWindow() {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
           overflow: hidden;
           position: relative;
-        }
-
-        /* Floating particles */
-        .particle {
-          position: absolute;
-          font-size: 24px;
-          opacity: 0;
-          animation: float-up 4s ease-in-out infinite;
-        }
-        .particle:nth-child(1) { left: 10%; animation-delay: 0s; }
-        .particle:nth-child(2) { left: 20%; animation-delay: 0.5s; }
-        .particle:nth-child(3) { left: 30%; animation-delay: 1s; }
-        .particle:nth-child(4) { left: 40%; animation-delay: 1.5s; }
-        .particle:nth-child(5) { left: 60%; animation-delay: 0.3s; }
-        .particle:nth-child(6) { left: 70%; animation-delay: 0.8s; }
-        .particle:nth-child(7) { left: 80%; animation-delay: 1.3s; }
-        .particle:nth-child(8) { left: 90%; animation-delay: 1.8s; }
-
-        @keyframes float-up {
-          0% {
-            transform: translateY(100vh) rotate(0deg) scale(0.5);
-            opacity: 0;
-          }
-          10% { opacity: 0.6; }
-          90% { opacity: 0.6; }
-          100% {
-            transform: translateY(-100px) rotate(360deg) scale(1);
-            opacity: 0;
-          }
         }
 
         .splash-container {
@@ -302,15 +274,6 @@ function createSplashWindow() {
       </style>
     </head>
     <body>
-      <div class="particle">🌱</div>
-      <div class="particle">🍃</div>
-      <div class="particle">🌿</div>
-      <div class="particle">🌱</div>
-      <div class="particle">🍀</div>
-      <div class="particle">🌿</div>
-      <div class="particle">🍃</div>
-      <div class="particle">🌱</div>
-
       <div class="splash-container">
         <svg class="sprout-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
           <path d="M12 21 C11.5 18 12.5 14 12 9" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round"/>
@@ -439,7 +402,8 @@ app.whenReady().then(async () => {
     registerOllamaHandlers();
     registerPuppeteerScraperHandlers();
     registerTagHandlers();
-    console.log('[Main] Automation, scraper, Ollama, Puppeteer, and tag handlers registered');
+    registerReceiptHandlers();
+    console.log('[Main] Automation, scraper, Ollama, Puppeteer, tag, and receipt handlers registered');
 
     // File dialog handler
     ipcMain.handle('dialog:open-file', async (_, options) => {
@@ -461,6 +425,7 @@ app.whenReady().then(async () => {
       setAIScraperMainWindow(mainWindow);
       setOllamaMainWindow(mainWindow);
       setPuppeteerMainWindow(mainWindow);
+      setReceiptMainWindow(mainWindow);
     }
 
     app.on('activate', () => {
