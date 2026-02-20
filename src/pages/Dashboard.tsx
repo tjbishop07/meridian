@@ -7,7 +7,6 @@ import { nivoTheme, CHART_COLORS, tooltipStyle } from '../lib/nivoTheme';
 import type { MonthlyStats, CategoryBreakdown, SpendingTrend, Transaction } from '../types';
 import SpendingHeatmap from '../components/dashboard/SpendingHeatmap';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { SectionCard } from '@/components/ui/SectionCard';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Dashboard() {
@@ -41,10 +40,10 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="p-4 space-y-6">
+      <div className="p-6 space-y-8">
         <Skeleton className="h-10 w-full" />
-        <div className="grid grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-32" />)}
+        <div className="grid grid-cols-3 gap-8">
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20" />)}
         </div>
         <Skeleton className="h-96" />
       </div>
@@ -53,10 +52,8 @@ export default function Dashboard() {
 
   if (!currentMonth) {
     return (
-      <div className="p-4">
-        <div className="bg-muted rounded-lg p-12 text-center">
-          <p className="text-muted-foreground">No data available. Import some transactions to get started!</p>
-        </div>
+      <div className="p-6">
+        <p className="text-muted-foreground text-center py-16">No data available. Import some transactions to get started!</p>
       </div>
     );
   }
@@ -100,10 +97,10 @@ export default function Dashboard() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Month Tabs Header */}
-      <div className="px-4 pt-4 flex-shrink-0">
+      {/* Month Tabs */}
+      <div className="px-6 pt-4 flex-shrink-0">
         <Tabs value={selectedMonth} onValueChange={setSelectedMonth}>
-          <TabsList className="w-full bg-muted">
+          <TabsList className="w-full bg-muted/50">
             {months.map((month) => (
               <TabsTrigger key={month.value} value={month.value} className="flex-1 text-xs">
                 {month.label}
@@ -114,98 +111,88 @@ export default function Dashboard() {
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-4 space-y-6">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="flex-1 overflow-y-auto px-6 pb-6 pt-6 space-y-8">
+
+        {/* Summary Stats — no cards, just numbers */}
+        <div className="grid grid-cols-3 divide-x divide-border">
           {/* Income */}
-          <div className="bg-card rounded-xl border border-border shadow-sm p-6">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-muted-foreground">Income</p>
-              <div className="p-2 bg-success/10 rounded-lg">
-                <TrendingUp className="w-5 h-5 text-success" />
-              </div>
+          <div className="pr-8">
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp className="w-4 h-4 text-success" />
+              <p className="text-sm text-muted-foreground">Income</p>
             </div>
-            <p className="text-3xl font-bold text-foreground mb-2">
+            <p className="text-3xl font-semibold text-foreground tracking-tight">
               ${currentMonth.income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
-            {previousMonth && (
-              <div className="flex items-center gap-1">
-                {incomeChange === null ? (
-                  <span className="text-sm font-medium text-muted-foreground">New data</span>
-                ) : (
-                  <>
-                    {incomeChange >= 0 ? <ArrowUpRight className="w-4 h-4 text-success" /> : <ArrowDownRight className="w-4 h-4 text-destructive" />}
-                    <span className={`text-sm font-medium ${incomeChange >= 0 ? 'text-success' : 'text-destructive'}`}>
-                      {Math.abs(incomeChange).toFixed(1)}% vs last month
-                    </span>
-                  </>
-                )}
+            {previousMonth && incomeChange !== null && (
+              <div className="flex items-center gap-1 mt-1">
+                {incomeChange >= 0
+                  ? <ArrowUpRight className="w-3.5 h-3.5 text-success" />
+                  : <ArrowDownRight className="w-3.5 h-3.5 text-destructive" />}
+                <span className={`text-xs ${incomeChange >= 0 ? 'text-success' : 'text-destructive'}`}>
+                  {Math.abs(incomeChange).toFixed(1)}% vs last month
+                </span>
               </div>
             )}
           </div>
 
           {/* Expenses */}
-          <div className="bg-card rounded-xl border border-border shadow-sm p-6">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-muted-foreground">Expenses</p>
-              <div className="p-2 bg-destructive/10 rounded-lg">
-                <TrendingDown className="w-5 h-5 text-destructive" />
-              </div>
+          <div className="px-8">
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingDown className="w-4 h-4 text-destructive" />
+              <p className="text-sm text-muted-foreground">Expenses</p>
             </div>
-            <p className="text-3xl font-bold text-foreground mb-2">
+            <p className="text-3xl font-semibold text-foreground tracking-tight">
               ${currentMonth.expenses.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
-            {previousMonth && (
-              <div className="flex items-center gap-1">
-                {expenseChange === null ? (
-                  <span className="text-sm font-medium text-muted-foreground">New data</span>
-                ) : (
-                  <>
-                    {expenseChange >= 0 ? <ArrowUpRight className="w-4 h-4 text-destructive" /> : <ArrowDownRight className="w-4 h-4 text-success" />}
-                    <span className={`text-sm font-medium ${expenseChange >= 0 ? 'text-destructive' : 'text-success'}`}>
-                      {Math.abs(expenseChange).toFixed(1)}% vs last month
-                    </span>
-                  </>
-                )}
+            {previousMonth && expenseChange !== null && (
+              <div className="flex items-center gap-1 mt-1">
+                {expenseChange >= 0
+                  ? <ArrowUpRight className="w-3.5 h-3.5 text-destructive" />
+                  : <ArrowDownRight className="w-3.5 h-3.5 text-success" />}
+                <span className={`text-xs ${expenseChange >= 0 ? 'text-destructive' : 'text-success'}`}>
+                  {Math.abs(expenseChange).toFixed(1)}% vs last month
+                </span>
               </div>
             )}
           </div>
 
           {/* Net */}
-          <div className="bg-card rounded-xl border border-border shadow-sm p-6">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-medium text-muted-foreground">Net</p>
-              <div className={`p-2 rounded-lg ${currentMonth.net >= 0 ? 'bg-success/10' : 'bg-destructive/10'}`}>
-                <DollarSign className={`w-5 h-5 ${currentMonth.net >= 0 ? 'text-success' : 'text-destructive'}`} />
-              </div>
+          <div className="pl-8">
+            <div className="flex items-center gap-2 mb-1">
+              <DollarSign className="w-4 h-4 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">Net</p>
             </div>
-            <p className={`text-3xl font-bold mb-2 ${currentMonth.net >= 0 ? 'text-success' : 'text-destructive'}`}>
+            <p className={`text-3xl font-semibold tracking-tight ${currentMonth.net >= 0 ? 'text-success' : 'text-destructive'}`}>
               {currentMonth.net >= 0 ? '+' : '-'}${Math.abs(currentMonth.net).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
-            {previousMonth && (
-              <div className="flex items-center gap-1">
-                {netChange === null ? (
-                  <span className="text-sm font-medium text-muted-foreground">New data</span>
-                ) : (
-                  <>
-                    {netChange >= 0 ? <ArrowUpRight className="w-4 h-4 text-success" /> : <ArrowDownRight className="w-4 h-4 text-destructive" />}
-                    <span className={`text-sm font-medium ${netChange >= 0 ? 'text-success' : 'text-destructive'}`}>
-                      {Math.abs(netChange).toFixed(1)}% vs last month
-                    </span>
-                  </>
-                )}
+            {previousMonth && netChange !== null && (
+              <div className="flex items-center gap-1 mt-1">
+                {netChange >= 0
+                  ? <ArrowUpRight className="w-3.5 h-3.5 text-success" />
+                  : <ArrowDownRight className="w-3.5 h-3.5 text-destructive" />}
+                <span className={`text-xs ${netChange >= 0 ? 'text-success' : 'text-destructive'}`}>
+                  {Math.abs(netChange).toFixed(1)}% vs last month
+                </span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Spending Heatmap */}
+        {/* Divider */}
+        <div className="border-t border-border/60" />
+
+        {/* Spending Heatmap — no wrapper card */}
         <SpendingHeatmap selectedMonth={selectedMonth} />
 
-        {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <SectionCard title="Spending Trends (6 Months)">
-            <div style={{ height: 280 }}>
+        {/* Divider */}
+        <div className="border-t border-border/60" />
+
+        {/* Charts Row — no card wrappers */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+          <div>
+            <p className="text-sm font-medium text-muted-foreground mb-4">Spending Trends · 6 Months</p>
+            <div style={{ height: 260 }}>
               <ResponsiveLine
                 data={trendLineData}
                 theme={nivoTheme}
@@ -240,10 +227,11 @@ export default function Dashboard() {
                 legends={[{ anchor: 'bottom', direction: 'row', translateY: 40, itemWidth: 80, itemHeight: 14, symbolSize: 10, symbolShape: 'circle' }]}
               />
             </div>
-          </SectionCard>
+          </div>
 
-          <SectionCard title="Top Expense Categories">
-            <div style={{ height: 280 }}>
+          <div>
+            <p className="text-sm font-medium text-muted-foreground mb-4">Top Expense Categories</p>
+            <div style={{ height: 260 }}>
               <ResponsivePie
                 data={pieData}
                 theme={nivoTheme}
@@ -268,12 +256,16 @@ export default function Dashboard() {
                 legends={[{ anchor: 'bottom', direction: 'row', translateY: 48, itemWidth: 90, itemHeight: 14, symbolSize: 10, symbolShape: 'circle' }]}
               />
             </div>
-          </SectionCard>
+          </div>
         </div>
 
-        {/* Recent Transactions */}
-        <SectionCard title="Recent Transactions">
-          <div className="divide-y divide-border">
+        {/* Divider */}
+        <div className="border-t border-border/60" />
+
+        {/* Recent Transactions — plain list */}
+        <div>
+          <p className="text-sm font-medium text-muted-foreground mb-4">Recent Transactions</p>
+          <div className="divide-y divide-border/60">
             {recentTransactions.slice(0, 5).map((transaction) => {
               let dateDisplay = 'Invalid date';
               try {
@@ -281,21 +273,22 @@ export default function Dashboard() {
                 if (!isNaN(parsed.getTime())) dateDisplay = format(parsed, 'MMM d, yyyy');
               } catch (e) {}
               return (
-                <div key={transaction.id} className="py-4 flex items-center justify-between hover:bg-muted/30 rounded px-2 -mx-2">
+                <div key={transaction.id} className="py-3 flex items-center justify-between hover:bg-muted/20 rounded-md px-2 -mx-2 transition-colors">
                   <div className="flex-1">
-                    <p className="font-medium text-foreground">{transaction.description}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {dateDisplay} • {transaction.category_name || 'Uncategorized'}
+                    <p className="font-medium text-foreground text-sm">{transaction.description}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {dateDisplay} · {transaction.category_name || 'Uncategorized'}
                     </p>
                   </div>
-                  <p className={`text-lg font-semibold ${transaction.type === 'income' ? 'text-success' : 'text-destructive'}`}>
+                  <p className={`text-sm font-semibold ${transaction.type === 'income' ? 'text-success' : 'text-foreground'}`}>
                     {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toFixed(2)}
                   </p>
                 </div>
               );
             })}
           </div>
-        </SectionCard>
+        </div>
+
       </div>
     </div>
   );

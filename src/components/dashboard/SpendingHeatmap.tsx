@@ -51,11 +51,9 @@ export default function SpendingHeatmap({ selectedMonth }: Props) {
 
   if (isLoading) {
     return (
-      <div className="bg-card rounded-lg shadow-sm p-4 sm:p-6">
-        <h2 className="text-base sm:text-lg font-semibold text-foreground mb-4">
-          Daily Spending Activity
-        </h2>
-        <div className="animate-pulse h-32 sm:h-40 bg-muted rounded"></div>
+      <div>
+        <p className="text-sm font-medium text-muted-foreground mb-4">Daily Spending Activity</p>
+        <div className="animate-pulse h-32 sm:h-40 bg-muted/50 rounded"></div>
       </div>
     );
   }
@@ -124,12 +122,8 @@ export default function SpendingHeatmap({ selectedMonth }: Props) {
   ];
 
   return (
-    <div className="bg-card rounded-lg shadow-sm p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold text-foreground">
-          Daily Spending Activity
-        </h2>
-      </div>
+    <div>
+      <p className="text-sm font-medium text-muted-foreground mb-4">Daily Spending Activity</p>
 
       <div className="flex justify-center">
         <div className="inline-block">
