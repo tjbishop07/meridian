@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { FormField } from '@/components/ui/FormField';
+import { Label } from '@/components/ui/label';
 
 interface TransactionFormProps {
   transaction?: Transaction;
@@ -17,7 +17,8 @@ interface TransactionFormProps {
   onCancel: () => void;
 }
 
-const selectClass = 'w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-ring disabled:opacity-50 text-sm';
+const selectClass =
+  'w-full h-9 px-3 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50';
 
 export default function TransactionForm({ transaction, onSubmit, onCancel }: TransactionFormProps) {
   const { accounts } = useAccounts();
@@ -25,7 +26,6 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
   const { tags, loadTags } = useTags();
 
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
-
   const [formData, setFormData] = useState<CreateTransactionInput>({
     account_id: transaction?.account_id || 0,
     category_id: transaction?.category_id || undefined,
@@ -38,7 +38,6 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
     notes: transaction?.notes || '',
     to_account_id: undefined,
   });
-
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,26 +56,13 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
     e.preventDefault();
     setError(null);
 
-    if (!formData.account_id) {
-      setError('Please select an account');
-      return;
-    }
-    if (formData.type === 'transfer' && !formData.to_account_id) {
-      setError('Please select a destination account for the transfer');
-      return;
-    }
-    if (formData.type === 'transfer' && formData.account_id === formData.to_account_id) {
-      setError('Source and destination accounts must be different');
-      return;
-    }
-    if (!formData.description.trim()) {
-      setError('Please enter a description');
-      return;
-    }
-    if (formData.amount <= 0) {
-      setError('Amount must be greater than 0');
-      return;
-    }
+    if (!formData.account_id) return setError('Please select an account');
+    if (formData.type === 'transfer' && !formData.to_account_id)
+      return setError('Please select a destination account');
+    if (formData.type === 'transfer' && formData.account_id === formData.to_account_id)
+      return setError('Source and destination accounts must be different');
+    if (!formData.description.trim()) return setError('Please enter a description');
+    if (formData.amount <= 0) return setError('Amount must be greater than 0');
 
     setIsSubmitting(true);
     try {
@@ -89,86 +75,84 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      {/* Error */}
       {error && (
-        <div className="bg-destructive/10 border border-destructive/30 text-destructive px-4 py-3 rounded-lg text-sm">
+        <p className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
           {error}
-        </div>
+        </p>
       )}
 
-      {/* Type Toggle */}
-      <div>
-        <label className="block text-sm font-medium text-muted-foreground mb-2">Transaction Type</label>
-        <div className="flex gap-2">
-          {(['expense', 'income', 'transfer'] as const).map((type) => (
-            <button
-              key={type}
-              type="button"
-              onClick={() => setFormData({ ...formData, type, category_id: undefined, to_account_id: undefined })}
-              className={cn(
-                'flex-1 px-4 py-2 rounded-lg font-medium capitalize transition-colors text-sm',
-                formData.type === type
-                  ? type === 'expense'
-                    ? 'bg-destructive text-destructive-foreground'
-                    : type === 'income'
-                    ? 'bg-success text-white'
-                    : 'bg-primary text-primary-foreground'
-                  : 'bg-muted text-muted-foreground hover:bg-muted/70'
-              )}
-            >
-              {type}
-            </button>
-          ))}
-        </div>
+      {/* Type segment */}
+      <div className="flex rounded-md border border-border overflow-hidden">
+        {(['expense', 'income', 'transfer'] as const).map((type) => (
+          <button
+            key={type}
+            type="button"
+            onClick={() => setFormData({ ...formData, type, category_id: undefined, to_account_id: undefined })}
+            className={cn(
+              'flex-1 py-2 text-sm font-medium capitalize transition-colors border-r border-border last:border-r-0',
+              formData.type === type
+                ? type === 'expense'
+                  ? 'bg-destructive text-destructive-foreground'
+                  : type === 'income'
+                  ? 'bg-success text-success-foreground'
+                  : 'bg-primary text-primary-foreground'
+                : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
+            )}
+          >
+            {type}
+          </button>
+        ))}
       </div>
 
       {/* Account */}
-      <FormField label={formData.type === 'transfer' ? 'From Account' : 'Account'} required>
+      <div className="space-y-1.5">
+        <Label>{formData.type === 'transfer' ? 'From Account' : 'Account'}</Label>
         <select
           value={formData.account_id}
           onChange={(e) => setFormData({ ...formData, account_id: Number(e.target.value) })}
           className={selectClass}
           required
         >
-          <option value={0}>Select an account...</option>
-          {accounts.map((account) => (
-            <option key={account.id} value={account.id}>
-              {account.name} ({account.institution})
-            </option>
+          <option value={0}>Select account…</option>
+          {accounts.map((a) => (
+            <option key={a.id} value={a.id}>{a.name} — {a.institution}</option>
           ))}
         </select>
-      </FormField>
+      </div>
 
-      {/* To Account (for transfers) */}
+      {/* To Account (transfers) */}
       {formData.type === 'transfer' && (
-        <FormField label="To Account" required>
+        <div className="space-y-1.5">
+          <Label>To Account</Label>
           <select
             value={formData.to_account_id || 0}
             onChange={(e) => setFormData({ ...formData, to_account_id: Number(e.target.value) })}
             className={selectClass}
             required
           >
-            <option value={0}>Select destination account...</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.name} ({account.institution})
-              </option>
+            <option value={0}>Select destination…</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>{a.name} — {a.institution}</option>
             ))}
           </select>
-        </FormField>
+        </div>
       )}
 
-      {/* Date & Amount */}
+      {/* Date + Amount */}
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="Date" required>
+        <div className="space-y-1.5">
+          <Label>Date</Label>
           <Input
             type="date"
             value={formData.date}
             onChange={(e) => setFormData({ ...formData, date: e.target.value })}
             required
           />
-        </FormField>
-        <FormField label="Amount" required>
+        </div>
+        <div className="space-y-1.5">
+          <Label>Amount</Label>
           <Input
             type="number"
             step="0.01"
@@ -177,23 +161,25 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
             onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
             required
           />
-        </FormField>
+        </div>
       </div>
 
       {/* Description */}
-      <FormField label="Description" required>
+      <div className="space-y-1.5">
+        <Label>Description</Label>
         <Input
           type="text"
           value={formData.description}
           onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          placeholder="e.g., Grocery shopping"
+          placeholder="e.g. Grocery shopping"
           required
         />
-      </FormField>
+      </div>
 
-      {/* Category (not shown for transfers) */}
+      {/* Category */}
       {formData.type !== 'transfer' && (
-        <FormField label="Category">
+        <div className="space-y-1.5">
+          <Label>Category</Label>
           <select
             value={formData.category_id || ''}
             onChange={(e) =>
@@ -202,17 +188,16 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
             className={selectClass}
           >
             <option value="">Uncategorized</option>
-            {filteredCategories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
+            {filteredCategories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
-        </FormField>
+        </div>
       )}
 
       {/* Status */}
-      <FormField label="Status">
+      <div className="space-y-1.5">
+        <Label>Status</Label>
         <select
           value={formData.status}
           onChange={(e) =>
@@ -224,71 +209,67 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
           <option value="cleared">Cleared</option>
           <option value="reconciled">Reconciled</option>
         </select>
-      </FormField>
+      </div>
 
       {/* Notes */}
-      <FormField label="Notes">
+      <div className="space-y-1.5">
+        <Label>Notes</Label>
         <Textarea
           value={formData.notes || ''}
           onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
           rows={3}
-          placeholder="Optional notes..."
+          placeholder="Optional notes…"
         />
-      </FormField>
+      </div>
 
       {/* Tags */}
-      <div>
-        <label className="block text-sm font-medium text-muted-foreground mb-2">Tags</label>
-        <div className="flex flex-wrap gap-2 mb-2">
-          {selectedTagIds.map((tagId) => {
-            const tag = tags.find((t) => t.id === tagId);
-            if (!tag) return null;
-            return (
-              <span
-                key={tagId}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
-                style={{ backgroundColor: tag.color, color: '#fff', borderColor: tag.color }}
-              >
-                {tag.name}
-                <button
-                  type="button"
-                  onClick={() => setSelectedTagIds((prev) => prev.filter((id) => id !== tagId))}
-                  className="opacity-80 hover:opacity-100"
+      <div className="space-y-2">
+        <Label>Tags</Label>
+        {selectedTagIds.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {selectedTagIds.map((tagId) => {
+              const tag = tags.find((t) => t.id === tagId);
+              if (!tag) return null;
+              return (
+                <span
+                  key={tagId}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                  style={{ backgroundColor: tag.color + '33', color: tag.color }}
                 >
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            );
-          })}
-          {selectedTagIds.length === 0 && (
-            <span className="text-sm text-muted-foreground">No tags assigned</span>
-          )}
-        </div>
+                  {tag.name}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTagIds((prev) => prev.filter((id) => id !== tagId))}
+                    className="opacity-70 hover:opacity-100"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        )}
         <select
           value=""
           onChange={(e) => {
             const id = Number(e.target.value);
-            if (id && !selectedTagIds.includes(id)) {
-              setSelectedTagIds((prev) => [...prev, id]);
-            }
+            if (id && !selectedTagIds.includes(id)) setSelectedTagIds((prev) => [...prev, id]);
           }}
           className={selectClass}
         >
-          <option value="">Add a tag...</option>
+          <option value="">Add a tag…</option>
           {tags
             .filter((t) => !selectedTagIds.includes(t.id))
             .map((tag) => (
-              <option key={tag.id} value={tag.id}>
-                {tag.name}
-              </option>
+              <option key={tag.id} value={tag.id}>{tag.name}</option>
             ))}
         </select>
       </div>
 
-      {/* Actions */}
-      <div className="flex gap-3 pt-4">
+      {/* Actions — sticky at bottom */}
+      <div className="sticky bottom-0 bg-card pt-4 pb-2 border-t border-border mt-2 flex gap-2">
         <Button type="submit" disabled={isSubmitting} className="flex-1">
-          {isSubmitting ? 'Saving...' : transaction ? 'Update Transaction' : 'Create Transaction'}
+          {isSubmitting ? 'Saving…' : 'Save Changes'}
         </Button>
         <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           Cancel

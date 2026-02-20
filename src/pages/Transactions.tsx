@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
-import { Plus, Search, Filter, Edit2, Trash2 } from 'lucide-react';
+import { useEffect, useState, useMemo } from 'react';
+import { Search, Filter, Edit2, Trash2 } from 'lucide-react';
+import { Sparkline } from '@/components/ui/Sparkline';
 import toast from 'react-hot-toast';
 import { useTransactions } from '../hooks/useTransactions';
 import { useAccounts } from '../hooks/useAccounts';
 import { useCategories } from '../hooks/useCategories';
 import { useTags } from '../hooks/useTags';
-import Modal from '../components/ui/Modal';
 import TransactionForm from '../components/transactions/TransactionForm';
 import type { Transaction, CreateTransactionInput, Tag } from '../types';
 import { format, parseISO } from 'date-fns';
@@ -19,7 +19,6 @@ export default function Transactions() {
     isLoading,
     error,
     loadTransactions,
-    createTransaction,
     updateTransaction,
     deleteTransaction,
   } = useTransactions();
@@ -28,7 +27,6 @@ export default function Transactions() {
   const { categories, loadCategories } = useCategories();
   const { tags, loadTags, setTagsForTransaction } = useTags();
 
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
@@ -64,15 +62,6 @@ export default function Transactions() {
   useEffect(() => {
     if (transactions.length > 0) refreshTagMap();
   }, [transactions.length > 0]);
-
-  const handleCreate = async (data: CreateTransactionInput, tagIds: number[]) => {
-    const tx = await createTransaction(data);
-    if (tx && tagIds.length > 0) {
-      await setTagsForTransaction((tx as any).id, tagIds);
-      await refreshTagMap();
-    }
-    setIsCreateModalOpen(false);
-  };
 
   const handleUpdate = async (data: CreateTransactionInput, tagIds: number[]) => {
     if (!editingTransaction) return;
@@ -138,6 +127,41 @@ export default function Transactions() {
     setCurrentPage(1);
   }, [searchQuery, selectedMonth, selectedAccountId, showUncategorized, selectedTagId]);
 
+  // Latest running balance per account from the most recent transaction that has one
+  const latestBalanceByAccount = useMemo(() => {
+    const map = new Map<number, number>();
+    const sorted = [...transactions].sort((a, b) => b.date.localeCompare(a.date));
+    for (const tx of sorted) {
+      if (!map.has(tx.account_id) && tx.balance != null) {
+        map.set(tx.account_id, tx.balance);
+      }
+    }
+    return map;
+  }, [transactions]);
+
+  // Sparkline: last balance per day per account, last 2 months
+  const sparklineByAccount = useMemo(() => {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 2);
+    const cutoffStr = cutoff.toISOString().split('T')[0];
+
+    const map = new Map<number, number[]>();
+    const sorted = [...transactions]
+      .filter((tx) => tx.balance != null && tx.date >= cutoffStr)
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    // Last balance per calendar day per account
+    const dayMap = new Map<number, Map<string, number>>();
+    for (const tx of sorted) {
+      if (!dayMap.has(tx.account_id)) dayMap.set(tx.account_id, new Map());
+      dayMap.get(tx.account_id)!.set(tx.date, tx.balance!);
+    }
+    for (const [accountId, days] of dayMap) {
+      map.set(accountId, Array.from(days.values()));
+    }
+    return map;
+  }, [transactions]);
+
   if (error) {
     return (
       <div className="flex-1 p-6">
@@ -150,14 +174,9 @@ export default function Transactions() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative overflow-hidden">
       {/* Toolbar */}
       <div className="px-4 py-3 flex gap-2 items-center border-b border-border/60 flex-shrink-0">
-        <Button size="sm" onClick={() => setIsCreateModalOpen(true)}>
-          <Plus className="w-4 h-4 mr-1.5" />
-          Add
-        </Button>
-
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <Input
@@ -212,6 +231,55 @@ export default function Transactions() {
         </button>
       </div>
 
+      {/* Account balances stats row */}
+      {accounts.filter((a) => a.is_active).length > 0 && (
+        <div className="flex-shrink-0 border-b border-border/60 px-6 py-5 overflow-x-auto">
+          <div className="flex divide-x divide-border min-w-max">
+            {accounts.filter((a) => a.is_active).map((account) => {
+              const balance = latestBalanceByAccount.get(account.id);
+              const sparkData = sparklineByAccount.get(account.id) ?? [];
+              const isCreditCard = account.type === 'credit_card';
+              const isNegative = balance != null && balance < 0;
+              const balanceColor = balance == null
+                ? 'text-muted-foreground'
+                : isCreditCard
+                  ? (isNegative ? 'text-destructive' : 'text-success')
+                  : (isNegative ? 'text-destructive' : 'text-foreground');
+
+              // Trend: compare first vs last balance in sparkline
+              const trending = sparkData.length >= 2
+                ? sparkData[sparkData.length - 1] - sparkData[0]
+                : 0;
+              const sparkColor = sparkData.length < 2
+                ? 'var(--muted-foreground)'
+                : trending > 0
+                ? 'var(--success)'
+                : trending < 0
+                ? 'var(--destructive)'
+                : 'var(--muted-foreground)';
+
+              return (
+                <div key={account.id} className="pr-8 pl-8 first:pl-0">
+                  <p className="text-xs text-muted-foreground mb-1">{account.name}</p>
+                  <div className="flex items-center gap-3">
+                    <p className={`text-2xl font-semibold tracking-tight tabular-nums ${balanceColor}`}>
+                      {balance == null
+                        ? '—'
+                        : `${isNegative ? '-' : ''}$${Math.abs(balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      }
+                    </p>
+                    <Sparkline data={sparkData} color={sparkColor} width={88} height={32} />
+                  </div>
+                  {account.institution && (
+                    <p className="text-xs text-muted-foreground mt-0.5">{account.institution}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Table area */}
       <div className="flex-1 overflow-hidden flex flex-col">
         {isLoading ? (
@@ -229,9 +297,7 @@ export default function Transactions() {
                   : 'No transactions yet'}
               </p>
               {!searchQuery && !selectedAccountId && !selectedMonth && (
-                <button onClick={() => setIsCreateModalOpen(true)} className="text-sm text-primary hover:underline">
-                  Add your first transaction
-                </button>
+                <p className="text-sm text-muted-foreground/60">Import transactions to get started</p>
               )}
             </div>
           </div>
@@ -423,19 +489,41 @@ export default function Transactions() {
         )}
       </div>
 
-      <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="Add Transaction" size="lg">
-        <TransactionForm onSubmit={handleCreate} onCancel={() => setIsCreateModalOpen(false)} />
-      </Modal>
+      {/* Overlay — scoped to this page */}
+      <div
+        className={`absolute inset-0 z-40 bg-black/40 transition-opacity duration-300 ${
+          editingTransaction ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={() => setEditingTransaction(null)}
+      />
 
-      <Modal isOpen={!!editingTransaction} onClose={() => setEditingTransaction(null)} title="Edit Transaction" size="lg">
-        {editingTransaction && (
-          <TransactionForm
-            transaction={editingTransaction}
-            onSubmit={handleUpdate}
-            onCancel={() => setEditingTransaction(null)}
-          />
-        )}
-      </Modal>
+      {/* Edit drawer — slides in from the left */}
+      <div
+        className={`absolute inset-y-0 left-0 z-50 w-[420px] bg-card border-r border-border flex flex-col transition-transform duration-300 ease-in-out ${
+          editingTransaction ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
+          <h2 className="text-sm font-semibold text-foreground">Edit Transaction</h2>
+          <button
+            onClick={() => setEditingTransaction(null)}
+            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {editingTransaction && (
+            <TransactionForm
+              transaction={editingTransaction}
+              onSubmit={handleUpdate}
+              onCancel={() => setEditingTransaction(null)}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
