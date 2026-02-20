@@ -319,26 +319,20 @@ export default function Transactions() {
           </div>
         ) : (
           <>
-            {/* Fixed thead */}
-            <div className="overflow-x-auto flex-shrink-0 border-b border-border/60">
+            {/* Table with sticky header */}
+            <div className="flex-1 overflow-auto">
               <table className="min-w-full table-fixed">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-2.5 text-left text-xs text-muted-foreground font-medium w-28">Date</th>
-                    <th className="px-4 py-2.5 text-left text-xs text-muted-foreground font-medium">Description</th>
-                    <th className="px-4 py-2.5 text-left text-xs text-muted-foreground font-medium w-44">Category</th>
-                    <th className="px-4 py-2.5 text-left text-xs text-muted-foreground font-medium w-36">Account</th>
-                    <th className="px-4 py-2.5 text-right text-xs text-muted-foreground font-medium w-28">Amount</th>
-                    <th className="px-4 py-2.5 text-right text-xs text-muted-foreground font-medium w-28">Balance</th>
-                    <th className="w-16" />
+                <thead className="sticky top-0 z-10">
+                  <tr className="border-b border-border/60">
+                    <th className="bg-card px-4 py-2.5 text-left text-xs text-muted-foreground font-medium w-28">Date</th>
+                    <th className="bg-card px-4 py-2.5 text-left text-xs text-muted-foreground font-medium">Description</th>
+                    <th className="bg-card px-4 py-2.5 text-left text-xs text-muted-foreground font-medium w-44">Category</th>
+                    <th className="bg-card px-4 py-2.5 text-left text-xs text-muted-foreground font-medium w-36">Account</th>
+                    <th className="bg-card px-4 py-2.5 text-right text-xs text-muted-foreground font-medium w-28">Amount</th>
+                    <th className="bg-card px-4 py-2.5 text-right text-xs text-muted-foreground font-medium w-28">Balance</th>
+                    <th className="bg-card w-16" />
                   </tr>
                 </thead>
-              </table>
-            </div>
-
-            {/* Scrollable tbody */}
-            <div className="flex-1 overflow-y-auto">
-              <table className="min-w-full table-fixed">
                 <tbody className="divide-y divide-border/50">
                   {paginatedTransactions.map((transaction) => {
                     const isUncategorized = !transaction.category_id && transaction.type !== 'transfer';
@@ -466,6 +460,7 @@ export default function Transactions() {
             </div>
 
             {/* Pagination */}
+
             <div className="flex items-center justify-between px-4 pt-2.5 pb-6 border-t border-border/60 flex-shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-sm text-muted-foreground">

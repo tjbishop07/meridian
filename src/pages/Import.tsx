@@ -1,11 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle, Check } from 'lucide-react';
 import { useAccounts } from '../hooks/useAccounts';
 import { Automation } from './Automation';
 import PageHeader from '../components/layout/PageHeader';
 import type { CSVFormat, ImportPreview, ImportResult } from '../types';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
 type Step = 'select' | 'preview' | 'complete';
@@ -18,6 +23,12 @@ interface LocationState {
   source?: string;
 }
 
+const STEPS = [
+  { key: 'select', label: 'Select File' },
+  { key: 'preview', label: 'Preview' },
+  { key: 'complete', label: 'Complete' },
+] as const;
+
 export default function Import() {
   const { accounts, loadAccounts } = useAccounts();
   const location = useLocation();
@@ -27,7 +38,7 @@ export default function Import() {
   );
   const [step, setStep] = useState<Step>('select');
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [selectedAccount, setSelectedAccount] = useState<number>(0);
+  const [selectedAccount, setSelectedAccount] = useState<string>('');
   const [detectedFormat, setDetectedFormat] = useState<CSVFormat | null>(null);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -64,7 +75,7 @@ export default function Import() {
       setIsLoading(true);
       setError(null);
       const previewData = await window.electron.invoke('import:preview', {
-        filePath: selectedFile, accountId: selectedAccount, format: detectedFormat,
+        filePath: selectedFile, accountId: Number(selectedAccount), format: detectedFormat,
       });
       setPreview(previewData);
       setStep('preview');
@@ -82,7 +93,7 @@ export default function Import() {
       setError(null);
       const fileName = selectedFile.split('/').pop() || 'import.csv';
       const importResult = await window.electron.invoke('import:execute', {
-        accountId: selectedAccount, rows: preview.rows, skipDuplicates,
+        accountId: Number(selectedAccount), rows: preview.rows, skipDuplicates,
         filename: fileName, format: detectedFormat?.name || 'Unknown',
       });
       setResult(importResult);
@@ -96,9 +107,11 @@ export default function Import() {
   };
 
   const reset = () => {
-    setStep('select'); setSelectedFile(null); setSelectedAccount(0);
+    setStep('select'); setSelectedFile(null); setSelectedAccount('');
     setDetectedFormat(null); setPreview(null); setResult(null); setError(null);
   };
+
+  const stepIndex = STEPS.findIndex(s => s.key === step);
 
   return (
     <div className="flex flex-col h-full">
@@ -128,217 +141,230 @@ export default function Import() {
       )}
 
       {importTab === 'manual' && (
-        <div className="flex-1 overflow-y-auto px-4 pb-4 max-w-4xl mx-auto w-full pt-4">
-          {error && (
-            <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4 mb-6 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
-              <div>
-                <p className="text-destructive font-medium">Error</p>
-                <p className="text-destructive/80 text-sm">{error}</p>
-              </div>
-            </div>
-          )}
+        <div className="flex-1 overflow-y-auto px-6 py-6">
+          <div className="max-w-2xl mx-auto space-y-6">
 
-          {/* Step Indicator */}
-          <div className="flex items-center justify-center mb-8">
-            <div className="flex items-center gap-4">
-              {[
-                { label: 'Select File', key: 'select' },
-                { label: 'Preview', key: 'preview' },
-                { label: 'Complete', key: 'complete' },
-              ].map((s, idx) => {
-                const stepIndex = ['select', 'preview', 'complete'].indexOf(step);
+            {/* Step indicator */}
+            <div className="flex items-center gap-2">
+              {STEPS.map((s, idx) => {
                 const isDone = stepIndex > idx;
                 const isActive = stepIndex === idx;
                 return (
                   <div key={s.key} className="flex items-center gap-2">
-                    {idx > 0 && <div className="w-12 h-px bg-border" />}
-                    <div
-                      className={cn(
-                        'w-8 h-8 rounded-full flex items-center justify-center font-medium text-sm',
-                        isDone ? 'bg-success text-success-foreground' :
+                    {idx > 0 && <div className="w-8 h-px bg-border" />}
+                    <div className="flex items-center gap-1.5">
+                      <div className={cn(
+                        'w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold transition-colors',
+                        isDone ? 'bg-primary text-primary-foreground' :
                         isActive ? 'bg-primary text-primary-foreground' :
                         'bg-muted text-muted-foreground'
-                      )}
-                    >
-                      {isDone ? <CheckCircle className="w-5 h-5" /> : idx + 1}
+                      )}>
+                        {isDone ? <Check className="w-3.5 h-3.5" /> : idx + 1}
+                      </div>
+                      <span className={cn(
+                        'text-sm',
+                        isActive ? 'text-foreground font-medium' : 'text-muted-foreground'
+                      )}>{s.label}</span>
                     </div>
-                    <span className="text-sm font-medium text-foreground/80">{s.label}</span>
                   </div>
                 );
               })}
             </div>
-          </div>
 
-          {/* Step Content */}
-          <div className="bg-card rounded-xl border border-border shadow-sm p-8">
-            {step === 'select' && (
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-foreground/80 mb-2">Select Account *</label>
-                  <select
-                    value={selectedAccount}
-                    onChange={(e) => setSelectedAccount(Number(e.target.value))}
-                    className="w-full px-4 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-ring"
-                  >
-                    <option value={0}>Choose an account...</option>
-                    {accounts.map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.name} - {account.institution}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-foreground/80 mb-2">CSV File</label>
-                  <button
-                    onClick={handleFileSelect}
-                    disabled={isLoading || !selectedAccount}
-                    className="w-full px-6 py-12 border-2 border-dashed border-border rounded-lg hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <div className="flex flex-col items-center gap-3">
-                      {selectedFile ? (
-                        <>
-                          <FileText className="w-12 h-12 text-success" />
-                          <div className="text-sm">
-                            <p className="font-medium text-foreground">{selectedFile.split('/').pop()}</p>
-                            {detectedFormat && (
-                              <p className="text-muted-foreground">Format: {detectedFormat.name} ({detectedFormat.institution})</p>
-                            )}
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-12 h-12 text-muted-foreground" />
-                          <p className="text-muted-foreground">
-                            {isLoading ? 'Reading file...' : 'Click to select CSV file'}
-                          </p>
-                        </>
-                      )}
-                    </div>
-                  </button>
-                </div>
-
-                {selectedFile && detectedFormat && (
-                  <Button onClick={handlePreview} disabled={isLoading} className="w-full">
-                    {isLoading ? 'Loading...' : 'Continue to Preview'}
-                  </Button>
-                )}
+            {/* Error */}
+            {error && (
+              <div className="flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+                <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                <p className="text-destructive">{error}</p>
               </div>
             )}
 
+            {/* Step: Select */}
+            {step === 'select' && (
+              <Card>
+                <CardContent className="pt-6 space-y-5">
+                  <div className="space-y-2">
+                    <Label>Account</Label>
+                    <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select an account…" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {accounts.map((account) => (
+                          <SelectItem key={account.id} value={String(account.id)}>
+                            {account.name} — {account.institution}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <Separator />
+
+                  <div className="space-y-2">
+                    <Label>CSV File</Label>
+                    <button
+                      onClick={handleFileSelect}
+                      disabled={isLoading || !selectedAccount}
+                      className={cn(
+                        'w-full rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors',
+                        'disabled:cursor-not-allowed disabled:opacity-50',
+                        selectedFile
+                          ? 'border-primary/40 bg-primary/5 hover:bg-primary/8'
+                          : 'border-border hover:border-primary/40 hover:bg-muted/40'
+                      )}
+                    >
+                      {selectedFile ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <FileText className="w-8 h-8 text-primary" />
+                          <p className="font-medium text-sm text-foreground">
+                            {selectedFile.split('/').pop()}
+                          </p>
+                          {detectedFormat && (
+                            <Badge variant="secondary" className="text-xs">
+                              {detectedFormat.name} · {detectedFormat.institution}
+                            </Badge>
+                          )}
+                          <p className="text-xs text-muted-foreground mt-1">Click to change file</p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2">
+                          <Upload className="w-8 h-8 text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground">
+                            {isLoading ? 'Reading file…' : 'Click to select a CSV file'}
+                          </p>
+                        </div>
+                      )}
+                    </button>
+                  </div>
+
+                  {selectedFile && detectedFormat && (
+                    <Button onClick={handlePreview} disabled={isLoading} className="w-full">
+                      {isLoading ? 'Loading…' : 'Continue to Preview'}
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Step: Preview */}
             {step === 'preview' && preview && (
-              <div className="space-y-6">
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-primary/10 rounded-lg p-4">
-                    <p className="text-sm text-primary font-medium">Total Rows</p>
-                    <p className="text-2xl font-bold text-foreground">{preview.rows.length}</p>
-                  </div>
-                  <div className="bg-warning/10 rounded-lg p-4">
-                    <p className="text-sm text-warning font-medium">Duplicates</p>
-                    <p className="text-2xl font-bold text-foreground">{preview.duplicates.length}</p>
-                  </div>
-                  <div className="bg-success/10 rounded-lg p-4">
-                    <p className="text-sm text-success font-medium">To Import</p>
-                    <p className="text-2xl font-bold text-foreground">{preview.rows.length - preview.duplicates.length}</p>
-                  </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { label: 'Total Rows', value: preview.rows.length, color: 'text-foreground' },
+                    { label: 'Duplicates', value: preview.duplicates.length, color: 'text-amber-500' },
+                    { label: 'To Import', value: preview.rows.length - preview.duplicates.length, color: 'text-emerald-500' },
+                  ].map(({ label, value, color }) => (
+                    <Card key={label}>
+                      <CardContent className="pt-4 pb-4">
+                        <p className="text-xs text-muted-foreground mb-1">{label}</p>
+                        <p className={cn('text-2xl font-bold', color)}>{value}</p>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
 
                 {preview.duplicates.length > 0 && (
-                  <div className="bg-warning/10 border border-warning/30 rounded-lg p-4">
-                    <p className="text-warning-foreground font-medium mb-1">Found {preview.duplicates.length} potential duplicates</p>
-                    <p className="text-warning-foreground/70 text-sm">These transactions appear to already exist and will be skipped.</p>
+                  <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm">
+                    <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                    <p className="text-amber-600 dark:text-amber-400">
+                      {preview.duplicates.length} duplicate{preview.duplicates.length !== 1 ? 's' : ''} found — these will be skipped.
+                    </p>
                   </div>
                 )}
 
                 {preview.errors.length > 0 && (
-                  <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-4">
-                    <p className="text-destructive font-medium mb-2">{preview.errors.length} rows have errors</p>
-                    <ul className="text-destructive/80 text-sm space-y-1">
-                      {preview.errors.slice(0, 5).map((err, i) => (
-                        <li key={i}>Row {err.row}: {err.error}</li>
+                  <div className="flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+                    <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                    <div className="text-destructive space-y-0.5">
+                      <p className="font-medium">{preview.errors.length} rows have errors</p>
+                      {preview.errors.slice(0, 3).map((err, i) => (
+                        <p key={i} className="text-xs opacity-80">Row {err.row}: {err.error}</p>
                       ))}
-                    </ul>
+                    </div>
                   </div>
                 )}
 
-                <div>
-                  <h3 className="text-sm font-medium text-foreground/80 mb-2">
-                    Transactions to Import ({preview.rows.length} total)
-                  </h3>
-                  <div className="border border-border rounded-lg overflow-hidden">
-                    <div className="max-h-96 overflow-y-auto">
-                      <table className="min-w-full divide-y divide-border">
-                        <thead className="bg-muted sticky top-0">
+                <Card>
+                  <CardContent className="p-0">
+                    <div className="px-4 py-3 border-b border-border">
+                      <p className="text-sm font-medium">
+                        Transactions <span className="text-muted-foreground font-normal">({preview.rows.length})</span>
+                      </p>
+                    </div>
+                    <div className="max-h-80 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
                           <tr>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">#</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Date</th>
                             <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Description</th>
-                            <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Category</th>
+                            <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground hidden sm:table-cell">Category</th>
                             <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Amount</th>
                           </tr>
                         </thead>
-                        <tbody className="bg-card divide-y divide-border">
+                        <tbody className="divide-y divide-border">
                           {preview.rows.map((row, i) => (
-                            <tr key={i} className="hover:bg-muted/50">
-                              <td className="px-4 py-2 text-sm text-muted-foreground">{i + 1}</td>
-                              <td className="px-4 py-2 text-sm text-foreground whitespace-nowrap">{row.date}</td>
-                              <td className="px-4 py-2 text-sm text-foreground">{row.description}</td>
-                              <td className="px-4 py-2 text-sm text-muted-foreground">{row.category || '-'}</td>
-                              <td className="px-4 py-2 text-sm text-right font-medium whitespace-nowrap">
-                                <span className={row.amount < 0 ? 'text-destructive' : 'text-success'}>
-                                  {row.amount < 0 ? '-' : '+'}${Math.abs(row.amount).toFixed(2)}
-                                </span>
+                            <tr key={i} className="hover:bg-muted/40 transition-colors">
+                              <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{row.date}</td>
+                              <td className="px-4 py-3 text-foreground max-w-[180px] truncate">{row.description}</td>
+                              <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{row.category || '—'}</td>
+                              <td className={cn(
+                                'px-4 py-3 text-right font-medium whitespace-nowrap tabular-nums',
+                                row.amount < 0 ? 'text-destructive' : 'text-emerald-500'
+                              )}>
+                                {row.amount < 0 ? '-' : '+'}${Math.abs(row.amount).toFixed(2)}
                               </td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
 
                 <div className="flex gap-3">
-                  <Button onClick={() => handleImport(true)} disabled={isLoading} className="flex-1">
-                    {isLoading ? 'Importing...' : 'Import Transactions'}
-                  </Button>
                   <Button variant="outline" onClick={() => setStep('select')} disabled={isLoading}>
                     Back
                   </Button>
+                  <Button onClick={() => handleImport(true)} disabled={isLoading} className="flex-1">
+                    {isLoading ? 'Importing…' : 'Import Transactions'}
+                  </Button>
                 </div>
               </div>
             )}
 
+            {/* Step: Complete */}
             {step === 'complete' && result && (
-              <div className="text-center space-y-6">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-success/10 rounded-full">
-                  <CheckCircle className="w-10 h-10 text-success" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-foreground mb-2">Import Complete!</h2>
-                  <p className="text-muted-foreground">Your transactions have been successfully imported</p>
-                </div>
-                <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
-                  <div className="bg-success/10 rounded-lg p-4">
-                    <p className="text-sm text-success font-medium">Imported</p>
-                    <p className="text-3xl font-bold text-foreground">{result.imported}</p>
+              <Card>
+                <CardContent className="pt-8 pb-8 text-center space-y-6">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/10">
+                    <CheckCircle className="w-7 h-7 text-emerald-500" />
                   </div>
-                  <div className="bg-muted rounded-lg p-4">
-                    <p className="text-sm text-muted-foreground font-medium">Skipped</p>
-                    <p className="text-3xl font-bold text-foreground">{result.skipped}</p>
+                  <div>
+                    <h2 className="text-lg font-semibold text-foreground">Import complete</h2>
+                    <p className="text-sm text-muted-foreground mt-1">Your transactions have been added.</p>
                   </div>
-                </div>
-                <div className="flex gap-3 justify-center">
-                  <Button onClick={() => (window.location.hash = '#/transactions')}>
-                    View Transactions
-                  </Button>
-                  <Button variant="outline" onClick={reset}>
-                    Import Another File
-                  </Button>
-                </div>
-              </div>
+                  <div className="grid grid-cols-2 gap-3 max-w-xs mx-auto">
+                    <div className="rounded-lg bg-muted px-4 py-3">
+                      <p className="text-xs text-muted-foreground mb-1">Imported</p>
+                      <p className="text-2xl font-bold text-emerald-500">{result.imported}</p>
+                    </div>
+                    <div className="rounded-lg bg-muted px-4 py-3">
+                      <p className="text-xs text-muted-foreground mb-1">Skipped</p>
+                      <p className="text-2xl font-bold text-foreground">{result.skipped}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 justify-center">
+                    <Button variant="outline" onClick={reset}>Import Another</Button>
+                    <Button onClick={() => (window.location.hash = '#/transactions')}>
+                      View Transactions
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
             )}
+
           </div>
         </div>
       )}

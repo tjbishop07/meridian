@@ -93,7 +93,7 @@ export function RecordingCard({
   return (
     <tr className={cn('transition-colors', isPlaying ? 'bg-primary/5' : 'hover:bg-muted/50')} style={{ position: 'relative' }}>
       {/* Name */}
-      <td className="whitespace-nowrap">
+      <td className="px-4 py-3 whitespace-nowrap">
         <div className="flex items-center gap-2">
           <img
             src={getFaviconUrl(recording.url)}
@@ -113,7 +113,7 @@ export function RecordingCard({
       </td>
 
       {/* Account */}
-      <td>
+      <td className="px-4 py-3">
         {recording.account_name ? (
           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-success/10 text-success font-medium">
             {recording.account_name}
@@ -126,12 +126,12 @@ export function RecordingCard({
       </td>
 
       {/* Steps */}
-      <td className="text-sm text-muted-foreground text-center">
+      <td className="px-4 py-3 text-sm text-muted-foreground text-center">
         {recording.steps.length}
       </td>
 
       {/* Last Run */}
-      <td className="text-sm">
+      <td className="px-4 py-3 text-sm">
         {recording.last_run_at ? (
           <span className="text-success">{formatLastRunTime(recording.last_run_at)}</span>
         ) : (
@@ -140,7 +140,7 @@ export function RecordingCard({
       </td>
 
       {/* Status/Progress */}
-      <td>
+      <td className="px-4 py-3">
         {isPlaying ? (
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-xs">
@@ -164,7 +164,7 @@ export function RecordingCard({
       </td>
 
       {/* Actions */}
-      <td>
+      <td className="px-4 py-3">
         <div className="flex items-center justify-end gap-1">
           <Button
             size="sm"
