@@ -1,5 +1,6 @@
 import { CheckCircle, XCircle, Download, Loader, ExternalLink, Terminal, Sparkles } from 'lucide-react';
 import { useOllama } from '../hooks/useOllama';
+import { Button } from '@/components/ui/button';
 
 export default function OllamaSetup() {
   const {
@@ -21,10 +22,10 @@ export default function OllamaSetup() {
 
   if (isChecking) {
     return (
-      <div className="bg-base-200/50 rounded-lg p-6 border border-base-300">
+      <div className="bg-muted/50 rounded-lg p-6 border border-border">
         <div className="flex items-center gap-3">
           <Loader className="w-5 h-5 animate-spin text-primary" />
-          <span className="text-base-content/70">Checking Ollama status...</span>
+          <span className="text-muted-foreground">Checking Ollama status...</span>
         </div>
       </div>
     );
@@ -35,7 +36,7 @@ export default function OllamaSetup() {
   return (
     <div className="space-y-4">
       {/* Status Overview */}
-      <div className="bg-base-200/50 rounded-lg p-6 border border-base-300">
+      <div className="bg-muted/50 rounded-lg p-6 border border-border">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
@@ -56,9 +57,9 @@ export default function OllamaSetup() {
             {status.installed ? (
               <CheckCircle className="w-5 h-5 text-success" />
             ) : (
-              <XCircle className="w-5 h-5 text-error" />
+              <XCircle className="w-5 h-5 text-destructive" />
             )}
-            <span className="text-base-content/80">
+            <span className="text-foreground">
               Ollama {status.installed ? 'installed' : 'not installed'}
             </span>
           </div>
@@ -69,9 +70,9 @@ export default function OllamaSetup() {
               {status.running ? (
                 <CheckCircle className="w-5 h-5 text-success" />
               ) : (
-                <XCircle className="w-5 h-5 text-error" />
+                <XCircle className="w-5 h-5 text-destructive" />
               )}
-              <span className="text-base-content/80">
+              <span className="text-foreground">
                 Server {status.running ? 'running' : 'not running'}
               </span>
             </div>
@@ -83,13 +84,13 @@ export default function OllamaSetup() {
               {status.hasVisionModel ? (
                 <CheckCircle className="w-5 h-5 text-success" />
               ) : (
-                <XCircle className="w-5 h-5 text-error" />
+                <XCircle className="w-5 h-5 text-destructive" />
               )}
-              <span className="text-base-content/80">
+              <span className="text-foreground">
                 AI model {status.hasVisionModel ? 'ready' : 'not downloaded'}
               </span>
               {status.availableModels.length > 0 && (
-                <span className="text-xs text-base-content/60">
+                <span className="text-xs text-muted-foreground">
                   ({status.availableModels.length} {status.availableModels.length === 1 ? 'model' : 'models'})
                 </span>
               )}
@@ -98,7 +99,7 @@ export default function OllamaSetup() {
 
           {/* Show which models are installed */}
           {status.installed && status.running && status.availableModels.length > 0 && (
-            <div className="text-xs text-base-content/60 ml-8">
+            <div className="text-xs text-muted-foreground ml-8">
               Installed: {status.availableModels.slice(0, 3).join(', ')}
               {status.availableModels.length > 3 && ` +${status.availableModels.length - 3} more`}
             </div>
@@ -117,10 +118,10 @@ export default function OllamaSetup() {
 
       {/* Setup Steps */}
       {!isReady && (
-        <div className="bg-base-200/50 rounded-lg p-6 border border-base-300">
+        <div className="bg-muted/50 rounded-lg p-6 border border-border">
           <h4 className="font-semibold mb-4">Setup Steps:</h4>
           <div className="space-y-4">
-            {/* Step 0: Check/Install Homebrew (if Ollama not installed) */}
+            {/* Step 0: Check/Install Homebrew */}
             {!status.installed && homebrewInstalled === false && (
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
@@ -128,26 +129,20 @@ export default function OllamaSetup() {
                     !
                   </div>
                   <div className="flex-1">
-                    <p className="font-medium text-base-content mb-2">Homebrew Not Found</p>
-                    <p className="text-sm text-base-content/70 mb-3">
+                    <p className="font-medium text-foreground mb-2">Homebrew Not Found</p>
+                    <p className="text-sm text-muted-foreground mb-3">
                       Homebrew is required to install Ollama. Install it first, then refresh this page.
                     </p>
                     <div className="flex gap-2">
-                      <button
-                        onClick={openHomebrewInstall}
-                        className="btn btn-sm btn-warning"
-                      >
+                      <Button size="sm" onClick={openHomebrewInstall} className="gap-1 bg-warning text-white hover:bg-warning/90">
                         <ExternalLink className="w-4 h-4" />
                         Install Homebrew
-                      </button>
-                      <button
-                        onClick={checkHomebrew}
-                        className="btn btn-sm btn-ghost"
-                      >
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={checkHomebrew}>
                         Refresh
-                      </button>
+                      </Button>
                     </div>
-                    <div className="mt-3 p-3 bg-base-300 rounded text-xs font-mono">
+                    <div className="mt-3 p-3 bg-muted rounded text-xs font-mono">
                       Or run in Terminal:<br/>
                       /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
                     </div>
@@ -164,15 +159,16 @@ export default function OllamaSetup() {
                     1
                   </div>
                   <div className="flex-1">
-                    <p className="font-medium text-base-content mb-2">Install Ollama</p>
-                    <p className="text-sm text-base-content/70 mb-3">
+                    <p className="font-medium text-foreground mb-2">Install Ollama</p>
+                    <p className="text-sm text-muted-foreground mb-3">
                       {homebrewInstalled === null ? 'Checking for Homebrew...' : 'Install Ollama via Homebrew or download manually'}
                     </p>
                     <div className="flex gap-2">
-                      <button
+                      <Button
+                        size="sm"
                         onClick={installOllama}
                         disabled={isInstalling || homebrewInstalled === null}
-                        className="btn btn-sm btn-primary"
+                        className="gap-1"
                       >
                         {isInstalling ? (
                           <>
@@ -185,17 +181,14 @@ export default function OllamaSetup() {
                             Install via Homebrew
                           </>
                         )}
-                      </button>
-                      <button
-                        onClick={openDownloadPage}
-                        className="btn btn-sm btn-ghost"
-                      >
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={openDownloadPage} className="gap-1">
                         <ExternalLink className="w-4 h-4" />
                         Download Manually
-                      </button>
+                      </Button>
                     </div>
                     {installProgress && (
-                      <div className="mt-3 p-3 bg-base-300 rounded font-mono text-xs max-h-32 overflow-y-auto whitespace-pre-wrap">
+                      <div className="mt-3 p-3 bg-muted rounded font-mono text-xs max-h-32 overflow-y-auto whitespace-pre-wrap">
                         {installProgress}
                       </div>
                     )}
@@ -212,17 +205,14 @@ export default function OllamaSetup() {
                     2
                   </div>
                   <div className="flex-1">
-                    <p className="font-medium text-base-content mb-2">Start Ollama Server</p>
-                    <p className="text-sm text-base-content/70 mb-3">
+                    <p className="font-medium text-foreground mb-2">Start Ollama Server</p>
+                    <p className="text-sm text-muted-foreground mb-3">
                       Start the Ollama server to enable AI features
                     </p>
-                    <button
-                      onClick={startServer}
-                      className="btn btn-sm btn-primary"
-                    >
+                    <Button size="sm" onClick={startServer} className="gap-1">
                       <Terminal className="w-4 h-4" />
                       Start Server
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -236,15 +226,11 @@ export default function OllamaSetup() {
                     3
                   </div>
                   <div className="flex-1">
-                    <p className="font-medium text-base-content mb-2">Download AI Model</p>
-                    <p className="text-sm text-base-content/70 mb-3">
+                    <p className="font-medium text-foreground mb-2">Download AI Model</p>
+                    <p className="text-sm text-muted-foreground mb-3">
                       Download llama3.2 (~2GB) for HTML analysis - faster and more accurate
                     </p>
-                    <button
-                      onClick={() => pullModel('llama3.2')}
-                      disabled={isPulling}
-                      className="btn btn-sm btn-primary"
-                    >
+                    <Button size="sm" onClick={() => pullModel('llama3.2')} disabled={isPulling} className="gap-1">
                       {isPulling ? (
                         <>
                           <Loader className="w-4 h-4 animate-spin" />
@@ -256,9 +242,9 @@ export default function OllamaSetup() {
                           Download Model
                         </>
                       )}
-                    </button>
+                    </Button>
                     {isPulling && pullProgress && (
-                      <div className="mt-3 p-3 bg-base-300 rounded font-mono text-xs max-h-40 overflow-y-auto whitespace-pre-wrap">
+                      <div className="mt-3 p-3 bg-muted rounded font-mono text-xs max-h-40 overflow-y-auto whitespace-pre-wrap">
                         {pullProgress}
                       </div>
                     )}
@@ -271,7 +257,7 @@ export default function OllamaSetup() {
       )}
 
       {/* Help Text */}
-      <div className="text-xs text-base-content/60 space-y-1">
+      <div className="text-xs text-muted-foreground space-y-1">
         <p>💡 <strong>What is Ollama?</strong> A free, local AI platform that runs on your Mac.</p>
         <p>🔒 <strong>Privacy:</strong> All data stays on your machine. No cloud services.</p>
         <p>⚡ <strong>Speed:</strong> Fast on Apple Silicon (M1/M2/M3). Slower on Intel Macs.</p>

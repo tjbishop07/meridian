@@ -24,6 +24,12 @@ function App() {
         const theme = await window.electron.invoke('settings:get', 'theme');
         const selectedTheme = theme || 'dark';
         document.documentElement.setAttribute('data-theme', selectedTheme);
+        // Add .dark class so shadcn dark: variants activate
+        if (selectedTheme === 'dark') {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
 
         // Save default theme if none exists
         if (!theme) {
@@ -33,6 +39,7 @@ function App() {
         console.error('Failed to load theme:', err);
         // Fallback to dark theme if loading fails
         document.documentElement.setAttribute('data-theme', 'dark');
+        document.documentElement.classList.add('dark');
       }
     };
     loadTheme();

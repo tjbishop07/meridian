@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Building2, Tag, Download, Database, Palette, ScanSearch, MessageSquare } from 'lucide-react';
+import { Plus, Edit2, Trash2, Building2, Tag, Download, Database, Palette, ScanSearch, MessageSquare, ChevronDown } from 'lucide-react';
 import { useAccounts } from '../hooks/useAccounts';
 import { useCategories } from '../hooks/useCategories';
 import Modal from '../components/ui/Modal';
@@ -7,14 +7,21 @@ import { ClaudeVisionTab } from '../components/automation/ClaudeVisionTab';
 import { LocalAITab } from '../components/automation/LocalAITab';
 import { useAutomationSettings } from '../hooks/useAutomationSettings';
 import type { Account, Category } from '../types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { FormField } from '@/components/ui/FormField';
+import { cn } from '@/lib/utils';
 
-const THEMES = [
-  'dark', 'light', 'money', 'cupcake', 'bumblebee', 'emerald', 'corporate', 'synthwave', 'retro',
-  'cyberpunk', 'valentine', 'halloween', 'garden', 'forest', 'aqua', 'lofi', 'pastel',
-  'fantasy', 'wireframe', 'black', 'luxury', 'dracula', 'cmyk', 'autumn', 'business',
-  'acid', 'lemonade', 'night', 'coffee', 'winter', 'dim', 'nord', 'sunset',
-  'caramellatte', 'abyss', 'silk',
-];
+const THEMES = ['dark', 'light', 'money'];
+
+const THEME_PREVIEWS: Record<string, { bg: string; dots: string[]; text: string }> = {
+  dark:  { bg: '#1d2331', dots: ['#818cf8', '#4ade80', '#f472b6'], text: '#94a3b8' },
+  light: { bg: '#f8fafc', dots: ['#4f46e5', '#16a34a', '#db2777'], text: '#475569' },
+  money: { bg: '#0f1f10', dots: ['#16a34a', '#065f46', '#4ade80'], text: '#86efac' },
+};
+
+const selectClass = 'w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring text-sm disabled:opacity-50';
 
 interface AccountFormProps {
   formData: {
@@ -33,60 +40,41 @@ interface AccountFormProps {
   isEditing: boolean;
 }
 
-function AccountForm({
-  formData,
-  setFormData,
-  onSubmit,
-  onCancel,
-  isSubmitting,
-  error,
-  isEditing,
-}: AccountFormProps) {
+function AccountForm({ formData, setFormData, onSubmit, onCancel, isSubmitting, error, isEditing }: AccountFormProps) {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
+        <div className="bg-destructive/10 border border-destructive/30 text-destructive px-4 py-3 rounded-lg text-sm">
           {error}
         </div>
       )}
 
-      <div>
-        <label className="block text-sm font-medium text-base-content/80 mb-1">
-          Account Name *
-        </label>
-        <input
+      <FormField label="Account Name" required>
+        <Input
           type="text"
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          className="w-full px-3 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
           placeholder="e.g., Main Checking"
           required
         />
-      </div>
+      </FormField>
 
-      <div>
-        <label className="block text-sm font-medium text-base-content/80 mb-1">
-          Institution *
-        </label>
-        <input
+      <FormField label="Institution" required>
+        <Input
           type="text"
           value={formData.institution}
           onChange={(e) => setFormData({ ...formData, institution: e.target.value })}
-          className="w-full px-3 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
           placeholder="e.g., USAA, Chase, Bank of America"
           required
         />
-      </div>
+      </FormField>
 
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-base-content/80 mb-1">
-            Account Type *
-          </label>
+        <FormField label="Account Type" required>
           <select
             value={formData.type}
             onChange={(e) => setFormData({ ...formData, type: e.target.value as Account['type'] })}
-            className="w-full px-3 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
+            className={selectClass}
           >
             <option value="checking">Checking</option>
             <option value="savings">Savings</option>
@@ -94,63 +82,46 @@ function AccountForm({
             <option value="investment">Investment</option>
             <option value="other">Other</option>
           </select>
-        </div>
+        </FormField>
 
-        <div>
-          <label className="block text-sm font-medium text-base-content/80 mb-1">
-            Currency
-          </label>
-          <input
+        <FormField label="Currency">
+          <Input
             type="text"
             value={formData.currency}
             onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
-            className="w-full px-3 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
           />
-        </div>
+        </FormField>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-base-content/80 mb-1">
-          Starting Balance
-        </label>
-        <input
+      <FormField label="Starting Balance">
+        <Input
           type="number"
           step="0.01"
           value={formData.balance}
           onChange={(e) => setFormData({ ...formData, balance: Number(e.target.value) })}
-          className="w-full px-3 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
         />
-      </div>
+      </FormField>
 
-      <div className="flex items-center">
+      <div className="flex items-center gap-2">
         <input
           type="checkbox"
           id="is_active"
           checked={formData.is_active}
           onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-          className="w-4 h-4 text-primary border-base-300 rounded focus:ring-primary"
+          className="w-4 h-4 rounded border-border text-primary focus:ring-ring"
         />
-        <label htmlFor="is_active" className="ml-2 text-sm text-base-content/80">
+        <label htmlFor="is_active" className="text-sm text-muted-foreground cursor-pointer">
           Active account
         </label>
       </div>
 
       <div className="flex gap-3 pt-4">
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="flex-1 px-4 py-2 bg-primary text-primary-content rounded-lg hover:bg-primary/80 disabled:opacity-50 font-medium"
-        >
+        <Button type="submit" disabled={isSubmitting} className="flex-1">
           {isSubmitting ? 'Saving...' : isEditing ? 'Update Account' : 'Create Account'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={isSubmitting}
-          className="px-4 py-2 bg-base-200 text-base-content/80 rounded-lg hover:bg-base-300 disabled:opacity-50 font-medium"
-        >
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -166,68 +137,44 @@ interface CategoryFormProps {
   isEditing: boolean;
 }
 
-function CategoryForm({
-  formData,
-  setFormData,
-  onSubmit,
-  onCancel,
-  isSubmitting,
-  error,
-  isEditing,
-}: CategoryFormProps) {
+function CategoryForm({ formData, setFormData, onSubmit, onCancel, isSubmitting, error, isEditing }: CategoryFormProps) {
   return (
     <form onSubmit={onSubmit} className="space-y-4">
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
+        <div className="bg-destructive/10 border border-destructive/30 text-destructive px-4 py-3 rounded-lg text-sm">
           {error}
         </div>
       )}
 
-      <div>
-        <label className="block text-sm font-medium text-base-content/80 mb-1">
-          Category Name *
-        </label>
-        <input
+      <FormField label="Category Name" required>
+        <Input
           type="text"
           value={formData.name}
           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-          className="w-full px-3 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
           placeholder="e.g., Groceries, Rent, Salary"
           required
         />
-      </div>
+      </FormField>
 
-      <div>
-        <label className="block text-sm font-medium text-base-content/80 mb-1">
-          Type *
-        </label>
+      <FormField label="Type" required>
         <select
           value={formData.type}
           onChange={(e) => setFormData({ ...formData, type: e.target.value as 'income' | 'expense' })}
-          className="w-full px-3 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
+          className={selectClass}
           disabled={isEditing}
         >
           <option value="expense">Expense</option>
           <option value="income">Income</option>
         </select>
-      </div>
+      </FormField>
 
       <div className="flex gap-3 pt-4">
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="flex-1 px-4 py-2 bg-primary text-primary-content rounded-lg hover:bg-primary/80 disabled:opacity-50 font-medium"
-        >
+        <Button type="submit" disabled={isSubmitting} className="flex-1">
           {isSubmitting ? 'Saving...' : isEditing ? 'Update Category' : 'Create Category'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={isSubmitting}
-          className="px-4 py-2 bg-base-200 text-base-content/80 rounded-lg hover:bg-base-300 disabled:opacity-50 font-medium"
-        >
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -316,7 +263,7 @@ function PromptEditorTab({ settingKey, defaultPrompt, title, description, hint, 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <span className="loading loading-spinner loading-md text-base-content/50" />
+        <div className="w-5 h-5 border-2 border-muted-foreground/30 border-t-muted-foreground rounded-full animate-spin" />
       </div>
     );
   }
@@ -325,51 +272,108 @@ function PromptEditorTab({ settingKey, defaultPrompt, title, description, hint, 
 
   return (
     <div className="space-y-4">
-      <div className="bg-base-100 rounded-lg p-6">
+      <div className="bg-card rounded-lg p-6 border border-border">
         <div className="flex items-start justify-between mb-2">
-          <h3 className="text-lg font-semibold text-base-content">{title}</h3>
+          <h3 className="text-lg font-semibold text-foreground">{title}</h3>
           {isUsingDefault && (
-            <span className="badge badge-ghost badge-sm">Default</span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-muted text-muted-foreground">
+              Default
+            </span>
           )}
         </div>
-        <p className="text-sm text-base-content/70 mb-4">{description}</p>
+        <p className="text-sm text-muted-foreground mb-4">{description}</p>
 
         {hint && (
-          <div className="mb-3 p-3 bg-info/10 border border-info/30 rounded-lg">
+          <div className="mb-3 p-3 bg-primary/10 border border-primary/30 rounded-lg">
             {hint}
           </div>
         )}
 
-        <textarea
+        <Textarea
           value={localPrompt}
           onChange={(e) => {
             setLocalPrompt(e.target.value);
             setIsDirty(true);
           }}
           rows={rows}
-          className="w-full px-4 py-3 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content font-mono text-sm resize-y"
+          className="font-mono text-sm resize-y"
         />
 
         <div className="flex items-center justify-between mt-4">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleReset}
             disabled={isUsingDefault && !isDirty}
-            className="btn btn-ghost btn-sm"
           >
             Reset to Default
-          </button>
+          </Button>
           <div className="flex items-center gap-3">
             {saving && <span className="text-xs text-success">Saved</span>}
-            <button
+            <Button
+              size="sm"
               onClick={handleSave}
               disabled={!isDirty || saving}
-              className="btn btn-primary btn-sm"
             >
               Save Prompt
-            </button>
+            </Button>
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Section wrapper with collapsible header ──────────────────────────────────
+function Section({
+  id,
+  icon,
+  title,
+  subtitle,
+  isOpen,
+  onToggle,
+  headerAction,
+  children,
+}: {
+  id: string;
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  headerAction?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bg-card rounded-xl border border-border shadow-sm mb-6 overflow-hidden">
+      <div
+        className="flex items-center justify-between px-6 py-4 cursor-pointer select-none"
+        onClick={onToggle}
+      >
+        <div>
+          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+            {icon}
+            {title}
+          </h2>
+          {subtitle && <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
+        </div>
+        <div className="flex items-center gap-3">
+          {headerAction && isOpen && (
+            <div onClick={(e) => e.stopPropagation()}>{headerAction}</div>
+          )}
+          <ChevronDown
+            className={cn(
+              'w-5 h-5 text-muted-foreground transition-transform duration-200',
+              isOpen && 'rotate-180'
+            )}
+          />
+        </div>
+      </div>
+      {isOpen && (
+        <div className="px-6 pb-6 border-t border-border pt-4">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -378,10 +382,8 @@ export default function Settings() {
   const { accounts, loadAccounts, createAccount, updateAccount, deleteAccount } = useAccounts();
   const { categories, loadCategories } = useCategories();
 
-  // Theme state
   const [currentTheme, setCurrentTheme] = useState('dark');
 
-  // Account state
   const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [accountFormData, setAccountFormData] = useState({
@@ -393,7 +395,6 @@ export default function Settings() {
     is_active: true,
   });
 
-  // Category state
   const [isCreateCategoryOpen, setIsCreateCategoryOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [categoryFormData, setCategoryFormData] = useState({
@@ -414,7 +415,7 @@ export default function Settings() {
     appearance: true, accounts: true, categories: true, scraping: true, prompts: true, data: true,
   });
   const toggle = (key: string) => setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
-  const isOpen = (key: string) => !collapsed[key]; // default open
+  const isOpen = (key: string) => !collapsed[key];
 
   useEffect(() => {
     loadAccounts();
@@ -425,9 +426,7 @@ export default function Settings() {
   const loadTheme = async () => {
     try {
       const theme = await window.electron.invoke('settings:get', 'theme');
-      if (theme) {
-        setCurrentTheme(theme);
-      }
+      if (theme) setCurrentTheme(theme);
     } catch (err) {
       console.error('Failed to load theme:', err);
     }
@@ -436,6 +435,11 @@ export default function Settings() {
   const handleThemeChange = async (theme: string) => {
     setCurrentTheme(theme);
     document.documentElement.setAttribute('data-theme', theme);
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
     try {
       await window.electron.invoke('settings:set', { key: 'theme', value: theme });
     } catch (err) {
@@ -460,24 +464,14 @@ export default function Settings() {
 
   useEffect(() => {
     if (editingCategory) {
-      setCategoryFormData({
-        name: editingCategory.name,
-        type: editingCategory.type,
-      });
+      setCategoryFormData({ name: editingCategory.name, type: editingCategory.type });
     } else {
       resetCategoryForm();
     }
   }, [editingCategory]);
 
   const resetAccountForm = () => {
-    setAccountFormData({
-      name: '',
-      type: 'checking',
-      institution: '',
-      balance: 0,
-      currency: 'USD',
-      is_active: true,
-    });
+    setAccountFormData({ name: '', type: 'checking', institution: '', balance: 0, currency: 'USD', is_active: true });
     setError(null);
   };
 
@@ -489,12 +483,10 @@ export default function Settings() {
   const handleAccountSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
     if (!accountFormData.name.trim() || !accountFormData.institution.trim()) {
       setError('Please fill in all required fields');
       return;
     }
-
     setIsSubmitting(true);
     try {
       if (editingAccount) {
@@ -525,12 +517,10 @@ export default function Settings() {
   const handleCategorySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
     if (!categoryFormData.name.trim()) {
       setError('Please enter a category name');
       return;
     }
-
     setIsSubmitting(true);
     try {
       if (editingCategory) {
@@ -544,10 +534,7 @@ export default function Settings() {
         await window.electron.invoke('categories:create', {
           name: categoryFormData.name,
           type: categoryFormData.type,
-          parent_id: null,
-          icon: null,
-          color: null,
-          is_system: false,
+          parent_id: null, icon: null, color: null, is_system: false,
         });
         setIsCreateCategoryOpen(false);
       }
@@ -561,10 +548,7 @@ export default function Settings() {
   };
 
   const handleDeleteCategory = async (category: Category) => {
-    if (category.is_system) {
-      alert('System categories cannot be deleted.');
-      return;
-    }
+    if (category.is_system) { alert('System categories cannot be deleted.'); return; }
     if (confirm(`Delete category "${category.name}"? Transactions using this category will become uncategorized.`)) {
       try {
         await window.electron.invoke('categories:delete', category.id);
@@ -579,23 +563,17 @@ export default function Settings() {
     try {
       setExportStatus('Exporting...');
       const transactions = await window.electron.invoke('transactions:get-all', {});
-
-      // Build CSV
       const headers = ['Date', 'Description', 'Amount', 'Type', 'Category', 'Account', 'Status', 'Notes'];
       const rows = transactions.map((t: any) => [
         t.date,
         `"${(t.description || '').replace(/"/g, '""')}"`,
-        t.amount,
-        t.type,
+        t.amount, t.type,
         `"${(t.category_name || 'Uncategorized').replace(/"/g, '""')}"`,
         `"${(t.account_name || '').replace(/"/g, '""')}"`,
         t.status,
         `"${(t.notes || '').replace(/"/g, '""')}"`,
       ]);
-
       const csv = [headers.join(','), ...rows.map((r: string[]) => r.join(','))].join('\n');
-
-      // Create a download via Blob
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -605,7 +583,6 @@ export default function Settings() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-
       setExportStatus(`Exported ${transactions.length} transactions`);
       setTimeout(() => setExportStatus(null), 3000);
     } catch (err) {
@@ -621,10 +598,7 @@ export default function Settings() {
       const deletedCount = await window.electron.invoke('transactions:delete-all');
       setClearStatus(`Deleted ${deletedCount} transactions`);
       setShowClearConfirm(false);
-
-      // Reload accounts to update balances
       await loadAccounts();
-
       setTimeout(() => setClearStatus(null), 3000);
     } catch (err) {
       console.error('Clear error:', err);
@@ -639,10 +613,7 @@ export default function Settings() {
       const deletedCount = await window.electron.invoke('categories:delete-all');
       setClearCategoriesStatus(`Deleted ${deletedCount} categories`);
       setShowClearCategoriesConfirm(false);
-
-      // Reload categories
       await loadCategories();
-
       setTimeout(() => setClearCategoriesStatus(null), 3000);
     } catch (err) {
       console.error('Clear categories error:', err);
@@ -658,495 +629,444 @@ export default function Settings() {
     <div className="flex flex-col h-full max-w-5xl mx-auto">
       {/* Header */}
       <div className="p-4 flex-shrink-0">
-        <h1 className="text-3xl font-bold text-base-content mb-2">Settings</h1>
-        <p className="text-base-content/70 mb-4">Manage your accounts, categories, and data</p>
+        <h1 className="text-3xl font-bold text-foreground mb-1">Settings</h1>
+        <p className="text-muted-foreground">Manage your accounts, categories, and data</p>
       </div>
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto px-4 pb-4">
-        {/* Appearance Section */}
-        <div className={`collapse collapse-arrow bg-base-100 rounded-lg shadow-sm mb-6 ${isOpen('appearance') ? 'collapse-open' : 'collapse-close'}`}>
-          <div className="collapse-title" onClick={() => toggle('appearance')}>
-            <h2 className="text-xl font-semibold text-base-content flex items-center gap-2">
-              <Palette className="w-5 h-5" />
-              Appearance
-            </h2>
-            <p className="text-sm text-base-content/70 mt-0.5">Choose a theme for the application</p>
-          </div>
-          <div className="collapse-content">
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7 gap-3">
-              {THEMES.map((theme) => (
+
+        {/* ── Appearance ── */}
+        <Section
+          id="appearance"
+          icon={<Palette className="w-5 h-5" />}
+          title="Appearance"
+          subtitle="Choose a theme for the application"
+          isOpen={isOpen('appearance')}
+          onToggle={() => toggle('appearance')}
+        >
+          <div className="flex gap-4">
+            {THEMES.map((theme) => {
+              const preview = THEME_PREVIEWS[theme];
+              return (
                 <button
                   key={theme}
                   onClick={() => handleThemeChange(theme)}
-                  data-theme={theme}
-                  className={`glass rounded-lg overflow-hidden border transition-all hover:scale-105 ${
+                  className={cn(
+                    'rounded-xl overflow-hidden border-2 transition-all hover:scale-105 w-28',
                     currentTheme === theme
-                      ? 'border-primary/50 ring-2 ring-primary/30 shadow-lg shadow-primary/20'
-                      : 'border-base-content/10 hover:border-base-content/20'
-                  }`}
+                      ? 'border-primary shadow-lg shadow-primary/20'
+                      : 'border-border hover:border-muted-foreground/40'
+                  )}
                 >
-                  <div className="p-2">
-                    <div className="flex gap-1 mb-1.5">
-                      <div className="rounded-full w-2.5 h-2.5 bg-primary shadow-sm" />
-                      <div className="rounded-full w-2.5 h-2.5 bg-secondary shadow-sm" />
-                      <div className="rounded-full w-2.5 h-2.5 bg-accent shadow-sm" />
+                  <div className="p-3" style={{ backgroundColor: preview.bg }}>
+                    <div className="flex gap-1 mb-2">
+                      {preview.dots.map((dot, i) => (
+                        <div key={i} className="rounded-full w-3 h-3" style={{ backgroundColor: dot }} />
+                      ))}
                     </div>
                     <div className="flex gap-1">
-                      <div className="rounded h-1.5 flex-1 bg-base-content/20" />
-                      <div className="rounded h-1.5 flex-1 bg-base-content/10" />
+                      <div className="rounded h-1.5 flex-1" style={{ backgroundColor: preview.text, opacity: 0.25 }} />
+                      <div className="rounded h-1.5 flex-1" style={{ backgroundColor: preview.text, opacity: 0.12 }} />
                     </div>
                   </div>
-                  <div className="bg-base-content/5 px-2 py-1">
-                    <p className="text-[10px] font-medium text-base-content truncate text-center capitalize">
+                  <div
+                    className="px-2 py-1.5"
+                    style={{ backgroundColor: preview.bg, borderTop: `1px solid ${preview.text}25` }}
+                  >
+                    <p
+                      className="text-xs font-medium truncate text-center capitalize"
+                      style={{ color: preview.text }}
+                    >
                       {theme}
                     </p>
                   </div>
                 </button>
+              );
+            })}
+          </div>
+        </Section>
+
+        {/* ── Accounts ── */}
+        <Section
+          id="accounts"
+          icon={<Building2 className="w-5 h-5" />}
+          title="Accounts"
+          subtitle="Manage your bank accounts and credit cards"
+          isOpen={isOpen('accounts')}
+          onToggle={() => toggle('accounts')}
+          headerAction={
+            <Button size="sm" onClick={() => setIsCreateAccountOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Account
+            </Button>
+          }
+        >
+          {accounts.length === 0 ? (
+            <div className="text-center py-8 bg-muted/50 rounded-lg">
+              <Building2 className="w-10 h-10 text-muted-foreground mx-auto mb-2" />
+              <p className="text-muted-foreground mb-2">No accounts yet</p>
+              <button
+                onClick={() => setIsCreateAccountOpen(true)}
+                className="text-primary font-medium text-sm hover:underline"
+              >
+                Create your first account
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {accounts.map((account) => (
+                <div
+                  key={account.id}
+                  className="flex items-center justify-between p-4 border border-border rounded-lg hover:border-muted-foreground/30 transition-colors"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-medium text-foreground">{account.name}</h3>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-muted text-muted-foreground">
+                        {account.type.replace('_', ' ')}
+                      </span>
+                      {!account.is_active && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-destructive/10 text-destructive">
+                          Inactive
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {account.institution} &middot; ${account.balance.toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setEditingAccount(account)}
+                      className="p-2 text-muted-foreground hover:text-primary transition-colors rounded"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteAccount(account)}
+                      className="p-2 text-muted-foreground hover:text-destructive transition-colors rounded"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
-        </div>
+          )}
+        </Section>
 
-      {/* Accounts Section */}
-        <div className={`collapse collapse-arrow bg-base-100 rounded-lg shadow-sm mb-6 ${isOpen('accounts') ? 'collapse-open' : 'collapse-close'}`}>
-          <div className="collapse-title" onClick={() => toggle('accounts')}>
-            <div className="flex items-center justify-between pr-4">
-              <div>
-                <h2 className="text-xl font-semibold text-base-content flex items-center gap-2">
-                  <Building2 className="w-5 h-5" />
-                  Accounts
-                </h2>
-                <p className="text-sm text-base-content/70 mt-0.5">Manage your bank accounts and credit cards</p>
-              </div>
-              {isOpen('accounts') && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); setIsCreateAccountOpen(true); }}
-                  className="btn btn-primary btn-sm gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Account
-                </button>
-              )}
+        {/* ── Categories ── */}
+        <Section
+          id="categories"
+          icon={<Tag className="w-5 h-5" />}
+          title="Categories"
+          subtitle="Organize your transactions into categories"
+          isOpen={isOpen('categories')}
+          onToggle={() => toggle('categories')}
+          headerAction={
+            <Button size="sm" onClick={() => setIsCreateCategoryOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Add Category
+            </Button>
+          }
+        >
+          {/* Expense Categories */}
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Expense Categories</h3>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-muted text-muted-foreground">
+                {expenseCategories.length}
+              </span>
             </div>
-          </div>
-          <div className="collapse-content">
-            {accounts.length === 0 ? (
-              <div className="text-center py-8 bg-base-200 rounded-lg">
-                <Building2 className="w-10 h-10 text-base-content/50 mx-auto mb-2" />
-                <p className="text-base-content/70 mb-2">No accounts yet</p>
-                <button
-                  onClick={() => setIsCreateAccountOpen(true)}
-                  className="text-primary font-medium text-sm"
-                >
-                  Create your first account
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {accounts.map((account) => (
-                  <div
-                    key={account.id}
-                    className="flex items-center justify-between p-4 border border-base-300 rounded-lg hover:border-base-content/30 transition-colors"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <h3 className="font-medium text-base-content">{account.name}</h3>
-                        <span className="badge badge-ghost badge-sm">{account.type.replace('_', ' ')}</span>
-                        {!account.is_active && (
-                          <span className="badge badge-error badge-sm">Inactive</span>
-                        )}
-                      </div>
-                      <p className="text-sm text-base-content/70 mt-1">
-                        {account.institution} &middot; ${account.balance.toFixed(2)}
-                      </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {expenseCategories.map((cat) => (
+                <div key={cat.id} className="bg-muted/50 rounded-lg p-3 border border-border">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="w-2 h-2 rounded-full bg-destructive flex-shrink-0" />
+                      <span className="font-medium text-sm text-foreground truncate" data-category-name={cat.name}>
+                        {String(cat.name).trim()}
+                      </span>
+                      {Boolean(cat.is_system) && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-muted text-muted-foreground flex-shrink-0">
+                          system
+                        </span>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => setEditingAccount(account)} className="btn btn-ghost btn-sm btn-circle">
-                        <Edit2 className="w-4 h-4" />
+                    <div className="flex gap-1 ml-2">
+                      <button
+                        onClick={() => setEditingCategory(cat)}
+                        className="p-1 text-muted-foreground hover:text-primary transition-colors rounded"
+                        title="Edit category"
+                      >
+                        <Edit2 className="w-3 h-3" />
                       </button>
-                      <button onClick={() => handleDeleteAccount(account)} className="btn btn-ghost btn-sm btn-circle text-error hover:bg-error/10">
-                        <Trash2 className="w-4 h-4" />
+                      {!cat.is_system && (
+                        <button
+                          onClick={() => handleDeleteCategory(cat)}
+                          className="p-1 text-muted-foreground hover:text-destructive transition-colors rounded"
+                          title="Delete category"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Income Categories */}
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Income Categories</h3>
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-muted text-muted-foreground">
+                {incomeCategories.length}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {incomeCategories.map((cat) => (
+                <div key={cat.id} className="bg-muted/50 rounded-lg p-3 border border-border">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <div className="w-2 h-2 rounded-full bg-success flex-shrink-0" />
+                      <span className="font-medium text-sm text-foreground truncate" data-category-name={cat.name}>
+                        {String(cat.name).trim()}
+                      </span>
+                      {Boolean(cat.is_system) && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-muted text-muted-foreground flex-shrink-0">
+                          system
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-1 ml-2">
+                      <button
+                        onClick={() => setEditingCategory(cat)}
+                        className="p-1 text-muted-foreground hover:text-primary transition-colors rounded"
+                        title="Edit category"
+                      >
+                        <Edit2 className="w-3 h-3" />
                       </button>
+                      {!cat.is_system && (
+                        <button
+                          onClick={() => handleDeleteCategory(cat)}
+                          className="p-1 text-muted-foreground hover:text-destructive transition-colors rounded"
+                          title="Delete category"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        </Section>
 
-        {/* Categories Section */}
-        <div className={`collapse collapse-arrow bg-base-100 rounded-lg shadow-sm mb-6 ${isOpen('categories') ? 'collapse-open' : 'collapse-close'}`}>
-          <div className="collapse-title" onClick={() => toggle('categories')}>
-            <div className="flex items-center justify-between pr-4">
+        {/* ── Scraping ── */}
+        <Section
+          id="scraping"
+          icon={<ScanSearch className="w-5 h-5" />}
+          title="Scraping"
+          isOpen={isOpen('scraping')}
+          onToggle={() => toggle('scraping')}
+        >
+          {/* Inner tab bar */}
+          <div className="flex border-b border-border mb-6 -mx-6 px-6">
+            {([
+              { key: 'claude' as const, label: 'Claude Vision AI' },
+              { key: 'ollama' as const, label: 'Local AI (Ollama)' },
+              { key: 'prompt' as const, label: 'Prompt' },
+            ]).map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setScrapingTab(tab.key)}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium -mb-px border-b-2 transition-colors',
+                  scrapingTab === tab.key
+                    ? 'text-primary border-primary'
+                    : 'text-muted-foreground border-transparent hover:text-foreground'
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {scrapingTab === 'claude' && <ClaudeVisionTab />}
+          {scrapingTab === 'ollama' && <LocalAITab />}
+          {scrapingTab === 'prompt' && (
+            <PromptEditorTab
+              settingKey="scraping_prompt"
+              defaultPrompt={DEFAULT_SCRAPING_PROMPT}
+              title="Scraping Prompt"
+              description="Customize the prompt sent to the AI when scraping transactions. Edit it to fine-tune extraction for your specific bank."
+              hint={
+                <p className="text-xs text-muted-foreground">
+                  The prompt must instruct the AI to return a JSON array with fields:
+                  {['date', 'description', 'amount', 'balance', 'category', 'confidence'].map((f) => (
+                    <code key={f} className="mx-1 px-1 py-0.5 bg-muted rounded text-xs font-mono">{f}</code>
+                  ))}
+                </p>
+              }
+              rows={18}
+            />
+          )}
+        </Section>
+
+        {/* ── Prompts ── */}
+        <Section
+          id="prompts"
+          icon={<MessageSquare className="w-5 h-5" />}
+          title="Prompts"
+          subtitle="Customize the AI prompts used throughout the app"
+          isOpen={isOpen('prompts')}
+          onToggle={() => toggle('prompts')}
+        >
+          <div className="flex border-b border-border mb-6 -mx-6 px-6">
+            {([{ key: 'welcome' as const, label: 'Welcome Message' }]).map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setPromptsTab(tab.key)}
+                className={cn(
+                  'px-4 py-2 text-sm font-medium -mb-px border-b-2 transition-colors',
+                  promptsTab === tab.key
+                    ? 'text-primary border-primary'
+                    : 'text-muted-foreground border-transparent hover:text-foreground'
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {promptsTab === 'welcome' && (
+            <PromptEditorTab
+              settingKey="prompt_welcome"
+              defaultPrompt={DEFAULT_WELCOME_PROMPT}
+              title="Welcome Message Prompt"
+              description="The prompt used to generate the witty welcome message shown in the ticker when the app starts. Requires Ollama to be running."
+              hint={
+                <p className="text-xs text-muted-foreground">
+                  Ollama will generate one message per session using this prompt. If Ollama is unavailable, a plain date/time message is shown as a fallback.
+                </p>
+              }
+              rows={6}
+            />
+          )}
+        </Section>
+
+        {/* ── Data Management ── */}
+        <Section
+          id="data"
+          icon={<Database className="w-5 h-5" />}
+          title="Data Management"
+          subtitle="Export data and manage database records"
+          isOpen={isOpen('data')}
+          onToggle={() => toggle('data')}
+        >
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 border border-border rounded-lg">
               <div>
-                <h2 className="text-xl font-semibold text-base-content flex items-center gap-2">
-                  <Tag className="w-5 h-5" />
-                  Categories
-                </h2>
-                <p className="text-sm text-base-content/70 mt-0.5">Organize your transactions into categories</p>
+                <h3 className="font-medium text-foreground">Export Transactions</h3>
+                <p className="text-sm text-muted-foreground">Download all transactions as a CSV file</p>
               </div>
-              {isOpen('categories') && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); setIsCreateCategoryOpen(true); }}
-                  className="btn btn-primary btn-sm gap-2"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add Category
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="collapse-content">
-            {/* Expense Categories */}
-            <div className="mb-6">
-              <div className="flex items-center gap-2 mb-3">
-                <h3 className="text-sm font-semibold text-base-content/80 uppercase tracking-wide">Expense Categories</h3>
-                <div className="badge badge-neutral badge-sm">{expenseCategories.length}</div>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {expenseCategories.map((cat) => (
-                  <div key={cat.id} className="card bg-base-200 shadow-sm">
-                    <div className="card-body p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <div className="w-2 h-2 rounded-full bg-error flex-shrink-0" />
-                          <span className="font-medium text-sm text-base-content truncate" data-category-name={cat.name}>
-                            {String(cat.name).trim()}
-                          </span>
-                          {Boolean(cat.is_system) && <div className="badge badge-ghost badge-xs flex-shrink-0">system</div>}
-                        </div>
-                        <div className="join">
-                          <button onClick={() => setEditingCategory(cat)} className="btn btn-ghost btn-xs join-item" title="Edit category">
-                            <Edit2 className="w-3 h-3" />
-                          </button>
-                          {!cat.is_system && (
-                            <button onClick={() => handleDeleteCategory(cat)} className="btn btn-ghost btn-xs join-item text-error hover:bg-error/10" title="Delete category">
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <Button variant="ghost" onClick={handleExportCSV}>
+                <Download className="w-4 h-4 mr-2" />
+                {exportStatus || 'Export CSV'}
+              </Button>
             </div>
 
-            {/* Income Categories */}
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <h3 className="text-sm font-semibold text-base-content/80 uppercase tracking-wide">Income Categories</h3>
-                <div className="badge badge-neutral badge-sm">{incomeCategories.length}</div>
+            <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+              <div>
+                <h3 className="font-medium text-foreground">Clear All Transactions</h3>
+                <p className="text-sm text-muted-foreground">Permanently delete all transactions from the database</p>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {incomeCategories.map((cat) => (
-                  <div key={cat.id} className="card bg-base-200 shadow-sm">
-                    <div className="card-body p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <div className="w-2 h-2 rounded-full bg-success flex-shrink-0" />
-                          <span className="font-medium text-sm text-base-content truncate" data-category-name={cat.name}>
-                            {String(cat.name).trim()}
-                          </span>
-                          {Boolean(cat.is_system) && <div className="badge badge-ghost badge-xs flex-shrink-0">system</div>}
-                        </div>
-                        <div className="join">
-                          <button onClick={() => setEditingCategory(cat)} className="btn btn-ghost btn-xs join-item" title="Edit category">
-                            <Edit2 className="w-3 h-3" />
-                          </button>
-                          {!cat.is_system && (
-                            <button onClick={() => handleDeleteCategory(cat)} className="btn btn-ghost btn-xs join-item text-error hover:bg-error/10" title="Delete category">
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              <Button variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setShowClearConfirm(true)}>
+                <Trash2 className="w-4 h-4 mr-2" />
+                {clearStatus || 'Clear All'}
+              </Button>
+            </div>
+
+            <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+              <div>
+                <h3 className="font-medium text-foreground">Clear All Categories</h3>
+                <p className="text-sm text-muted-foreground">Permanently delete all user-created categories (system categories are preserved)</p>
+              </div>
+              <Button variant="ghost" className="text-destructive hover:text-destructive" onClick={() => setShowClearCategoriesConfirm(true)}>
+                <Trash2 className="w-4 h-4 mr-2" />
+                {clearCategoriesStatus || 'Clear All'}
+              </Button>
+            </div>
+
+            <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+              <div>
+                <h3 className="font-medium text-foreground">Database Location</h3>
+                <p className="text-sm text-muted-foreground font-mono">~/Library/Application Support/personal-finance/</p>
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Scraping Section */}
-        <div className={`collapse collapse-arrow bg-base-100 rounded-lg shadow-sm mb-6 ${isOpen('scraping') ? 'collapse-open' : 'collapse-close'}`}>
-          <div className="collapse-title" onClick={() => toggle('scraping')}>
-            <h2 className="text-xl font-semibold text-base-content flex items-center gap-2">
-              <ScanSearch className="w-5 h-5" />
-              Scraping
-            </h2>
-          </div>
-          <div className="collapse-content">
-            {/* Tab bar */}
-            <div className="tabs tabs-border -mx-4 mb-4">
-              {([
-                { key: 'claude', label: 'Claude Vision AI' },
-                { key: 'ollama', label: 'Local AI (Ollama)' },
-                { key: 'prompt', label: 'Prompt' },
-              ] as const).map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setScrapingTab(tab.key)}
-                  className={`tab ${scrapingTab === tab.key ? 'tab-active' : ''}`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-            {scrapingTab === 'claude' && <ClaudeVisionTab />}
-            {scrapingTab === 'ollama' && <LocalAITab />}
-            {scrapingTab === 'prompt' && (
-              <PromptEditorTab
-                settingKey="scraping_prompt"
-                defaultPrompt={DEFAULT_SCRAPING_PROMPT}
-                title="Scraping Prompt"
-                description="Customize the prompt sent to the AI when scraping transactions. Edit it to fine-tune extraction for your specific bank."
-                hint={
-                  <p className="text-xs text-base-content/70">
-                    The prompt must instruct the AI to return a JSON array with fields:
-                    {['date', 'description', 'amount', 'balance', 'category', 'confidence'].map(f => (
-                      <code key={f} className="mx-1 px-1 py-0.5 bg-base-300 rounded text-xs font-mono">{f}</code>
-                    ))}
-                  </p>
-                }
-                rows={18}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Prompts Section */}
-        <div className={`collapse collapse-arrow bg-base-100 rounded-lg shadow-sm mb-6 ${isOpen('prompts') ? 'collapse-open' : 'collapse-close'}`}>
-          <div className="collapse-title" onClick={() => toggle('prompts')}>
-            <h2 className="text-xl font-semibold text-base-content flex items-center gap-2">
-              <MessageSquare className="w-5 h-5" />
-              Prompts
-            </h2>
-            <p className="text-sm text-base-content/70 mt-0.5">Customize the AI prompts used throughout the app</p>
-          </div>
-          <div className="collapse-content">
-            <div className="tabs tabs-border -mx-4 mb-4">
-              {([
-                { key: 'welcome', label: 'Welcome Message' },
-              ] as const).map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setPromptsTab(tab.key)}
-                  className={`tab ${promptsTab === tab.key ? 'tab-active' : ''}`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-            {promptsTab === 'welcome' && (
-              <PromptEditorTab
-                settingKey="prompt_welcome"
-                defaultPrompt={DEFAULT_WELCOME_PROMPT}
-                title="Welcome Message Prompt"
-                description="The prompt used to generate the witty welcome message shown in the ticker when the app starts. Requires Ollama to be running."
-                hint={
-                  <p className="text-xs text-base-content/70">
-                    Ollama will generate one message per session using this prompt. If Ollama is unavailable, a plain date/time message is shown as a fallback.
-                  </p>
-                }
-                rows={6}
-              />
-            )}
-          </div>
-        </div>
-
-        {/* Data Management Section */}
-        <div className={`collapse collapse-arrow bg-base-100 rounded-lg shadow-sm mb-6 ${isOpen('data') ? 'collapse-open' : 'collapse-close'}`}>
-          <div className="collapse-title" onClick={() => toggle('data')}>
-            <h2 className="text-xl font-semibold text-base-content flex items-center gap-2">
-              <Database className="w-5 h-5" />
-              Data Management
-            </h2>
-            <p className="text-sm text-base-content/70 mt-0.5">Export data and manage database records</p>
-          </div>
-          <div className="collapse-content">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 border border-base-300 rounded-lg">
-                <div>
-                  <h3 className="font-medium text-base-content">Export Transactions</h3>
-                  <p className="text-sm text-base-content/70">Download all transactions as a CSV file</p>
-                </div>
-                <button onClick={handleExportCSV} className="btn btn-ghost gap-2">
-                  <Download className="w-4 h-4" />
-                  {exportStatus || 'Export CSV'}
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between p-4 border border-base-300 rounded-lg">
-                <div>
-                  <h3 className="font-medium text-base-content">Clear All Transactions</h3>
-                  <p className="text-sm text-base-content/70">Permanently delete all transactions from the database</p>
-                </div>
-                <button onClick={() => setShowClearConfirm(true)} className="btn btn-ghost text-error gap-2">
-                  <Trash2 className="w-4 h-4" />
-                  {clearStatus || 'Clear All'}
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between p-4 border border-base-300 rounded-lg">
-                <div>
-                  <h3 className="font-medium text-base-content">Clear All Categories</h3>
-                  <p className="text-sm text-base-content/70">Permanently delete all user-created categories (system categories are preserved)</p>
-                </div>
-                <button onClick={() => setShowClearCategoriesConfirm(true)} className="btn btn-ghost text-error gap-2">
-                  <Trash2 className="w-4 h-4" />
-                  {clearCategoriesStatus || 'Clear All'}
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between p-4 border border-base-300 rounded-lg">
-                <div>
-                  <h3 className="font-medium text-base-content">Database Location</h3>
-                  <p className="text-sm text-base-content/70 font-mono">~/Library/Application Support/personal-finance/</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        </Section>
       </div>
 
       {/* Account Modals */}
-      <Modal
-        isOpen={isCreateAccountOpen}
-        onClose={() => { setIsCreateAccountOpen(false); resetAccountForm(); }}
-        title="Add Account"
-        size="md"
-      >
-        <AccountForm
-          formData={accountFormData}
-          setFormData={setAccountFormData}
-          onSubmit={handleAccountSubmit}
+      <Modal isOpen={isCreateAccountOpen} onClose={() => { setIsCreateAccountOpen(false); resetAccountForm(); }} title="Add Account" size="md">
+        <AccountForm formData={accountFormData} setFormData={setAccountFormData} onSubmit={handleAccountSubmit}
           onCancel={() => { setIsCreateAccountOpen(false); resetAccountForm(); }}
-          isSubmitting={isSubmitting}
-          error={error}
-          isEditing={false}
-        />
+          isSubmitting={isSubmitting} error={error} isEditing={false} />
       </Modal>
 
-      <Modal
-        isOpen={!!editingAccount}
-        onClose={() => { setEditingAccount(null); resetAccountForm(); }}
-        title="Edit Account"
-        size="md"
-      >
-        <AccountForm
-          formData={accountFormData}
-          setFormData={setAccountFormData}
-          onSubmit={handleAccountSubmit}
+      <Modal isOpen={!!editingAccount} onClose={() => { setEditingAccount(null); resetAccountForm(); }} title="Edit Account" size="md">
+        <AccountForm formData={accountFormData} setFormData={setAccountFormData} onSubmit={handleAccountSubmit}
           onCancel={() => { setEditingAccount(null); resetAccountForm(); }}
-          isSubmitting={isSubmitting}
-          error={error}
-          isEditing={true}
-        />
+          isSubmitting={isSubmitting} error={error} isEditing={true} />
       </Modal>
 
       {/* Category Modals */}
-      <Modal
-        isOpen={isCreateCategoryOpen}
-        onClose={() => { setIsCreateCategoryOpen(false); resetCategoryForm(); }}
-        title="Add Category"
-        size="sm"
-      >
-        <CategoryForm
-          formData={categoryFormData}
-          setFormData={setCategoryFormData}
-          onSubmit={handleCategorySubmit}
+      <Modal isOpen={isCreateCategoryOpen} onClose={() => { setIsCreateCategoryOpen(false); resetCategoryForm(); }} title="Add Category" size="sm">
+        <CategoryForm formData={categoryFormData} setFormData={setCategoryFormData} onSubmit={handleCategorySubmit}
           onCancel={() => { setIsCreateCategoryOpen(false); resetCategoryForm(); }}
-          isSubmitting={isSubmitting}
-          error={error}
-          isEditing={false}
-        />
+          isSubmitting={isSubmitting} error={error} isEditing={false} />
       </Modal>
 
-      <Modal
-        isOpen={!!editingCategory}
-        onClose={() => { setEditingCategory(null); resetCategoryForm(); }}
-        title="Edit Category"
-        size="sm"
-      >
-        <CategoryForm
-          formData={categoryFormData}
-          setFormData={setCategoryFormData}
-          onSubmit={handleCategorySubmit}
+      <Modal isOpen={!!editingCategory} onClose={() => { setEditingCategory(null); resetCategoryForm(); }} title="Edit Category" size="sm">
+        <CategoryForm formData={categoryFormData} setFormData={setCategoryFormData} onSubmit={handleCategorySubmit}
           onCancel={() => { setEditingCategory(null); resetCategoryForm(); }}
-          isSubmitting={isSubmitting}
-          error={error}
-          isEditing={true}
-        />
+          isSubmitting={isSubmitting} error={error} isEditing={true} />
       </Modal>
 
-      {/* Clear Transactions Confirmation Modal */}
-      <Modal
-        isOpen={showClearConfirm}
-        onClose={() => setShowClearConfirm(false)}
-        title="Clear All Transactions?"
-        size="sm"
-      >
+      {/* Clear Transactions Confirmation */}
+      <Modal isOpen={showClearConfirm} onClose={() => setShowClearConfirm(false)} title="Clear All Transactions?" size="sm">
         <div className="space-y-4">
-          <div className="bg-error/10 border border-error/20 rounded-lg p-4">
-            <p className="text-error font-medium mb-2">⚠️ Warning: This action cannot be undone!</p>
-            <p className="text-sm text-base-content/70">
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+            <p className="text-destructive font-medium mb-2">⚠️ Warning: This action cannot be undone!</p>
+            <p className="text-sm text-muted-foreground">
               All transactions will be permanently deleted from the database. Make sure you have exported your data if needed.
             </p>
           </div>
-
           <div className="flex gap-3 justify-end">
-            <button
-              onClick={() => setShowClearConfirm(false)}
-              className="px-4 py-2 bg-base-200 text-base-content/80 rounded-lg hover:bg-base-300 font-medium"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleClearAllTransactions}
-              className="px-4 py-2 bg-error text-error-content rounded-lg hover:bg-error/80 font-medium"
-            >
-              Clear All Transactions
-            </button>
+            <Button variant="outline" onClick={() => setShowClearConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleClearAllTransactions}>Clear All Transactions</Button>
           </div>
         </div>
       </Modal>
 
-      {/* Clear Categories Confirmation Modal */}
-      <Modal
-        isOpen={showClearCategoriesConfirm}
-        onClose={() => setShowClearCategoriesConfirm(false)}
-        title="Clear All Categories?"
-        size="sm"
-      >
+      {/* Clear Categories Confirmation */}
+      <Modal isOpen={showClearCategoriesConfirm} onClose={() => setShowClearCategoriesConfirm(false)} title="Clear All Categories?" size="sm">
         <div className="space-y-4">
-          <div className="bg-error/10 border border-error/20 rounded-lg p-4">
-            <p className="text-error font-medium mb-2">⚠️ Warning: This action cannot be undone!</p>
-            <p className="text-sm text-base-content/70">
+          <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+            <p className="text-destructive font-medium mb-2">⚠️ Warning: This action cannot be undone!</p>
+            <p className="text-sm text-muted-foreground">
               All user-created categories will be permanently deleted. System categories will be preserved. Transactions will not be deleted, but their category assignments will be removed.
             </p>
           </div>
-
           <div className="flex gap-3 justify-end">
-            <button
-              onClick={() => setShowClearCategoriesConfirm(false)}
-              className="px-4 py-2 bg-base-200 text-base-content/80 rounded-lg hover:bg-base-300 font-medium"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleClearAllCategories}
-              className="px-4 py-2 bg-error text-error-content rounded-lg hover:bg-error/80 font-medium"
-            >
-              Clear All Categories
-            </button>
+            <Button variant="outline" onClick={() => setShowClearCategoriesConfirm(false)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleClearAllCategories}>Clear All Categories</Button>
           </div>
         </div>
       </Modal>
-
     </div>
   );
 }

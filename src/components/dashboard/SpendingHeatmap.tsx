@@ -40,7 +40,6 @@ export default function SpendingHeatmap({ selectedMonth }: Props) {
   const loadData = async () => {
     try {
       setIsLoading(true);
-      // Get data for the whole month (last 31 days covers any month)
       const result = await window.electron.invoke('analytics:daily-spending', 365);
       setData(result);
     } catch (error) {
@@ -52,21 +51,19 @@ export default function SpendingHeatmap({ selectedMonth }: Props) {
 
   if (isLoading) {
     return (
-      <div className="bg-base-100 rounded-lg shadow-sm p-4 sm:p-6">
-        <h2 className="text-base sm:text-lg font-semibold text-base-content mb-4">
+      <div className="bg-card rounded-lg shadow-sm p-4 sm:p-6">
+        <h2 className="text-base sm:text-lg font-semibold text-foreground mb-4">
           Daily Spending Activity
         </h2>
-        <div className="animate-pulse h-32 sm:h-40 bg-base-300 rounded"></div>
+        <div className="animate-pulse h-32 sm:h-40 bg-muted rounded"></div>
       </div>
     );
   }
 
-  // Create a map for quick lookups
   const dataMap = new Map(
     data.map((item) => [item.date, { amount: item.amount, count: item.count }])
   );
 
-  // Calculate max spending across all 6 months for consistent color scale
   const currentMonthDate = parseISO(selectedMonth + '-01');
   const sixMonthsData = data.filter((d) => {
     const date = parseISO(d.date);
@@ -75,10 +72,9 @@ export default function SpendingHeatmap({ selectedMonth }: Props) {
   });
   const maxSpending = Math.max(...sixMonthsData.map((d) => d.amount), 1);
 
-  // Get color based on spending amount
   const getColor = (amount: number, isCurrentMonth: boolean): string => {
-    if (!isCurrentMonth) return 'bg-base-200';
-    if (amount === 0) return 'bg-base-300';
+    if (!isCurrentMonth) return 'bg-background';
+    if (amount === 0) return 'bg-muted';
     const intensity = amount / maxSpending;
     if (intensity < 0.2) return 'bg-success/20';
     if (intensity < 0.4) return 'bg-success/40';
@@ -87,11 +83,10 @@ export default function SpendingHeatmap({ selectedMonth }: Props) {
     return 'bg-success';
   };
 
-  // Generate calendar grids for the last 3 months
   const generateMonthGrid = (monthDate: Date) => {
     const monthStart = startOfMonth(monthDate);
     const monthEnd = endOfMonth(monthStart);
-    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 }); // Sunday
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
     const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
 
     const weeks: CellData[][] = [];
@@ -129,9 +124,9 @@ export default function SpendingHeatmap({ selectedMonth }: Props) {
   ];
 
   return (
-    <div className="bg-base-100 rounded-lg shadow-sm p-6">
+    <div className="bg-card rounded-lg shadow-sm p-6">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold text-base-content">
+        <h2 className="text-lg font-semibold text-foreground">
           Daily Spending Activity
         </h2>
       </div>
@@ -144,7 +139,7 @@ export default function SpendingHeatmap({ selectedMonth }: Props) {
               <div key={monthIdx} className="inline-block">
                 {/* Month label */}
                 <div className="text-center mb-2">
-                  <div className="text-sm font-semibold text-base-content">
+                  <div className="text-sm font-semibold text-foreground">
                     {format(monthStart, 'MMMM yyyy')}
                   </div>
                 </div>
@@ -154,7 +149,7 @@ export default function SpendingHeatmap({ selectedMonth }: Props) {
                   {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, idx) => (
                     <div
                       key={idx}
-                      className="w-4 text-xs font-medium text-base-content/70 text-center"
+                      className="w-4 text-xs font-medium text-muted-foreground text-center"
                     >
                       {day}
                     </div>
@@ -183,11 +178,11 @@ export default function SpendingHeatmap({ selectedMonth }: Props) {
                           {/* Tooltip on hover */}
                           {hoveredCell?.date.getTime() === cell.date.getTime() && (
                             <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-10 pointer-events-none hidden group-hover:block">
-                              <div className="bg-base-300 text-base-content px-3 py-2 rounded-lg shadow-lg text-sm whitespace-nowrap">
+                              <div className="bg-muted text-foreground px-3 py-2 rounded-lg shadow-lg text-sm whitespace-nowrap border border-border">
                                 <div className="font-semibold">
                                   {format(cell.date, 'EEE, MMM d')}
                                 </div>
-                                <div className="text-base-content/70">
+                                <div className="text-muted-foreground">
                                   ${cell.amount.toFixed(2)}
                                   {cell.count > 0 && ` • ${cell.count} transaction${cell.count !== 1 ? 's' : ''}`}
                                 </div>
@@ -204,10 +199,10 @@ export default function SpendingHeatmap({ selectedMonth }: Props) {
           </div>
 
           {/* Legend */}
-          <div className="mt-4 flex items-center justify-center gap-2 text-xs text-base-content/70">
+          <div className="mt-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
             <span>Less</span>
             <div className="flex items-center gap-1">
-              <div className="w-3 h-3 rounded-sm bg-base-300"></div>
+              <div className="w-3 h-3 rounded-sm bg-muted"></div>
               <div className="w-3 h-3 rounded-sm bg-success/20"></div>
               <div className="w-3 h-3 rounded-sm bg-success/40"></div>
               <div className="w-3 h-3 rounded-sm bg-success/60"></div>

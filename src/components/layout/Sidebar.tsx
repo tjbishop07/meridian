@@ -10,7 +10,7 @@ import {
   BarChart3,
   Tag,
 } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '@/lib/utils';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -28,9 +28,9 @@ export default function Sidebar() {
   const location = useLocation();
 
   return (
-    <div className="w-64 bg-base-100 border-r border-base-300 flex flex-col">
+    <div className="w-64 bg-card border-r border-border flex flex-col">
       {/* Logo */}
-      <div className="py-8 flex flex-col items-center justify-center gap-2 border-b border-base-300">
+      <div className="py-8 flex flex-col items-center justify-center gap-2 border-b border-border">
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="5 3 14 19"
@@ -53,11 +53,11 @@ export default function Sidebar() {
             <Link
               key={item.name}
               to={item.href}
-              className={clsx(
+              className={cn(
                 'flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors',
                 isActive
                   ? 'bg-primary/10 text-primary'
-                  : 'text-base-content/80 hover:bg-base-200'
+                  : 'text-foreground/70 hover:bg-muted hover:text-foreground'
               )}
             >
               <item.icon className="w-5 h-5 mr-3" />

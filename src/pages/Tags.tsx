@@ -9,6 +9,11 @@ import Modal from '../components/ui/Modal';
 import TransactionForm from '../components/transactions/TransactionForm';
 import PageHeader from '../components/layout/PageHeader';
 import type { TagStat, TagMonthlyRow, Transaction, CreateTransactionInput } from '../types';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { FormField } from '@/components/ui/FormField';
+import { cn } from '@/lib/utils';
 
 const PRESET_COLORS = [
   '#6366f1', '#8b5cf6', '#3b82f6', '#0ea5e9',
@@ -42,43 +47,38 @@ function TagForm({
 
   return (
     <div className="space-y-4">
-      <div>
-        <label className="block text-sm font-medium text-base-content/80 mb-1">Tag Name</label>
-        <input
+      <FormField label="Tag Name">
+        <Input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSave(); }}
-          className="input w-full"
           placeholder="e.g., Subscriptions"
           autoFocus
         />
-      </div>
+      </FormField>
 
-      <div>
-        <label className="block text-sm font-medium text-base-content/80 mb-1">
-          Description <span className="text-base-content/40 font-normal">(used by AI for smarter matching)</span>
-        </label>
-        <textarea
+      <FormField label="Description" hint="Used by AI for smarter matching">
+        <Textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="textarea w-full text-sm"
           rows={2}
           placeholder="e.g., Netflix, Spotify, Apple One, recurring monthly charges"
         />
-      </div>
+      </FormField>
 
       <div>
-        <label className="block text-sm font-medium text-base-content/80 mb-2">Color</label>
+        <label className="block text-sm font-medium text-muted-foreground mb-2">Color</label>
         <div className="flex flex-wrap gap-2">
           {PRESET_COLORS.map((c) => (
             <button
               key={c}
               type="button"
               onClick={() => setColor(c)}
-              className={`w-7 h-7 rounded-full transition-transform hover:scale-110 ${
-                color === c ? 'ring-2 ring-offset-2 ring-base-content scale-110' : ''
-              }`}
+              className={cn(
+                'w-7 h-7 rounded-full transition-transform hover:scale-110',
+                color === c ? 'ring-2 ring-offset-2 ring-foreground scale-110' : ''
+              )}
               style={{ backgroundColor: c }}
             />
           ))}
@@ -88,20 +88,23 @@ function TagForm({
             type="color"
             value={color}
             onChange={(e) => setColor(e.target.value)}
-            className="w-8 h-8 rounded cursor-pointer border border-base-300"
+            className="w-8 h-8 rounded cursor-pointer border border-border"
           />
-          <span className="text-sm text-base-content/60">Custom</span>
-          <span className="badge ml-auto" style={{ backgroundColor: color, color: '#fff', borderColor: color }}>
+          <span className="text-sm text-muted-foreground">Custom</span>
+          <span
+            className="ml-auto inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+            style={{ backgroundColor: color, color: '#fff' }}
+          >
             {name || 'Preview'}
           </span>
         </div>
       </div>
 
       <div className="flex gap-3 pt-1">
-        <button onClick={handleSave} disabled={!name.trim() || saving} className="btn btn-primary flex-1">
+        <Button onClick={handleSave} disabled={!name.trim() || saving} className="flex-1">
           {saving ? 'Saving…' : submitLabel}
-        </button>
-        <button onClick={onCancel} className="btn btn-ghost">Cancel</button>
+        </Button>
+        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </div>
     </div>
   );
@@ -121,7 +124,6 @@ export default function Tags() {
   const [isAutoTagging, setIsAutoTagging] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
-  // Analytics state
   const [monthlyData, setMonthlyData] = useState<TagMonthlyRow[]>([]);
   const [analyticsMonths, setAnalyticsMonths] = useState(6);
 
@@ -211,7 +213,6 @@ export default function Tags() {
   };
 
   // ── Analytics helpers ─────────────────────────────────────────────────────
-  // Pivot monthly rows into chart-friendly format: [{ month, TagA, TagB, ... }]
   const months = [...new Set(monthlyData.map((r) => r.month))].sort();
   const chartTags = [...new Set(monthlyData.map((r) => r.tag_name))];
   const chartData = months.map((month) => {
@@ -222,16 +223,12 @@ export default function Tags() {
     }
     return row;
   });
-  // Chart display data with formatted month labels
   const chartDisplayData = chartData.map((row) => ({
     ...row,
     month: format(new Date((row.month as string) + '-01'), 'MMM'),
   }));
   const tagColorMap = new Map(monthlyData.map((r) => [r.tag_name, r.tag_color]));
-
-  // Table: tags as rows, months as columns
   const tableMonths = months.slice(-analyticsMonths);
-
   const selectedStat = stats.find((s) => s.id === selectedTagId);
 
   return (
@@ -240,14 +237,14 @@ export default function Tags() {
         title="Tags"
         action={
           <div className="flex gap-2">
-            <button onClick={handleAutoTag} disabled={isAutoTagging} className="btn btn-ghost gap-2">
-              <Sparkles className="w-4 h-4" />
+            <Button variant="ghost" onClick={handleAutoTag} disabled={isAutoTagging}>
+              <Sparkles className="w-4 h-4 mr-2" />
               {isAutoTagging ? 'Tagging…' : 'Auto-tag with AI'}
-            </button>
-            <button onClick={() => setIsNewTagOpen(true)} className="btn btn-primary gap-2">
-              <Plus className="w-4 h-4" />
+            </Button>
+            <Button onClick={() => setIsNewTagOpen(true)}>
+              <Plus className="w-4 h-4 mr-2" />
               New Tag
-            </button>
+            </Button>
           </div>
         }
       >
@@ -257,9 +254,12 @@ export default function Tags() {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors ${
-                activeTab === tab ? 'bg-primary text-primary-content' : 'text-base-content/60 hover:text-base-content hover:bg-base-200'
-              }`}
+              className={cn(
+                'px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors',
+                activeTab === tab
+                  ? 'bg-primary text-primary-foreground'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+              )}
             >
               {tab}
             </button>
@@ -271,49 +271,51 @@ export default function Tags() {
       {activeTab === 'browse' && (
         <div className="flex flex-1 overflow-hidden">
           {/* Left: Tag Cards */}
-          <div className="w-72 flex-shrink-0 border-r border-base-300 overflow-y-auto p-4 space-y-3">
+          <div className="w-72 flex-shrink-0 border-r border-border overflow-y-auto p-4 space-y-3">
             {stats.length === 0 ? (
-              <p className="text-sm text-base-content/50 text-center py-8">No tags yet</p>
+              <p className="text-sm text-muted-foreground text-center py-8">No tags yet</p>
             ) : (
               stats.map((stat) => (
                 <div
                   key={stat.id}
                   onClick={() => handleSelectTag(stat.id)}
-                  className={`card card-compact cursor-pointer border transition-all ${
+                  className={cn(
+                    'rounded-xl border cursor-pointer transition-all p-4',
                     selectedTagId === stat.id
                       ? 'border-primary bg-primary/5'
-                      : 'border-base-300 bg-base-100 hover:border-primary/30 hover:bg-base-200'
-                  }`}
+                      : 'border-border bg-card hover:border-primary/30 hover:bg-muted/50'
+                  )}
                 >
-                  <div className="card-body">
-                    <div className="flex items-center justify-between">
-                      <span className="badge" style={{ backgroundColor: stat.color, color: '#fff', borderColor: stat.color }}>
-                        {stat.name}
-                      </span>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setEditingTag(stat); }}
-                          className="btn btn-ghost btn-xs opacity-50 hover:opacity-100"
-                          title="Edit tag"
-                        >
-                          <Pencil className="w-3 h-3" />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDeleteTag(stat.id); }}
-                          className="btn btn-ghost btn-xs text-error opacity-50 hover:opacity-100"
-                          title="Delete tag"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
-                      </div>
+                  <div className="flex items-center justify-between">
+                    <span
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                      style={{ backgroundColor: stat.color, color: '#fff' }}
+                    >
+                      {stat.name}
+                    </span>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setEditingTag(stat); }}
+                        className="p-1 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                        title="Edit tag"
+                      >
+                        <Pencil className="w-3 h-3" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteTag(stat.id); }}
+                        className="p-1 text-muted-foreground/50 hover:text-destructive transition-colors"
+                        title="Delete tag"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
                     </div>
-                    {stat.description && (
-                      <p className="text-xs text-base-content/40 mt-1 line-clamp-2">{stat.description}</p>
-                    )}
-                    <div className="flex justify-between text-sm text-base-content/60 mt-1">
-                      <span>{stat.count} transactions</span>
-                      <span>${stat.total_amount.toFixed(2)}</span>
-                    </div>
+                  </div>
+                  {stat.description && (
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{stat.description}</p>
+                  )}
+                  <div className="flex justify-between text-sm text-muted-foreground mt-2">
+                    <span>{stat.count} transactions</span>
+                    <span>${stat.total_amount.toFixed(2)}</span>
                   </div>
                 </div>
               ))
@@ -323,72 +325,76 @@ export default function Tags() {
           {/* Right: Transaction List */}
           <div className="flex-1 overflow-y-auto p-4">
             {!selectedTagId ? (
-              <div className="flex items-center justify-center h-full text-base-content/40">
+              <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>Select a tag to browse transactions</p>
               </div>
             ) : loadingTransactions ? (
               <div className="space-y-3">
                 {[...Array(5)].map((_, i) => (
-                  <div key={i} className="h-14 bg-base-200 rounded animate-pulse" />
+                  <div key={i} className="h-14 bg-muted rounded-lg animate-pulse" />
                 ))}
               </div>
             ) : tagTransactions.length === 0 ? (
-              <div className="flex items-center justify-center h-full text-base-content/40">
+              <div className="flex items-center justify-center h-full text-muted-foreground">
                 <p>No transactions with this tag</p>
               </div>
             ) : (
-              <div className="bg-base-100 rounded-lg border border-base-300 overflow-hidden">
+              <div className="bg-card rounded-xl border border-border overflow-hidden">
                 {selectedStat && (
-                  <div className="px-4 py-3 border-b border-base-300 flex items-center gap-3">
-                    <span className="badge" style={{ backgroundColor: selectedStat.color, color: '#fff', borderColor: selectedStat.color }}>
+                  <div className="px-4 py-3 border-b border-border flex items-center gap-3">
+                    <span
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
+                      style={{ backgroundColor: selectedStat.color, color: '#fff' }}
+                    >
                       {selectedStat.name}
                     </span>
-                    <span className="text-sm text-base-content/60">
+                    <span className="text-sm text-muted-foreground">
                       {selectedStat.count} transactions · ${selectedStat.total_amount.toFixed(2)} total
                     </span>
                   </div>
                 )}
                 <table className="min-w-full">
-                  <thead className="bg-base-200">
+                  <thead className="bg-muted">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-base-content/60 uppercase">Date</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-base-content/60 uppercase">Description</th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-base-content/60 uppercase">Category</th>
-                      <th className="px-4 py-2 text-right text-xs font-medium text-base-content/60 uppercase">Amount</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Date</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Description</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Category</th>
+                      <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground uppercase">Amount</th>
                       <th className="px-4 py-2 w-10"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-base-300">
+                  <tbody className="divide-y divide-border">
                     {tagTransactions.map((tx) => (
                       <tr
                         key={tx.id}
                         onClick={() => setEditingTransaction(tx)}
-                        className="hover:bg-base-200 transition-colors cursor-pointer"
+                        className="hover:bg-muted/50 transition-colors cursor-pointer"
                       >
-                        <td className="px-4 py-3 text-sm text-base-content/70 whitespace-nowrap">
+                        <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
                           {format(parseISO(tx.date), 'MMM d, yyyy')}
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          <div className="font-medium text-base-content">{tx.description}</div>
+                          <div className="font-medium text-foreground">{tx.description}</div>
                           {tx.original_description && tx.original_description !== tx.description && (
-                            <div className="text-xs text-base-content/50 truncate max-w-xs">{tx.original_description}</div>
+                            <div className="text-xs text-muted-foreground truncate max-w-xs">{tx.original_description}</div>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-sm text-base-content/60">
-                          {tx.category_name || <span className="text-base-content/30">—</span>}
+                        <td className="px-4 py-3 text-sm text-muted-foreground">
+                          {tx.category_name || <span className="text-muted-foreground/30">—</span>}
                         </td>
                         <td className="px-4 py-3 text-sm text-right whitespace-nowrap">
-                          <span className={
-                            tx.type === 'income' ? 'text-green-600 font-medium' :
-                            tx.type === 'transfer' ? 'text-blue-600 font-medium' : 'text-red-600'
-                          }>
+                          <span className={cn(
+                            'font-medium',
+                            tx.type === 'income' ? 'text-success' :
+                            tx.type === 'transfer' ? 'text-primary' : 'text-destructive'
+                          )}>
                             {tx.type === 'income' ? '+' : tx.type === 'transfer' ? '→' : '-'}${Math.abs(tx.amount).toFixed(2)}
                           </span>
                         </td>
                         <td className="px-4 py-3 w-10">
                           <button
                             onClick={(e) => { e.stopPropagation(); handleRemoveTransactionFromTag(tx.id); }}
-                            className="btn btn-ghost btn-xs btn-circle text-base-content/30 hover:text-error hover:bg-error/10"
+                            className="p-1 text-muted-foreground/30 hover:text-destructive transition-colors rounded"
                             title="Remove from tag"
                           >
                             <X className="w-3.5 h-3.5" />
@@ -409,27 +415,28 @@ export default function Tags() {
         <div className="flex-1 overflow-y-auto p-6 space-y-8">
           {/* Controls */}
           <div className="flex items-center gap-3">
-            <span className="text-sm text-base-content/60">Show last</span>
+            <span className="text-sm text-muted-foreground">Show last</span>
             {[3, 6, 12].map((n) => (
-              <button
+              <Button
                 key={n}
+                size="sm"
+                variant={analyticsMonths === n ? 'default' : 'outline'}
                 onClick={() => setAnalyticsMonths(n)}
-                className={`btn btn-sm ${analyticsMonths === n ? 'btn-primary' : 'btn-ghost border border-base-300'}`}
               >
                 {n}m
-              </button>
+              </Button>
             ))}
           </div>
 
           {monthlyData.length === 0 ? (
-            <div className="flex items-center justify-center h-64 text-base-content/40">
+            <div className="flex items-center justify-center h-64 text-muted-foreground">
               <p>No tagged transactions yet — run Auto-tag to get started</p>
             </div>
           ) : (
             <>
               {/* Stacked bar chart */}
-              <div className="bg-base-100 rounded-xl border border-base-300 p-4">
-                <h2 className="text-sm font-semibold text-base-content/70 mb-4 uppercase tracking-wide">
+              <div className="bg-card rounded-xl border border-border p-4">
+                <h2 className="text-sm font-semibold text-muted-foreground mb-4 uppercase tracking-wide">
                   Monthly Spend by Tag
                 </h2>
                 <div style={{ height: 280 }}>
@@ -473,24 +480,24 @@ export default function Tags() {
               </div>
 
               {/* Month-over-month table */}
-              <div className="bg-base-100 rounded-xl border border-base-300 overflow-hidden">
-                <h2 className="text-sm font-semibold text-base-content/70 px-4 py-3 border-b border-base-300 uppercase tracking-wide">
+              <div className="bg-card rounded-xl border border-border overflow-hidden">
+                <h2 className="text-sm font-semibold text-muted-foreground px-4 py-3 border-b border-border uppercase tracking-wide">
                   Tag Breakdown
                 </h2>
                 <div className="overflow-x-auto">
                   <table className="min-w-full">
-                    <thead className="bg-base-200">
+                    <thead className="bg-muted">
                       <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-base-content/60 uppercase">Tag</th>
+                        <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Tag</th>
                         {tableMonths.map((m) => (
-                          <th key={m} className="px-4 py-2 text-right text-xs font-medium text-base-content/60 uppercase">
+                          <th key={m} className="px-4 py-2 text-right text-xs font-medium text-muted-foreground uppercase">
                             {m}
                           </th>
                         ))}
-                        <th className="px-4 py-2 text-right text-xs font-medium text-base-content/60 uppercase">Total</th>
+                        <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground uppercase">Total</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-base-300">
+                    <tbody className="divide-y divide-border">
                       {chartTags.map((tagName) => {
                         const rowMonths = tableMonths.map((m) => {
                           const r = monthlyData.find((d) => d.month === m && d.tag_name === tagName);
@@ -498,13 +505,15 @@ export default function Tags() {
                         });
                         const total = rowMonths.reduce((s, v) => s + v, 0);
                         const color = tagColorMap.get(tagName) ?? '#6366f1';
-                        // For mini sparkline: scale bars relative to row max
                         const rowMax = Math.max(...rowMonths, 0.01);
 
                         return (
-                          <tr key={tagName} className="hover:bg-base-200">
+                          <tr key={tagName} className="hover:bg-muted/50">
                             <td className="px-4 py-3">
-                              <span className="badge badge-sm" style={{ backgroundColor: color, color: '#fff', borderColor: color }}>
+                              <span
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                style={{ backgroundColor: color, color: '#fff' }}
+                              >
                                 {tagName}
                               </span>
                             </td>
@@ -512,9 +521,8 @@ export default function Tags() {
                               <td key={i} className="px-4 py-3 text-right">
                                 <div className="flex flex-col items-end gap-0.5">
                                   <span className="text-sm tabular-nums">
-                                    {amt > 0 ? `$${amt.toFixed(0)}` : <span className="text-base-content/25">—</span>}
+                                    {amt > 0 ? `$${amt.toFixed(0)}` : <span className="text-muted-foreground/25">—</span>}
                                   </span>
-                                  {/* Tiny inline bar */}
                                   {amt > 0 && (
                                     <div className="h-1 rounded-full" style={{
                                       width: `${Math.max(4, (amt / rowMax) * 48)}px`,

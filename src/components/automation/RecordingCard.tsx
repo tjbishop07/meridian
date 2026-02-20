@@ -1,4 +1,6 @@
 import { Play, Pencil, Copy, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface Recording {
   id: string;
@@ -50,19 +52,14 @@ export function RecordingCard({
   };
 
   const formatLastRunTime = (dateStr: string) => {
-    // SQLite stores timestamps in UTC as 'YYYY-MM-DD HH:MM:SS'
-    // We need to explicitly treat it as UTC and convert to local time
     let date: Date;
 
     if (dateStr.includes('T') || dateStr.includes('Z')) {
-      // Already in ISO format with timezone info
       date = new Date(dateStr);
     } else {
-      // SQLite format without timezone - treat as UTC
       date = new Date(dateStr + ' UTC');
     }
 
-    // Get current time in user's local timezone
     const now = new Date();
     const isToday = date.toDateString() === now.toDateString();
 
@@ -70,7 +67,6 @@ export function RecordingCard({
     yesterday.setDate(yesterday.getDate() - 1);
     const isYesterday = date.toDateString() === yesterday.toDateString();
 
-    // Format time in user's local timezone
     const timeStr = date.toLocaleTimeString(undefined, {
       hour: 'numeric',
       minute: '2-digit',
@@ -90,8 +86,12 @@ export function RecordingCard({
     }
   };
 
+  const progressPct = progress
+    ? Math.min(100, Math.round((progress.currentStep / (progress.totalSteps || 1)) * 100))
+    : 0;
+
   return (
-    <tr className={`hover:bg-base-200 transition-colors ${isPlaying ? 'bg-primary/5' : ''}`} style={{ position: 'relative' }}>
+    <tr className={cn('transition-colors', isPlaying ? 'bg-primary/5' : 'hover:bg-muted/50')} style={{ position: 'relative' }}>
       {/* Name */}
       <td className="whitespace-nowrap">
         <div className="flex items-center gap-2">
@@ -103,9 +103,11 @@ export function RecordingCard({
               e.currentTarget.src = 'https://www.google.com/s2/favicons?domain=example.com&sz=32';
             }}
           />
-          <span className="font-medium text-base-content">{recording.name}</span>
+          <span className="font-medium text-foreground">{recording.name}</span>
           {recording.institution && (
-            <span className="badge badge-primary badge-sm">{recording.institution}</span>
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-primary/10 text-primary font-medium">
+              {recording.institution}
+            </span>
           )}
         </div>
       </td>
@@ -113,14 +115,18 @@ export function RecordingCard({
       {/* Account */}
       <td>
         {recording.account_name ? (
-          <span className="badge badge-success badge-sm">{recording.account_name}</span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-success/10 text-success font-medium">
+            {recording.account_name}
+          </span>
         ) : (
-          <span className="badge badge-ghost badge-sm">No account</span>
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-muted text-muted-foreground">
+            No account
+          </span>
         )}
       </td>
 
       {/* Steps */}
-      <td className="text-sm text-base-content/70 text-center">
+      <td className="text-sm text-muted-foreground text-center">
         {recording.steps.length}
       </td>
 
@@ -141,39 +147,36 @@ export function RecordingCard({
               <span className="font-medium" style={{ color: progress?.color || '#3b82f6' }}>
                 {progress?.status || 'Starting...'}
               </span>
-              <span className="text-base-content/60">
+              <span className="text-muted-foreground">
                 {progress?.currentStep || 0}/{progress?.totalSteps || recording.steps.length}
               </span>
             </div>
-            {progress && progress.currentStep >= progress.totalSteps ? (
-              <progress className="progress progress-primary w-full h-1"></progress>
-            ) : (
-              <progress
-                className="progress progress-primary w-full h-1"
-                value={progress?.currentStep || 0}
-                max={progress?.totalSteps || recording.steps.length}
-              ></progress>
-            )}
+            <div className="w-full bg-muted rounded-full h-1">
+              <div
+                className="h-1 rounded-full bg-primary transition-all"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
           </div>
         ) : (
-          <span className="text-xs text-base-content/60">Ready</span>
+          <span className="text-xs text-muted-foreground">Ready</span>
         )}
       </td>
 
       {/* Actions */}
       <td>
         <div className="flex items-center justify-end gap-1">
-          <button
-            className="btn btn-primary btn-sm"
+          <Button
+            size="sm"
             onClick={() => onPlay(recording.id)}
             disabled={isPlaying}
           >
-            {!isPlaying && <Play className="w-4 h-4" />}
+            {!isPlaying && <Play className="w-4 h-4 mr-1" />}
             {isPlaying ? 'Running...' : 'Run'}
-          </button>
+          </Button>
 
           <button
-            className="btn btn-ghost btn-sm btn-circle"
+            className="p-1.5 rounded-full text-muted-foreground hover:bg-muted transition-colors"
             onClick={() => onEdit(recording)}
             title="Edit"
           >
@@ -181,7 +184,7 @@ export function RecordingCard({
           </button>
 
           <button
-            className="btn btn-ghost btn-sm btn-circle"
+            className="p-1.5 rounded-full text-muted-foreground hover:bg-muted transition-colors"
             onClick={() => onDuplicate(recording.id)}
             title="Duplicate"
           >
@@ -189,7 +192,7 @@ export function RecordingCard({
           </button>
 
           <button
-            className="btn btn-ghost btn-sm btn-circle text-error hover:bg-error/10"
+            className="p-1.5 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
             onClick={() => onDelete(recording.id)}
             title="Delete"
           >

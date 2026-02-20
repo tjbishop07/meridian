@@ -9,6 +9,8 @@ import { useCategories } from '../hooks/useCategories';
 import { useAutomationSettings } from '../hooks/useAutomationSettings';
 import { useTickerStore } from '../store/tickerStore';
 import { useAutomationStore } from '../store/automationStore';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface Recording {
   id: string;
@@ -42,14 +44,12 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
   const [scrapedTransactions, setScrapedTransactions] = useState<any[] | null>(null);
   const [accounts, setAccounts] = useState<any[]>([]);
   const [isImporting, setIsImporting] = useState(false);
-  const isImportingRef = useRef(false); // Use ref for synchronous duplicate detection
+  const isImportingRef = useRef(false);
 
-  // New recording modal
   const [showNewRecordingModal, setShowNewRecordingModal] = useState(false);
   const [startUrl, setStartUrl] = useState('https://www.usaa.com');
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
 
-  // Reload recordings whenever user navigates to this page
   useEffect(() => {
     if (location.pathname === '/automation' || location.pathname === '/import') {
       loadRecordings();
@@ -61,25 +61,21 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
     loadAccounts();
     loadCategories();
 
-    // Listen for recording saved events
     const handleRecordingSaved = () => {
       loadRecordings();
     };
 
-    // Listen for scrape complete events
     const handleScrapeComplete = async (...args: any[]) => {
       console.log('[Automation] handleScrapeComplete called');
       console.log('[Automation] Arguments received:', args);
 
-      // Prevent concurrent imports - use REF for synchronous check
       if (isImportingRef.current) {
         console.warn('[Automation] ❌ BLOCKED: Import already in progress, ignoring duplicate event');
         return;
       }
-      isImportingRef.current = true; // Set ref synchronously
-      setIsImporting(true); // Set state for UI
+      isImportingRef.current = true;
+      setIsImporting(true);
 
-      // The data should be the first argument (event is filtered by preload)
       const data = args[0];
 
       console.log('[Automation] Extracted data:', data);
@@ -103,7 +99,6 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
       console.log('[Automation] Scraped transactions:', data.transactions.length);
 
       if (data.count > 0) {
-        // Find the recording to get the account_id
         const recording = recordings.find(r => r.id === String(data.recipeId));
 
         console.log('[Automation] Recording found:', recording?.name, 'Account ID:', recording?.account_id);
@@ -111,11 +106,9 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
 
         let accountId = recording?.account_id;
 
-        // If no account associated with recording, try to reload and check again
         if (!accountId) {
           console.log('[Automation] No account_id on recording, fetching fresh data...');
           try {
-            // Reload the specific recording to get latest data
             const freshRecording = await window.electron.invoke('export-recipes:get-by-id', Number(data.recipeId));
             accountId = freshRecording?.account_id;
             console.log('[Automation] Fresh recording account_id:', accountId);
@@ -124,9 +117,7 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
           }
         }
 
-        // If still no account, use the first available account
         if (!accountId) {
-          // Reload accounts to make sure we have the latest list
           const accountsList = await window.electron.invoke('accounts:get-all');
           console.log('[Automation] Loaded accounts:', accountsList.length);
 
@@ -140,41 +131,35 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
           console.error('[Automation] No accounts available for import');
           useTickerStore.getState().addMessage({ content: 'No accounts available — please create an account first', type: 'error', duration: 6000 });
           isImportingRef.current = false;
-        setIsImporting(false);
+          setIsImporting(false);
           return;
         }
 
         console.log('[Automation] Using account ID:', accountId);
 
-        // Directly save transactions to database
         try {
           console.log('[Automation] ==================== SAVING TRANSACTIONS ====================');
           console.log('[Automation] Account ID:', accountId);
           console.log('[Automation] Total transactions:', data.transactions.length);
           console.log('[Automation] Sample scraped data:', data.transactions.slice(0, 2));
 
-          // Find the default income category
           const incomeCategory = categories.find(
             c => c.type === 'income' && (c.name.toLowerCase() === 'income' || c.name.toLowerCase().includes('income'))
           );
 
-          // Single normalization function used everywhere — must match what the DB layer stores
           const normalizeCategory = (name: string): string => {
             let n = name
               .trim()
-              .replace(/\s*\d+\s*$/g, '')        // strip trailing numbers ("Groceries 1" → "Groceries")
-              .replace(/\s*[\(\)\[\]\{\}]\s*\d*\s*$/g, '') // strip trailing "(1)" etc.
+              .replace(/\s*\d+\s*$/g, '')
+              .replace(/\s*[\(\)\[\]\{\}]\s*\d*\s*$/g, '')
               .replace(/\s+/g, ' ')
               .trim();
             return n || name.trim();
           };
 
-          // Extract, normalize, and get-or-create categories from scraped transactions.
-          // Returns: normalizedName:type → category_id
           const batchProcessCategories = async (
             scrapedTransactions: any[]
           ): Promise<Map<string, number>> => {
-            // Step 1: Collect unique (normalizedName, type) pairs
             const uniqueCategories = new Map<string, 'income' | 'expense'>();
 
             for (const txn of scrapedTransactions) {
@@ -183,26 +168,22 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
               const type = amount < 0 ? 'expense' : 'income';
               const norm = normalizeCategory(txn.category.trim());
               if (!norm || norm.toLowerCase().includes('pending')) continue;
-              // First occurrence of this name wins for type
               if (!uniqueCategories.has(norm)) uniqueCategories.set(norm, type);
             }
 
             console.log(`[Automation] Categories to resolve: ${uniqueCategories.size}`);
 
-            // Step 2: Fetch all existing categories and build lookup (case-insensitive)
             const existingCategories = await window.electron.invoke('categories:get-all');
             const categoryMap = new Map<string, number>();
             for (const cat of existingCategories) {
               categoryMap.set(`${cat.name.toLowerCase()}:${cat.type}`, cat.id);
             }
 
-            // Step 3: Get or create each category; use the same key throughout
             for (const [norm, type] of uniqueCategories) {
               const key = `${norm.toLowerCase()}:${type}`;
-              if (categoryMap.has(key)) continue; // already exists
+              if (categoryMap.has(key)) continue;
 
               try {
-                // categories:create is now a get-or-create at the DB level
                 const newId = await window.electron.invoke('categories:create', {
                   name: norm,
                   type,
@@ -217,7 +198,6 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
               }
             }
 
-            // Step 4: Build final lookup using the same key format
             const lookupMap = new Map<string, number>();
             for (const [norm, type] of uniqueCategories) {
               const id = categoryMap.get(`${norm.toLowerCase()}:${type}`);
@@ -228,21 +208,15 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
             return lookupMap;
           };
 
-          // Step A: Batch process all categories BEFORE processing transactions
           const categoryLookupMap = await batchProcessCategories(data.transactions);
 
-          // Step B: Convert scraped transactions to CreateTransactionInput format
           const transactionsToCreate = [];
 
           for (const txn of data.transactions) {
             const amount = parseFloat(txn.amount) || 0;
             const balance = txn.balance ? parseFloat(txn.balance) : undefined;
-
-            // Determine transaction type from amount
-            // Negative amounts are expenses, positive are income
             const type = amount < 0 ? 'expense' : 'income';
 
-            // Handle category from pre-built map (no IPC calls)
             let categoryId = null;
 
             if (txn.category && txn.category.trim()) {
@@ -256,17 +230,14 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
                 console.warn(`[Automation] Transaction "${txn.description}" → no category found for "${normalizedName}"`);
               }
             } else if (type === 'income' && incomeCategory) {
-              // Fall back to default income category for income transactions without category
               console.log('[Automation] 💰 Using default income category:', incomeCategory.id);
               categoryId = incomeCategory.id;
             } else {
               console.log('[Automation] ⚠️ No category assigned - scraped category was empty or invalid');
             }
 
-            // Convert date to YYYY-MM-DD format
             let formattedDate = '';
             try {
-              // Parse date like "Feb 10, 2026" to "2026-02-10"
               const parsedDate = new Date(txn.date);
               if (!isNaN(parsedDate.getTime())) {
                 const year = parsedDate.getFullYear();
@@ -275,11 +246,11 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
                 formattedDate = `${year}-${month}-${day}`;
               } else {
                 console.warn('[Automation] Invalid date, skipping transaction:', txn);
-                continue; // Skip this transaction
+                continue;
               }
             } catch (err) {
               console.warn('[Automation] Failed to parse date, skipping transaction:', txn.date, err);
-              continue; // Skip this transaction
+              continue;
             }
 
             transactionsToCreate.push({
@@ -287,8 +258,8 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
               date: formattedDate,
               description: txn.description,
               original_description: txn.description,
-              amount: Math.abs(amount), // Store as positive number
-              balance: balance, // Include the running balance from the bank
+              amount: Math.abs(amount),
+              balance: balance,
               type: type,
               status: 'cleared' as const,
               category_id: categoryId,
@@ -296,7 +267,6 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
             });
           }
 
-          // Summary before bulk insert
           const categorizedCount = transactionsToCreate.filter(t => t.category_id !== null).length;
           const uncategorizedCount = transactionsToCreate.length - categorizedCount;
 
@@ -307,17 +277,14 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
           console.log('[Automation] Sample transactions:', transactionsToCreate.slice(0, 2));
           console.log('[Automation] Creating transactions...');
 
-          // Bulk create all transactions
           const created = await window.electron.invoke('transactions:bulk-create', transactionsToCreate);
 
           console.log('[Automation] Successfully created:', created, 'transactions');
           console.log('[Automation] ==================== SAVE COMPLETE ====================');
 
-          // Reload categories and recordings in background for UI
           loadCategories().catch(err => console.error('[Automation] Failed to reload categories:', err));
           loadRecordings().catch(err => console.error('[Automation] Failed to reload recordings:', err));
 
-          // Add ticker message with results
           const recording = recordings.find(r => r.id === String(data.recipeId));
           const recordingName = recording?.name || 'Automation';
           console.log('[Automation] ========== ADDING TICKER MESSAGE ==========');
@@ -345,10 +312,8 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
           console.log('[Automation] Ticker store after add:', useTickerStore.getState().messages);
           console.log('[Automation] ================================================');
 
-          // Clear playing state and progress after successful import
           clearProgress(String(data.recipeId));
 
-          // Navigate to transactions page to see the saved data
           setTimeout(() => {
             navigate('/transactions');
           }, 1500);
@@ -360,14 +325,12 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
             duration: 8000,
           });
 
-          // Clear playing state on error
           clearProgress(String(data.recipeId));
         } finally {
           isImportingRef.current = false;
-        setIsImporting(false);
+          setIsImporting(false);
         }
       } else {
-        // Add ticker message for no transactions
         const recording = recordings.find(r => r.id === String(data.recipeId));
         const recordingName = recording?.name || 'Automation';
         const noTxMessages = [
@@ -381,7 +344,6 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
           duration: 6000,
         });
 
-        // Clear playing state when no transactions found
         clearProgress(String(data.recipeId));
       }
     };
@@ -405,12 +367,11 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
         window.electron.invoke('accounts:get-all')
       ]);
 
-      // Parse steps from JSON string to array and add account names
       const parsedRecipes = recipes.map((recipe: any) => {
         const account = accountsList.find((acc: any) => acc.id === recipe.account_id);
         return {
           ...recipe,
-          id: String(recipe.id), // Ensure ID is always a string
+          id: String(recipe.id),
           steps: typeof recipe.steps === 'string' ? JSON.parse(recipe.steps) : recipe.steps,
           account_name: account?.name || null
         };
@@ -428,7 +389,6 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
     try {
       const accountsList = await window.electron.invoke('accounts:get-all');
       setAccounts(accountsList);
-      // Set first account as default
       if (accountsList.length > 0 && !selectedAccountId) {
         setSelectedAccountId(accountsList[0].id);
       }
@@ -471,7 +431,6 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
     }
 
     try {
-      // Ensure ID is a string
       const idStr = String(id);
       console.log('[Automation] Normalized ID:', idStr);
       console.log('[Automation] Calling setPlayingRecipe...');
@@ -539,6 +498,8 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
     }
   };
 
+  const selectClass = 'w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring text-sm';
+
   return (
     <div className="flex flex-col h-full">
       {!embedded && (
@@ -546,103 +507,104 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
           title="Automation"
           subtitle="Automate transaction imports with browser automation and AI"
           action={
-            <button className="btn btn-primary gap-2" onClick={handleNewRecording}>
-              <Plus className="w-4 h-4" />
+            <Button onClick={handleNewRecording}>
+              <Plus className="w-4 h-4 mr-2" />
               New Recording
-            </button>
+            </Button>
           }
         />
       )}
 
       {embedded && (
-        <div className="border-b border-base-300 px-6 py-2 flex justify-end">
-          <button className="btn btn-primary btn-sm gap-2" onClick={handleNewRecording}>
-            <Plus className="w-4 h-4" />
+        <div className="border-b border-border px-6 py-2 flex justify-end">
+          <Button size="sm" onClick={handleNewRecording}>
+            <Plus className="w-4 h-4 mr-2" />
             New Recording
-          </button>
+          </Button>
         </div>
       )}
 
       <div className="flex-1 overflow-auto p-6">
         <>
-            {/* Scraping Method Selector */}
-            <div className="bg-base-100 rounded-lg p-4 mb-6">
-              <p className="text-sm font-medium text-base-content/80 mb-3">Transaction Scraping Method</p>
-              <div className="grid grid-cols-2 gap-3 max-w-lg">
-                {([
-                  {
-                    value: 'claude',
-                    label: 'Claude Vision AI',
-                    description: 'Most reliable. Configure API key in Settings.',
-                  },
-                  {
-                    value: 'ollama',
-                    label: 'Local Ollama',
-                    description: 'Runs on your machine. Configure in Settings.',
-                  },
-                ] as const).map((opt) => {
-                  const active = automationSettings.vision_provider === opt.value;
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => updateAutomationSettings({ vision_provider: opt.value })}
-                      className={`flex flex-col items-start gap-1 rounded-lg border p-4 text-left transition-all ${
-                        active
-                          ? 'border-primary bg-primary/5 ring-1 ring-primary'
-                          : 'border-base-300 bg-base-100 hover:border-base-content/30'
-                      }`}
-                    >
-                      <span className={`font-medium text-sm ${active ? 'text-primary' : 'text-base-content'}`}>
-                        {opt.label}
-                      </span>
-                      <p className="text-xs text-base-content/60 leading-snug">{opt.description}</p>
-                    </button>
-                  );
-                })}
-              </div>
+          {/* Scraping Method Selector */}
+          <div className="bg-card rounded-xl border border-border p-4 mb-6">
+            <p className="text-sm font-medium text-muted-foreground mb-3">Transaction Scraping Method</p>
+            <div className="grid grid-cols-2 gap-3 max-w-lg">
+              {([
+                {
+                  value: 'claude',
+                  label: 'Claude Vision AI',
+                  description: 'Most reliable. Configure API key in Settings.',
+                },
+                {
+                  value: 'ollama',
+                  label: 'Local Ollama',
+                  description: 'Runs on your machine. Configure in Settings.',
+                },
+              ] as const).map((opt) => {
+                const active = automationSettings.vision_provider === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    onClick={() => updateAutomationSettings({ vision_provider: opt.value })}
+                    className={cn(
+                      'flex flex-col items-start gap-1 rounded-lg border p-4 text-left transition-all',
+                      active
+                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                        : 'border-border bg-card hover:border-muted-foreground/30'
+                    )}
+                  >
+                    <span className={cn('font-medium text-sm', active ? 'text-primary' : 'text-foreground')}>
+                      {opt.label}
+                    </span>
+                    <p className="text-xs text-muted-foreground leading-snug">{opt.description}</p>
+                  </button>
+                );
+              })}
             </div>
+          </div>
 
-            {loading ? (
-              <div className="flex items-center justify-center h-full">
-                <span className="loading loading-spinner loading-lg"></span>
-              </div>
-            ) : recordings.length === 0 ? (
-              <EmptyState onCreateNew={handleNewRecording} />
-            ) : (
-              <div className="bg-base-100 rounded-lg shadow-sm overflow-x-auto">
-                <table className="table w-full">
-                  <thead>
-                    <tr className="border-b border-base-300">
-                      <th className="bg-base-200">Name</th>
-                      <th className="bg-base-200 w-32">Account</th>
-                      <th className="bg-base-200 w-16 text-center">Steps</th>
-                      <th className="bg-base-200 w-48">Last Run</th>
-                      <th className="bg-base-200">Status</th>
-                      <th className="bg-base-200 w-40 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recordings.map((recording) => {
-                      const recordingProgress = progress[recording.id];
-                      const isPlaying = playingId === recording.id;
+          {loading ? (
+            <div className="flex items-center justify-center h-48">
+              <div className="w-8 h-8 border-2 border-muted border-t-primary rounded-full animate-spin" />
+            </div>
+          ) : recordings.length === 0 ? (
+            <EmptyState onCreateNew={handleNewRecording} />
+          ) : (
+            <div className="bg-card rounded-xl border border-border shadow-sm overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-border">
+                    <th className="bg-muted px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Name</th>
+                    <th className="bg-muted px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-32">Account</th>
+                    <th className="bg-muted px-4 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-16">Steps</th>
+                    <th className="bg-muted px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-48">Last Run</th>
+                    <th className="bg-muted px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                    <th className="bg-muted px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider w-40">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recordings.map((recording) => {
+                    const recordingProgress = progress[recording.id];
+                    const isPlaying = playingId === recording.id;
 
-                      return (
-                        <RecordingCard
-                          key={recording.id}
-                          recording={recording}
-                          onPlay={handlePlayRecording}
-                          onEdit={(rec) => setEditingRecording(rec)}
-                          onDelete={handleDeleteRecording}
-                          onDuplicate={handleDuplicateRecording}
-                          isPlaying={isPlaying}
-                          progress={recordingProgress}
-                        />
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                    return (
+                      <RecordingCard
+                        key={recording.id}
+                        recording={recording}
+                        onPlay={handlePlayRecording}
+                        onEdit={(rec) => setEditingRecording(rec)}
+                        onDelete={handleDeleteRecording}
+                        onDuplicate={handleDuplicateRecording}
+                        isPlaying={isPlaying}
+                        progress={recordingProgress}
+                      />
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       </div>
 
@@ -657,51 +619,52 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
       {/* Scraped Transactions Modal */}
       {scrapedTransactions && scrapedTransactions.length > 0 && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-base-100 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
-            <div className="p-6 border-b border-base-300">
-              <h3 className="text-xl font-bold text-base-content">
+          <div className="bg-card rounded-xl border border-border shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-border">
+              <h3 className="text-xl font-bold text-foreground">
                 Scraped Transactions ({scrapedTransactions.length})
               </h3>
-              <p className="text-sm text-base-content/70 mt-1">
-                Review the extracted transactions below
-              </p>
+              <p className="text-sm text-muted-foreground mt-1">Review the extracted transactions below</p>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
               <div className="overflow-x-auto">
-                <table className="table table-zebra w-full">
-                  <thead>
+                <table className="w-full text-sm">
+                  <thead className="bg-muted">
                     <tr>
-                      <th>#</th>
-                      <th>Date</th>
-                      <th>Description</th>
-                      <th>Category</th>
-                      <th>Amount</th>
-                      <th>Balance</th>
-                      <th>Confidence</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">#</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Date</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Description</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Category</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Amount</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Balance</th>
+                      <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground uppercase">Confidence</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-border">
                     {scrapedTransactions.map((txn, idx) => (
-                      <tr key={idx}>
-                        <td>{txn.index || idx + 1}</td>
-                        <td className="whitespace-nowrap">{txn.date}</td>
-                        <td className="max-w-xs truncate">{txn.description}</td>
-                        <td className="whitespace-nowrap">
+                      <tr key={idx} className="hover:bg-muted/50">
+                        <td className="px-3 py-2 text-muted-foreground">{txn.index || idx + 1}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{txn.date}</td>
+                        <td className="px-3 py-2 max-w-xs truncate">{txn.description}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">
                           {txn.category ? (
-                            <span className="badge badge-sm badge-primary">{txn.category}</span>
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                              {txn.category}
+                            </span>
                           ) : (
-                            <span className="text-base-content/40 text-xs">No category</span>
+                            <span className="text-muted-foreground/40 text-xs">No category</span>
                           )}
                         </td>
-                        <td className="whitespace-nowrap font-mono">{txn.amount}</td>
-                        <td className="whitespace-nowrap font-mono">{txn.balance}</td>
-                        <td>
-                          <span className={`badge badge-sm ${
-                            txn.confidence > 50 ? 'badge-success' :
-                            txn.confidence > 30 ? 'badge-warning' :
-                            'badge-error'
-                          }`}>
+                        <td className="px-3 py-2 whitespace-nowrap font-mono">{txn.amount}</td>
+                        <td className="px-3 py-2 whitespace-nowrap font-mono">{txn.balance}</td>
+                        <td className="px-3 py-2">
+                          <span className={cn(
+                            'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium',
+                            txn.confidence > 50 ? 'bg-success/10 text-success' :
+                            txn.confidence > 30 ? 'bg-warning/10 text-warning' :
+                            'bg-destructive/10 text-destructive'
+                          )}>
                             {txn.confidence ? Math.round(txn.confidence) : '?'}
                           </span>
                         </td>
@@ -712,37 +675,26 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
               </div>
             </div>
 
-            <div className="flex gap-3 p-6 border-t border-base-300 bg-base-200">
-              <button
-                onClick={() => setScrapedTransactions(null)}
-                className="flex-1 px-4 py-2 bg-base-300 text-base-content rounded-lg hover:bg-base-400 font-medium"
-              >
+            <div className="flex gap-3 p-6 border-t border-border bg-muted/50">
+              <Button variant="outline" className="flex-1" onClick={() => setScrapedTransactions(null)}>
                 Dismiss
-              </button>
-              <button
-                onClick={() => {
-                  // Copy as JSON to clipboard
-                  navigator.clipboard.writeText(JSON.stringify(scrapedTransactions, null, 2));
-                }}
-                className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-medium"
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => { navigator.clipboard.writeText(JSON.stringify(scrapedTransactions, null, 2)); }}
               >
                 Copy as JSON
-              </button>
-              <button
+              </Button>
+              <Button
+                className="flex-1"
                 onClick={() => {
-                  // Navigate to Import page with scraped transactions
-                  navigate('/import', {
-                    state: {
-                      scrapedTransactions: scrapedTransactions,
-                      source: 'automation'
-                    }
-                  });
-                  setScrapedTransactions(null); // Close modal
+                  navigate('/import', { state: { scrapedTransactions, source: 'automation' } });
+                  setScrapedTransactions(null);
                 }}
-                className="flex-1 px-4 py-2 bg-primary text-primary-content rounded-lg hover:bg-primary/80 font-medium"
               >
                 Import Transactions
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -751,18 +703,18 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
       {/* New Recording Modal */}
       {showNewRecordingModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-base-100 rounded-lg shadow-xl max-w-lg w-full mx-4 p-6">
-            <h3 className="text-xl font-bold text-base-content mb-4">Start New Recording</h3>
+          <div className="bg-card rounded-xl border border-border shadow-xl max-w-lg w-full mx-4 p-6">
+            <h3 className="text-xl font-bold text-foreground mb-4">Start New Recording</h3>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-base-content/80 mb-2">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
                   Import To Account
                 </label>
                 <select
                   value={selectedAccountId || ''}
                   onChange={(e) => setSelectedAccountId(Number(e.target.value))}
-                  className="w-full px-4 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+                  className={selectClass}
                 >
                   <option value="">Select account...</option>
                   {accounts.map((account) => (
@@ -771,13 +723,13 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
                     </option>
                   ))}
                 </select>
-                <p className="text-xs text-base-content/60 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Transactions will be automatically imported to this account
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-base-content/80 mb-2">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
                   Starting URL
                 </label>
                 <input
@@ -785,54 +737,48 @@ export function Automation({ embedded = false }: { embedded?: boolean } = {}) {
                   value={startUrl}
                   onChange={(e) => setStartUrl(e.target.value)}
                   placeholder="https://www.usaa.com"
-                  className="w-full px-4 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary"
+                  className={selectClass}
                 />
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <p className="text-blue-900 font-medium text-sm mb-2">How it works:</p>
-                <ol className="text-blue-700 text-xs space-y-1 list-decimal list-inside">
+              <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-lg p-4">
+                <p className="text-blue-900 dark:text-blue-200 font-medium text-sm mb-2">How it works:</p>
+                <ol className="text-blue-700 dark:text-blue-300 text-xs space-y-1 list-decimal list-inside">
                   <li>Opens a real browser window (undetectable by banks)</li>
                   <li>Navigate to your bank and log in manually</li>
                   <li>Click "Start Recording" when ready</li>
                   <li>Perform your actions (navigate, click, type)</li>
-                  <li>Click "Stop & Save" when done</li>
+                  <li>Click "Stop &amp; Save" when done</li>
                   <li>Your recording can be replayed anytime!</li>
                 </ol>
               </div>
 
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <p className="text-green-800 text-sm">
+              <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 rounded-lg p-3">
+                <p className="text-emerald-800 dark:text-emerald-200 text-sm">
                   <strong>✓ Uses real Chromium browser</strong>
                 </p>
-                <p className="text-green-700 text-xs mt-1">
+                <p className="text-emerald-700 dark:text-emerald-300 text-xs mt-1">
                   Cookies and sessions persist between recordings, so you stay logged in!
                 </p>
               </div>
 
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                <p className="text-purple-800 text-sm">
+              <div className="bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-900 rounded-lg p-3">
+                <p className="text-violet-800 dark:text-violet-200 text-sm">
                   <strong>🔒 Fully Automated</strong>
                 </p>
-                <p className="text-purple-700 text-xs mt-1">
-                  All inputs including PINs and passwords are saved during recording and automatically entered during playback. No manual intervention needed!
+                <p className="text-violet-700 dark:text-violet-300 text-xs mt-1">
+                  All inputs including PINs and passwords are saved during recording and automatically entered during playback.
                 </p>
               </div>
             </div>
 
             <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowNewRecordingModal(false)}
-                className="flex-1 px-4 py-2 bg-base-200 text-base-content/80 rounded-lg hover:bg-base-300 font-medium"
-              >
+              <Button variant="outline" className="flex-1" onClick={() => setShowNewRecordingModal(false)}>
                 Cancel
-              </button>
-              <button
-                onClick={handleStartRecording}
-                className="flex-1 px-4 py-2 bg-primary text-primary-content rounded-lg hover:bg-primary/80 font-medium"
-              >
+              </Button>
+              <Button className="flex-1" onClick={handleStartRecording}>
                 Open Recording Browser
-              </button>
+              </Button>
             </div>
           </div>
         </div>

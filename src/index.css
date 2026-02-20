@@ -1,58 +1,165 @@
 @import "tailwindcss";
-@plugin "daisyui" {
-  themes: dark --default,
-    light, cupcake, bumblebee, emerald, corporate, synthwave, retro,
-    cyberpunk, valentine, halloween, garden, forest, aqua, lofi, pastel,
-    fantasy, wireframe, black, luxury, dracula, cmyk, autumn, business,
-    acid, lemonade, night, coffee, winter, dim, nord, sunset,
-    caramellatte, abyss, silk, money;
+@import "tw-animate-css";
+
+/* Use .dark class for shadcn dark: variant compatibility */
+@custom-variant dark (&:is(.dark *));
+
+/* Map CSS custom properties to Tailwind color tokens */
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
 }
 
-@plugin "daisyui/theme" {
-  name: "money";
-  default: false;
-  prefersdark: false;
-  color-scheme: "light";
-  --color-base-100: oklch(97% 0.021 166.113);
-  --color-base-200: oklch(95% 0.052 163.051);
-  --color-base-300: oklch(90% 0.093 164.15);
-  --color-base-content: oklch(37% 0.077 168.94);
-  --color-primary: oklch(51% 0.262 276.966);
-  --color-primary-content: oklch(96% 0.018 272.314);
-  --color-secondary: oklch(66% 0.179 58.318);
-  --color-secondary-content: oklch(98% 0.022 95.277);
-  --color-accent: oklch(55% 0.288 302.321);
-  --color-accent-content: oklch(97% 0.014 308.299);
-  --color-neutral: oklch(43% 0.095 166.913);
-  --color-neutral-content: oklch(97% 0.021 166.113);
-  --color-info: oklch(58% 0.158 241.966);
-  --color-info-content: oklch(97% 0.013 236.62);
-  --color-success: oklch(64% 0.2 131.684);
-  --color-success-content: oklch(98% 0.031 120.757);
-  --color-warning: oklch(68% 0.162 75.834);
-  --color-warning-content: oklch(98% 0.026 102.212);
-  --color-error: oklch(57% 0.245 27.325);
-  --color-error-content: oklch(97% 0.013 17.38);
-  --radius-selector: 2rem;
-  --radius-field: 0.5rem;
-  --radius-box: 0rem;
-  --size-selector: 0.25rem;
-  --size-field: 0.25rem;
-  --border: 1px;
-  --depth: 1;
-  --noise: 0;
+/* ── Dark theme (app default) ─────────────────────────────── */
+:root,
+[data-theme="dark"],
+.dark {
+  --radius: 0.5rem;
+
+  /* Backgrounds — matched to DaisyUI dark palette */
+  --background:          oklch(23.26% 0.014 265.81);  /* base-200 */
+  --foreground:          oklch(83.15% 0.03  263.08);  /* base-content */
+  --card:                oklch(25.17% 0.015 265.81);  /* base-100 */
+  --card-foreground:     oklch(83.15% 0.03  263.08);
+  --popover:             oklch(25.17% 0.015 265.81);
+  --popover-foreground:  oklch(83.15% 0.03  263.08);
+
+  /* Brand */
+  --primary:             oklch(65.69% 0.196 275.75);  /* DaisyUI dark primary */
+  --primary-foreground:  oklch(13.14% 0.039 275.75);
+
+  /* Surface variants */
+  --secondary:           oklch(30%    0.015 265);
+  --secondary-foreground: oklch(83.15% 0.03 263.08);
+  --muted:               oklch(21.34% 0.012 265.81);  /* base-300 */
+  --muted-foreground:    oklch(60%    0.015 263);
+  --accent:              oklch(30%    0.015 265);
+  --accent-foreground:   oklch(83.15% 0.03  263.08);
+
+  /* Semantic */
+  --destructive:          oklch(62.8%  0.258  29.23);  /* error */
+  --destructive-foreground: oklch(97%  0.01   17);
+  --success:              oklch(72.44% 0.168 162.48);
+  --success-foreground:   oklch(15%   0      0);
+  --warning:              oklch(79.54% 0.184  86.047);
+  --warning-foreground:   oklch(15%   0      0);
+  --info:                 oklch(72.06% 0.191 231.6);
+  --info-foreground:      oklch(15%   0      0);
+
+  /* Borders / inputs */
+  --border:  oklch(30%    0.014 265.81);
+  --input:   oklch(30%    0.014 265.81);
+  --ring:    oklch(65.69% 0.196 275.75);
 }
 
-/* Sprout logo sway animation */
+/* ── Light theme ──────────────────────────────────────────── */
+[data-theme="light"] {
+  --radius: 0.5rem;
+
+  --background:          oklch(96%   0.002 264);
+  --foreground:          oklch(18%   0.01  264);
+  --card:                oklch(100%  0     0);
+  --card-foreground:     oklch(18%   0.01  264);
+  --popover:             oklch(100%  0     0);
+  --popover-foreground:  oklch(18%   0.01  264);
+
+  --primary:             oklch(65.69% 0.196 275.75);
+  --primary-foreground:  oklch(97%   0.01  276);
+
+  --secondary:           oklch(92%   0.005 264);
+  --secondary-foreground: oklch(18%  0.01  264);
+  --muted:               oklch(92%   0.005 264);
+  --muted-foreground:    oklch(50%   0.01  264);
+  --accent:              oklch(92%   0.005 264);
+  --accent-foreground:   oklch(18%   0.01  264);
+
+  --destructive:          oklch(57%   0.245  27.325);
+  --destructive-foreground: oklch(97% 0.013  17.38);
+  --success:              oklch(64%   0.2   131.684);
+  --success-foreground:   oklch(15%   0      0);
+  --warning:              oklch(68%   0.162  75.834);
+  --warning-foreground:   oklch(15%   0      0);
+  --info:                 oklch(58%   0.158 241.966);
+  --info-foreground:      oklch(97%   0.013 236.62);
+
+  --border:  oklch(88%   0.008 264);
+  --input:   oklch(88%   0.008 264);
+  --ring:    oklch(65.69% 0.196 275.75);
+}
+
+/* ── Money theme (light green) ────────────────────────────── */
+[data-theme="money"] {
+  --radius: 0.5rem;
+
+  --background:          oklch(95%   0.052 163.051);  /* base-200 */
+  --foreground:          oklch(37%   0.077 168.94);   /* base-content */
+  --card:                oklch(97%   0.021 166.113);  /* base-100 */
+  --card-foreground:     oklch(37%   0.077 168.94);
+  --popover:             oklch(97%   0.021 166.113);
+  --popover-foreground:  oklch(37%   0.077 168.94);
+
+  --primary:             oklch(51%   0.262 276.966);
+  --primary-foreground:  oklch(96%   0.018 272.314);
+
+  --secondary:           oklch(90%   0.06  163);
+  --secondary-foreground: oklch(37%  0.077 168.94);
+  --muted:               oklch(90%   0.093 164.15);   /* base-300 */
+  --muted-foreground:    oklch(55%   0.05  168);
+  --accent:              oklch(88%   0.07  163);
+  --accent-foreground:   oklch(37%   0.077 168.94);
+
+  --destructive:          oklch(57%   0.245  27.325);
+  --destructive-foreground: oklch(97% 0.013  17.38);
+  --success:              oklch(64%   0.2   131.684);
+  --success-foreground:   oklch(15%   0      0);
+  --warning:              oklch(68%   0.162  75.834);
+  --warning-foreground:   oklch(15%   0      0);
+  --info:                 oklch(58%   0.158 241.966);
+  --info-foreground:      oklch(97%   0.013 236.62);
+
+  --border:  oklch(86%   0.075 164.15);
+  --input:   oklch(93%   0.04  163);
+  --ring:    oklch(51%   0.262 276.966);
+}
+
+/* ── Sprout logo animations ───────────────────────────────── */
 @keyframes sprout-sway {
   0%, 100% { transform: rotate(-4deg); }
-  50% { transform: rotate(4deg); }
+  50%       { transform: rotate(4deg); }
 }
 
 @keyframes sprout-grow-in {
-  0% { transform: scale(0.3) rotate(0deg); opacity: 0; }
-  70% { transform: scale(1.1) rotate(-2deg); opacity: 1; }
-  100% { transform: scale(1) rotate(-4deg); opacity: 1; }
+  0%   { transform: scale(0.3) rotate(0deg);  opacity: 0; }
+  70%  { transform: scale(1.1) rotate(-2deg); opacity: 1; }
+  100% { transform: scale(1)   rotate(-4deg); opacity: 1; }
 }
 
 .logo-sprout {
@@ -62,75 +169,81 @@
     sprout-sway 3.5s ease-in-out 0.7s infinite;
 }
 
-/* Custom scrollbar */
+/* ── Custom scrollbar ─────────────────────────────────────── */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: oklch(var(--b2));
+  background: var(--background);
 }
 
 ::-webkit-scrollbar-thumb {
   @apply rounded-full;
-  background: oklch(var(--bc) / 0.3);
+  background: color-mix(in oklch, var(--foreground) 25%, transparent);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: oklch(var(--bc) / 0.4);
+  background: color-mix(in oklch, var(--foreground) 35%, transparent);
 }
 
-/* Loading states */
+/* ── Shimmer loading skeleton ─────────────────────────────── */
 @keyframes shimmer {
-  0% {
-    background-position: -1000px 0;
-  }
-  100% {
-    background-position: 1000px 0;
-  }
+  0%   { background-position: -1000px 0; }
+  100% { background-position:  1000px 0; }
 }
 
 .animate-shimmer {
   animation: shimmer 2s infinite linear;
   background: linear-gradient(
     to right,
-    oklch(var(--b2)) 0%,
-    oklch(var(--b3)) 20%,
-    oklch(var(--b2)) 40%,
-    oklch(var(--b2)) 100%
+    var(--background) 0%,
+    var(--muted)       20%,
+    var(--background) 40%,
+    var(--background) 100%
   );
   background-size: 1000px 100%;
 }
 
-/* Toast notifications - glass effect with DaisyUI theme classes */
+/* ── Toast notifications ──────────────────────────────────── */
 .toast-base,
 .toast-success,
 .toast-error,
 .toast-warning,
 .toast-info {
-  @apply glass rounded-lg shadow-xl px-4 py-3 min-w-[300px] max-w-[500px] flex items-center gap-2;
+  @apply rounded-lg shadow-xl px-4 py-3 min-w-[300px] max-w-[500px] flex items-center gap-2;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   z-index: 99999 !important;
 }
 
+.toast-base {
+  background: color-mix(in oklch, var(--card) 90%, transparent);
+  color: var(--foreground);
+  border: 1px solid var(--border);
+}
+
 .toast-success {
-  @apply bg-success/90 text-success-content border border-success;
+  background: color-mix(in oklch, var(--success) 90%, transparent);
+  color: var(--success-foreground);
+  border: 1px solid var(--success);
 }
 
 .toast-error {
-  @apply bg-error/90 text-error-content border border-error;
+  background: color-mix(in oklch, var(--destructive) 90%, transparent);
+  color: var(--destructive-foreground);
+  border: 1px solid var(--destructive);
 }
 
 .toast-warning {
-  @apply bg-warning/90 text-warning-content border border-warning;
+  background: color-mix(in oklch, var(--warning) 90%, transparent);
+  color: var(--warning-foreground);
+  border: 1px solid var(--warning);
 }
 
 .toast-info {
-  @apply bg-info/90 text-info-content border border-info;
-}
-
-.toast-base {
-  @apply bg-base-100/90 text-base-content border border-base-300;
+  background: color-mix(in oklch, var(--info) 90%, transparent);
+  color: var(--info-foreground);
+  border: 1px solid var(--info);
 }

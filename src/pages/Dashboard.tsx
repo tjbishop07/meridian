@@ -2,10 +2,13 @@ import { useEffect, useState } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { ResponsiveLine } from '@nivo/line';
 import { ResponsivePie } from '@nivo/pie';
-import { format, startOfMonth, subMonths, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { nivoTheme, CHART_COLORS, tooltipStyle } from '../lib/nivoTheme';
 import type { MonthlyStats, CategoryBreakdown, SpendingTrend, Transaction } from '../types';
 import SpendingHeatmap from '../components/dashboard/SpendingHeatmap';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SectionCard } from '@/components/ui/SectionCard';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function Dashboard() {
   const [currentMonth, setCurrentMonth] = useState<MonthlyStats | null>(null);
@@ -24,7 +27,6 @@ export default function Dashboard() {
     try {
       setIsLoading(true);
       const data = await window.electron.invoke('analytics:dashboard', selectedMonth);
-
       setCurrentMonth(data.currentMonth);
       setPreviousMonth(data.previousMonth);
       setTopCategories(data.topExpenseCategories);
@@ -39,16 +41,12 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="p-4">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-base-300 rounded w-48"></div>
-          <div className="grid grid-cols-3 gap-6">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="h-32 bg-base-300 rounded"></div>
-            ))}
-          </div>
-          <div className="h-96 bg-base-300 rounded"></div>
+      <div className="p-4 space-y-6">
+        <Skeleton className="h-10 w-full" />
+        <div className="grid grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-32" />)}
         </div>
+        <Skeleton className="h-96" />
       </div>
     );
   }
@@ -56,56 +54,35 @@ export default function Dashboard() {
   if (!currentMonth) {
     return (
       <div className="p-4">
-        <div className="bg-base-200 rounded-lg p-12 text-center">
-          <p className="text-base-content/70">No data available. Import some transactions to get started!</p>
+        <div className="bg-muted rounded-lg p-12 text-center">
+          <p className="text-muted-foreground">No data available. Import some transactions to get started!</p>
         </div>
       </div>
     );
   }
 
-  // Helper function to safely calculate percentage change
   const calculatePercentChange = (current: number, previous: number): number | null => {
-    if (previous === 0) {
-      // If previous was 0 and current is not 0, it's infinite growth
-      // Return null to indicate we should show a different message
-      return current !== 0 ? null : 0;
-    }
+    if (previous === 0) return current !== 0 ? null : 0;
     return ((current - previous) / previous) * 100;
   };
 
-  const incomeChange = previousMonth
-    ? calculatePercentChange(currentMonth.income, previousMonth.income)
-    : 0;
+  const incomeChange = previousMonth ? calculatePercentChange(currentMonth.income, previousMonth.income) : 0;
+  const expenseChange = previousMonth ? calculatePercentChange(currentMonth.expenses, previousMonth.expenses) : 0;
+  const netChange = previousMonth ? calculatePercentChange(currentMonth.net, previousMonth.net) : 0;
 
-  const expenseChange = previousMonth
-    ? calculatePercentChange(currentMonth.expenses, previousMonth.expenses)
-    : 0;
-
-  const netChange = previousMonth
-    ? calculatePercentChange(currentMonth.net, previousMonth.net)
-    : 0;
-
-  // Nivo Line data: [{id, color, data: [{x, y}]}]
   const trendLineData = [
     {
       id: 'Income',
       color: '#10b981',
-      data: trends.map((t) => ({
-        x: format(new Date(t.month + '-01'), 'MMM'),
-        y: t.income,
-      })),
+      data: trends.map((t) => ({ x: format(new Date(t.month + '-01'), 'MMM'), y: t.income })),
     },
     {
       id: 'Expenses',
       color: '#ef4444',
-      data: trends.map((t) => ({
-        x: format(new Date(t.month + '-01'), 'MMM'),
-        y: t.expenses,
-      })),
+      data: trends.map((t) => ({ x: format(new Date(t.month + '-01'), 'MMM'), y: t.expenses })),
     },
   ];
 
-  // Nivo Pie data
   const pieData = topCategories.map((cat, i) => ({
     id: cat.category_name,
     label: cat.category_name,
@@ -114,294 +91,211 @@ export default function Dashboard() {
     percentage: cat.percentage,
   }));
 
-  // Generate all months for current year
   const currentYear = format(new Date(), 'yyyy');
-  const selectedMonthIndex = parseInt(selectedMonth.split('-')[1]) - 1; // 0-based index
-
   const months = Array.from({ length: 12 }, (_, i) => {
     const monthNum = i + 1;
     const value = `${currentYear}-${monthNum.toString().padStart(2, '0')}`;
-    return {
-      value,
-      label: format(new Date(currentYear, i, 1), 'MMM'),
-      index: i,
-    };
+    return { value, label: format(new Date(currentYear, i, 1), 'MMM') };
   });
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="p-4 flex-shrink-0">
-        {/* Month Tabs */}
-        <div role="tablist" className="tabs tabs-box w-full bg-base-300">
-          {months.map((month) => {
-            const isSelected = month.value === selectedMonth;
-
-            return (
-              <a
-                key={month.value}
-                role="tab"
-                className={`tab flex-1 ${
-                  isSelected ? 'tab-active' : ''
-                }`}
-                onClick={() => setSelectedMonth(month.value)}
-              >
+      {/* Month Tabs Header */}
+      <div className="px-4 pt-4 flex-shrink-0">
+        <Tabs value={selectedMonth} onValueChange={setSelectedMonth}>
+          <TabsList className="w-full bg-muted">
+            {months.map((month) => (
+              <TabsTrigger key={month.value} value={month.value} className="flex-1 text-xs">
                 {month.label}
-              </a>
-            );
-          })}
-        </div>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
+      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-4 space-y-6">
         {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        {/* Income Card */}
-        <div className="bg-base-100 rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium text-base-content/70">Income</p>
-            <div className="p-2 bg-green-100 rounded-lg">
-              <TrendingUp className="w-5 h-5 text-green-600" />
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Income */}
+          <div className="bg-card rounded-xl border border-border shadow-sm p-6">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium text-muted-foreground">Income</p>
+              <div className="p-2 bg-success/10 rounded-lg">
+                <TrendingUp className="w-5 h-5 text-success" />
+              </div>
             </div>
+            <p className="text-3xl font-bold text-foreground mb-2">
+              ${currentMonth.income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+            {previousMonth && (
+              <div className="flex items-center gap-1">
+                {incomeChange === null ? (
+                  <span className="text-sm font-medium text-muted-foreground">New data</span>
+                ) : (
+                  <>
+                    {incomeChange >= 0 ? <ArrowUpRight className="w-4 h-4 text-success" /> : <ArrowDownRight className="w-4 h-4 text-destructive" />}
+                    <span className={`text-sm font-medium ${incomeChange >= 0 ? 'text-success' : 'text-destructive'}`}>
+                      {Math.abs(incomeChange).toFixed(1)}% vs last month
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
-          <p className="text-3xl font-bold text-base-content mb-2">
-            ${currentMonth.income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </p>
-          {previousMonth && (
-            <div className="flex items-center gap-1">
-              {incomeChange === null ? (
-                <span className="text-sm font-medium text-base-content/60">
-                  New data
-                </span>
-              ) : (
-                <>
-                  {incomeChange >= 0 ? (
-                    <ArrowUpRight className="w-4 h-4 text-green-600" />
-                  ) : (
-                    <ArrowDownRight className="w-4 h-4 text-red-600" />
-                  )}
-                  <span
-                    className={`text-sm font-medium ${
-                      incomeChange >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}
-                  >
-                    {Math.abs(incomeChange).toFixed(1)}% vs last month
-                  </span>
-                </>
-              )}
+
+          {/* Expenses */}
+          <div className="bg-card rounded-xl border border-border shadow-sm p-6">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium text-muted-foreground">Expenses</p>
+              <div className="p-2 bg-destructive/10 rounded-lg">
+                <TrendingDown className="w-5 h-5 text-destructive" />
+              </div>
             </div>
-          )}
+            <p className="text-3xl font-bold text-foreground mb-2">
+              ${currentMonth.expenses.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+            {previousMonth && (
+              <div className="flex items-center gap-1">
+                {expenseChange === null ? (
+                  <span className="text-sm font-medium text-muted-foreground">New data</span>
+                ) : (
+                  <>
+                    {expenseChange >= 0 ? <ArrowUpRight className="w-4 h-4 text-destructive" /> : <ArrowDownRight className="w-4 h-4 text-success" />}
+                    <span className={`text-sm font-medium ${expenseChange >= 0 ? 'text-destructive' : 'text-success'}`}>
+                      {Math.abs(expenseChange).toFixed(1)}% vs last month
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Net */}
+          <div className="bg-card rounded-xl border border-border shadow-sm p-6">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium text-muted-foreground">Net</p>
+              <div className={`p-2 rounded-lg ${currentMonth.net >= 0 ? 'bg-success/10' : 'bg-destructive/10'}`}>
+                <DollarSign className={`w-5 h-5 ${currentMonth.net >= 0 ? 'text-success' : 'text-destructive'}`} />
+              </div>
+            </div>
+            <p className={`text-3xl font-bold mb-2 ${currentMonth.net >= 0 ? 'text-success' : 'text-destructive'}`}>
+              {currentMonth.net >= 0 ? '+' : '-'}${Math.abs(currentMonth.net).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
+            {previousMonth && (
+              <div className="flex items-center gap-1">
+                {netChange === null ? (
+                  <span className="text-sm font-medium text-muted-foreground">New data</span>
+                ) : (
+                  <>
+                    {netChange >= 0 ? <ArrowUpRight className="w-4 h-4 text-success" /> : <ArrowDownRight className="w-4 h-4 text-destructive" />}
+                    <span className={`text-sm font-medium ${netChange >= 0 ? 'text-success' : 'text-destructive'}`}>
+                      {Math.abs(netChange).toFixed(1)}% vs last month
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Expenses Card */}
-        <div className="bg-base-100 rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium text-base-content/70">Expenses</p>
-            <div className="p-2 bg-red-100 rounded-lg">
-              <TrendingDown className="w-5 h-5 text-red-600" />
-            </div>
-          </div>
-          <p className="text-3xl font-bold text-base-content mb-2">
-            ${currentMonth.expenses.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </p>
-          {previousMonth && (
-            <div className="flex items-center gap-1">
-              {expenseChange === null ? (
-                <span className="text-sm font-medium text-base-content/60">
-                  New data
-                </span>
-              ) : (
-                <>
-                  {expenseChange >= 0 ? (
-                    <ArrowUpRight className="w-4 h-4 text-red-600" />
-                  ) : (
-                    <ArrowDownRight className="w-4 h-4 text-green-600" />
-                  )}
-                  <span
-                    className={`text-sm font-medium ${
-                      expenseChange >= 0 ? 'text-red-600' : 'text-green-600'
-                    }`}
-                  >
-                    {Math.abs(expenseChange).toFixed(1)}% vs last month
-                  </span>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Net Card */}
-        <div className="bg-base-100 rounded-lg shadow-sm p-6">
-          <div className="flex items-center justify-between mb-2">
-            <p className="text-sm font-medium text-base-content/70">Net</p>
-            <div className={`p-2 rounded-lg ${currentMonth.net >= 0 ? 'bg-green-100' : 'bg-red-100'}`}>
-              <DollarSign className={`w-5 h-5 ${currentMonth.net >= 0 ? 'text-green-600' : 'text-red-600'}`} />
-            </div>
-          </div>
-          <p className={`text-3xl font-bold mb-2 ${currentMonth.net >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {currentMonth.net >= 0 ? '+' : '-'}${Math.abs(currentMonth.net).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </p>
-          {previousMonth && (
-            <div className="flex items-center gap-1">
-              {netChange === null ? (
-                <span className="text-sm font-medium text-base-content/60">
-                  New data
-                </span>
-              ) : (
-                <>
-                  {netChange >= 0 ? (
-                    <ArrowUpRight className="w-4 h-4 text-green-600" />
-                  ) : (
-                    <ArrowDownRight className="w-4 h-4 text-red-600" />
-                  )}
-                  <span
-                    className={`text-sm font-medium ${
-                      netChange >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}
-                  >
-                    {Math.abs(netChange).toFixed(1)}% vs last month
-                  </span>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Spending Heatmap */}
-      <div className="mb-8">
+        {/* Spending Heatmap */}
         <SpendingHeatmap selectedMonth={selectedMonth} />
-      </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        {/* Spending Trends */}
-        <div className="bg-base-100 rounded-lg shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-base-content mb-4">Spending Trends (6 Months)</h2>
-          <div style={{ height: 280 }}>
-            <ResponsiveLine
-              data={trendLineData}
-              theme={nivoTheme}
-              margin={{ top: 10, right: 16, bottom: 44, left: 60 }}
-              xScale={{ type: 'point' }}
-              yScale={{ type: 'linear', min: 0, max: 'auto', stacked: false }}
-              curve="monotoneX"
-              enableArea
-              areaOpacity={0.08}
-              colors={(d) => d.color}
-              lineWidth={2.5}
-              pointSize={6}
-              pointColor="#1d232a"
-              pointBorderWidth={2}
-              pointBorderColor={{ from: 'serieColor' }}
-              enableGridX={false}
-              axisLeft={{
-                tickSize: 0,
-                tickPadding: 8,
-                tickValues: 5,
-                format: (v) => `$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`,
-              }}
-              axisBottom={{ tickSize: 0, tickPadding: 8 }}
-              useMesh
-              tooltip={({ point }) => (
-                <div style={tooltipStyle}>
-                  <span style={{ color: point.serieColor, marginRight: 6 }}>●</span>
-                  <strong>{point.serieId}</strong>:{' '}
-                  ${(point.data.y as number).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </div>
-              )}
-              legends={[{
-                anchor: 'bottom',
-                direction: 'row',
-                translateY: 40,
-                itemWidth: 80,
-                itemHeight: 14,
-                symbolSize: 10,
-                symbolShape: 'circle',
-              }]}
-            />
-          </div>
+        {/* Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SectionCard title="Spending Trends (6 Months)">
+            <div style={{ height: 280 }}>
+              <ResponsiveLine
+                data={trendLineData}
+                theme={nivoTheme}
+                margin={{ top: 10, right: 16, bottom: 44, left: 60 }}
+                xScale={{ type: 'point' }}
+                yScale={{ type: 'linear', min: 0, max: 'auto', stacked: false }}
+                curve="monotoneX"
+                enableArea
+                areaOpacity={0.08}
+                colors={(d) => d.color}
+                lineWidth={2.5}
+                pointSize={6}
+                pointColor={{ theme: 'background' }}
+                pointBorderWidth={2}
+                pointBorderColor={{ from: 'serieColor' }}
+                enableGridX={false}
+                axisLeft={{
+                  tickSize: 0,
+                  tickPadding: 8,
+                  tickValues: 5,
+                  format: (v) => `$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`,
+                }}
+                axisBottom={{ tickSize: 0, tickPadding: 8 }}
+                useMesh
+                tooltip={({ point }) => (
+                  <div style={tooltipStyle}>
+                    <span style={{ color: point.serieColor, marginRight: 6 }}>●</span>
+                    <strong>{point.serieId}</strong>:{' '}
+                    ${(point.data.y as number).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                )}
+                legends={[{ anchor: 'bottom', direction: 'row', translateY: 40, itemWidth: 80, itemHeight: 14, symbolSize: 10, symbolShape: 'circle' }]}
+              />
+            </div>
+          </SectionCard>
+
+          <SectionCard title="Top Expense Categories">
+            <div style={{ height: 280 }}>
+              <ResponsivePie
+                data={pieData}
+                theme={nivoTheme}
+                margin={{ top: 16, right: 16, bottom: 56, left: 16 }}
+                innerRadius={0.6}
+                padAngle={0.5}
+                cornerRadius={3}
+                colors={(d) => d.data.color}
+                borderWidth={0}
+                enableArcLabels={false}
+                arcLinkLabelsSkipAngle={10}
+                arcLinkLabelsTextColor="var(--muted-foreground)"
+                arcLinkLabelsThickness={1}
+                arcLinkLabelsColor={{ from: 'color' }}
+                arcLinkLabel={(d) => `${(d.data as any).percentage.toFixed(1)}%`}
+                tooltip={({ datum }) => (
+                  <div style={tooltipStyle}>
+                    <span style={{ color: datum.color, marginRight: 6 }}>●</span>
+                    <strong>{datum.label}</strong>: ${datum.value.toFixed(2)}
+                  </div>
+                )}
+                legends={[{ anchor: 'bottom', direction: 'row', translateY: 48, itemWidth: 90, itemHeight: 14, symbolSize: 10, symbolShape: 'circle' }]}
+              />
+            </div>
+          </SectionCard>
         </div>
 
-        {/* Top Categories */}
-        <div className="bg-base-100 rounded-lg shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-base-content mb-4">Top Expense Categories</h2>
-          <div style={{ height: 280 }}>
-            <ResponsivePie
-              data={pieData}
-              theme={nivoTheme}
-              margin={{ top: 16, right: 16, bottom: 56, left: 16 }}
-              innerRadius={0.6}
-              padAngle={0.5}
-              cornerRadius={3}
-              colors={(d) => d.data.color}
-              borderWidth={0}
-              enableArcLabels={false}
-              arcLinkLabelsSkipAngle={10}
-              arcLinkLabelsTextColor="#a6adba"
-              arcLinkLabelsThickness={1}
-              arcLinkLabelsColor={{ from: 'color' }}
-              arcLinkLabel={(d) => `${(d.data as any).percentage.toFixed(1)}%`}
-              tooltip={({ datum }) => (
-                <div style={tooltipStyle}>
-                  <span style={{ color: datum.color, marginRight: 6 }}>●</span>
-                  <strong>{datum.label}</strong>: ${datum.value.toFixed(2)}
-                </div>
-              )}
-              legends={[{
-                anchor: 'bottom',
-                direction: 'row',
-                translateY: 48,
-                itemWidth: 90,
-                itemHeight: 14,
-                symbolSize: 10,
-                symbolShape: 'circle',
-              }]}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Transactions */}
-      <div className="bg-base-100 rounded-lg shadow-sm">
-        <div className="px-6 py-4 border-b border-base-300">
-          <h2 className="text-lg font-semibold text-base-content">Recent Transactions</h2>
-        </div>
-        <div className="divide-y divide-base-300">
-          {recentTransactions.slice(0, 5).map((transaction) => {
-            // Safely parse date with fallback
-            let dateDisplay = 'Invalid date';
-            try {
-              const parsed = parseISO(transaction.date);
-              if (!isNaN(parsed.getTime())) {
-                dateDisplay = format(parsed, 'MMM d, yyyy');
-              }
-            } catch (e) {
-              console.warn('Invalid date for transaction:', transaction.id, transaction.date);
-            }
-
-            return (
-              <div key={transaction.id} className="px-6 py-4 flex items-center justify-between hover:bg-base-200">
-                <div className="flex-1">
-                  <p className="font-medium text-base-content">{transaction.description}</p>
-                  <p className="text-sm text-base-content/70">
-                    {dateDisplay} • {transaction.category_name || 'Uncategorized'}
+        {/* Recent Transactions */}
+        <SectionCard title="Recent Transactions">
+          <div className="divide-y divide-border">
+            {recentTransactions.slice(0, 5).map((transaction) => {
+              let dateDisplay = 'Invalid date';
+              try {
+                const parsed = parseISO(transaction.date);
+                if (!isNaN(parsed.getTime())) dateDisplay = format(parsed, 'MMM d, yyyy');
+              } catch (e) {}
+              return (
+                <div key={transaction.id} className="py-4 flex items-center justify-between hover:bg-muted/30 rounded px-2 -mx-2">
+                  <div className="flex-1">
+                    <p className="font-medium text-foreground">{transaction.description}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {dateDisplay} • {transaction.category_name || 'Uncategorized'}
+                    </p>
+                  </div>
+                  <p className={`text-lg font-semibold ${transaction.type === 'income' ? 'text-success' : 'text-destructive'}`}>
+                    {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toFixed(2)}
                   </p>
                 </div>
-              <p
-                className={`text-lg font-semibold ${
-                  transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
-                }`}
-              >
-                {transaction.type === 'income' ? '+' : '-'}$
-                {transaction.amount.toFixed(2)}
-              </p>
-            </div>
-            );
-          })}
-        </div>
-      </div>
+              );
+            })}
+          </div>
+        </SectionCard>
       </div>
     </div>
   );

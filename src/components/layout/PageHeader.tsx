@@ -9,11 +9,11 @@ interface PageHeaderProps {
 
 export default function PageHeader({ title, subtitle, action, children }: PageHeaderProps) {
   return (
-    <div className="p-4 flex-shrink-0 border-b border-base-300 bg-base-100">
+    <div className="p-4 flex-shrink-0 border-b border-border bg-card">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold text-base-content">{title}</h1>
-          {subtitle && <p className="text-base-content/70 mt-1">{subtitle}</p>}
+          <h1 className="text-3xl font-bold text-foreground">{title}</h1>
+          {subtitle && <p className="text-muted-foreground mt-1">{subtitle}</p>}
         </div>
         {action && <div>{action}</div>}
       </div>

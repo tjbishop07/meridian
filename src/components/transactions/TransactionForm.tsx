@@ -5,6 +5,11 @@ import { useTags } from '../../hooks/useTags';
 import type { Transaction, CreateTransactionInput } from '../../types';
 import { format } from 'date-fns';
 import { X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
+import { FormField } from '@/components/ui/FormField';
 
 interface TransactionFormProps {
   transaction?: Transaction;
@@ -12,9 +17,11 @@ interface TransactionFormProps {
   onCancel: () => void;
 }
 
+const selectClass = 'w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground focus:ring-2 focus:ring-ring focus:border-ring disabled:opacity-50 text-sm';
+
 export default function TransactionForm({ transaction, onSubmit, onCancel }: TransactionFormProps) {
   const { accounts } = useAccounts();
-  const { categories, getCategoriesByType } = useCategories();
+  const { getCategoriesByType } = useCategories();
   const { tags, loadTags } = useTags();
 
   const [selectedTagIds, setSelectedTagIds] = useState<number[]>([]);
@@ -35,7 +42,6 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load tags and existing tags for this transaction
   useEffect(() => {
     loadTags();
     if (transaction?.id) {
@@ -45,14 +51,12 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
     }
   }, [transaction?.id]);
 
-  // Filter categories by transaction type (not applicable for transfers)
   const filteredCategories = formData.type !== 'transfer' ? getCategoriesByType(formData.type) : [];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    // Validation
     if (!formData.account_id) {
       setError('Please select an account');
       return;
@@ -87,62 +91,43 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded">
+        <div className="bg-destructive/10 border border-destructive/30 text-destructive px-4 py-3 rounded-lg text-sm">
           {error}
         </div>
       )}
 
       {/* Type Toggle */}
       <div>
-        <label className="block text-sm font-medium text-base-content/80 mb-2">
-          Transaction Type
-        </label>
+        <label className="block text-sm font-medium text-muted-foreground mb-2">Transaction Type</label>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setFormData({ ...formData, type: 'expense', category_id: undefined, to_account_id: undefined })}
-            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-              formData.type === 'expense'
-                ? 'bg-red-600 text-white'
-                : 'bg-base-200 text-base-content/80 hover:bg-base-300'
-            }`}
-          >
-            Expense
-          </button>
-          <button
-            type="button"
-            onClick={() => setFormData({ ...formData, type: 'income', category_id: undefined, to_account_id: undefined })}
-            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-              formData.type === 'income'
-                ? 'bg-green-600 text-white'
-                : 'bg-base-200 text-base-content/80 hover:bg-base-300'
-            }`}
-          >
-            Income
-          </button>
-          <button
-            type="button"
-            onClick={() => setFormData({ ...formData, type: 'transfer', category_id: undefined, to_account_id: undefined })}
-            className={`flex-1 px-4 py-2 rounded-lg font-medium transition-colors ${
-              formData.type === 'transfer'
-                ? 'bg-blue-600 text-white'
-                : 'bg-base-200 text-base-content/80 hover:bg-base-300'
-            }`}
-          >
-            Transfer
-          </button>
+          {(['expense', 'income', 'transfer'] as const).map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => setFormData({ ...formData, type, category_id: undefined, to_account_id: undefined })}
+              className={cn(
+                'flex-1 px-4 py-2 rounded-lg font-medium capitalize transition-colors text-sm',
+                formData.type === type
+                  ? type === 'expense'
+                    ? 'bg-destructive text-destructive-foreground'
+                    : type === 'income'
+                    ? 'bg-success text-white'
+                    : 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/70'
+              )}
+            >
+              {type}
+            </button>
+          ))}
         </div>
       </div>
 
       {/* Account */}
-      <div>
-        <label className="block text-sm font-medium text-base-content/80 mb-1">
-          {formData.type === 'transfer' ? 'From Account *' : 'Account *'}
-        </label>
+      <FormField label={formData.type === 'transfer' ? 'From Account' : 'Account'} required>
         <select
           value={formData.account_id}
           onChange={(e) => setFormData({ ...formData, account_id: Number(e.target.value) })}
-          className="w-full px-3 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
+          className={selectClass}
           required
         >
           <option value={0}>Select an account...</option>
@@ -152,18 +137,15 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
             </option>
           ))}
         </select>
-      </div>
+      </FormField>
 
       {/* To Account (for transfers) */}
       {formData.type === 'transfer' && (
-        <div>
-          <label className="block text-sm font-medium text-base-content/80 mb-1">
-            To Account *
-          </label>
+        <FormField label="To Account" required>
           <select
             value={formData.to_account_id || 0}
             onChange={(e) => setFormData({ ...formData, to_account_id: Number(e.target.value) })}
-            className="w-full px-3 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
+            className={selectClass}
             required
           >
             <option value={0}>Select destination account...</option>
@@ -173,69 +155,51 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
               </option>
             ))}
           </select>
-        </div>
+        </FormField>
       )}
 
       {/* Date & Amount */}
       <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-base-content/80 mb-1">
-            Date *
-          </label>
-          <input
+        <FormField label="Date" required>
+          <Input
             type="date"
             value={formData.date}
             onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-            className="w-full px-3 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
             required
           />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-base-content/80 mb-1">
-            Amount *
-          </label>
-          <input
+        </FormField>
+        <FormField label="Amount" required>
+          <Input
             type="number"
             step="0.01"
             min="0"
             value={formData.amount}
             onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
-            className="w-full px-3 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
             required
           />
-        </div>
+        </FormField>
       </div>
 
       {/* Description */}
-      <div>
-        <label className="block text-sm font-medium text-base-content/80 mb-1">
-          Description *
-        </label>
-        <input
+      <FormField label="Description" required>
+        <Input
           type="text"
           value={formData.description}
           onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          className="w-full px-3 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
           placeholder="e.g., Grocery shopping"
           required
         />
-      </div>
+      </FormField>
 
       {/* Category (not shown for transfers) */}
       {formData.type !== 'transfer' && (
-        <div>
-          <label className="block text-sm font-medium text-base-content/80 mb-1">
-            Category
-          </label>
+        <FormField label="Category">
           <select
             value={formData.category_id || ''}
             onChange={(e) =>
-              setFormData({
-                ...formData,
-                category_id: e.target.value ? Number(e.target.value) : undefined,
-              })
+              setFormData({ ...formData, category_id: e.target.value ? Number(e.target.value) : undefined })
             }
-            className="w-full px-3 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
+            className={selectClass}
           >
             <option value="">Uncategorized</option>
             {filteredCategories.map((category) => (
@@ -244,47 +208,37 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
               </option>
             ))}
           </select>
-        </div>
+        </FormField>
       )}
 
       {/* Status */}
-      <div>
-        <label className="block text-sm font-medium text-base-content/80 mb-1">
-          Status
-        </label>
+      <FormField label="Status">
         <select
           value={formData.status}
           onChange={(e) =>
             setFormData({ ...formData, status: e.target.value as 'pending' | 'cleared' | 'reconciled' })
           }
-          className="w-full px-3 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
+          className={selectClass}
         >
           <option value="pending">Pending</option>
           <option value="cleared">Cleared</option>
           <option value="reconciled">Reconciled</option>
         </select>
-      </div>
+      </FormField>
 
       {/* Notes */}
-      <div>
-        <label className="block text-sm font-medium text-base-content/80 mb-1">
-          Notes
-        </label>
-        <textarea
+      <FormField label="Notes">
+        <Textarea
           value={formData.notes || ''}
           onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-          className="w-full px-3 py-2 border border-base-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary bg-base-100 text-base-content"
           rows={3}
           placeholder="Optional notes..."
         />
-      </div>
+      </FormField>
 
       {/* Tags */}
       <div>
-        <label className="block text-sm font-medium text-base-content/80 mb-2">
-          Tags
-        </label>
-        {/* Assigned tags as removable chips */}
+        <label className="block text-sm font-medium text-muted-foreground mb-2">Tags</label>
         <div className="flex flex-wrap gap-2 mb-2">
           {selectedTagIds.map((tagId) => {
             const tag = tags.find((t) => t.id === tagId);
@@ -292,7 +246,7 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
             return (
               <span
                 key={tagId}
-                className="badge gap-1"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
                 style={{ backgroundColor: tag.color, color: '#fff', borderColor: tag.color }}
               >
                 {tag.name}
@@ -307,10 +261,9 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
             );
           })}
           {selectedTagIds.length === 0 && (
-            <span className="text-sm text-base-content/40">No tags assigned</span>
+            <span className="text-sm text-muted-foreground">No tags assigned</span>
           )}
         </div>
-        {/* Dropdown to add tags */}
         <select
           value=""
           onChange={(e) => {
@@ -319,7 +272,7 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
               setSelectedTagIds((prev) => [...prev, id]);
             }
           }}
-          className="select select-sm w-full"
+          className={selectClass}
         >
           <option value="">Add a tag...</option>
           {tags
@@ -334,21 +287,12 @@ export default function TransactionForm({ transaction, onSubmit, onCancel }: Tra
 
       {/* Actions */}
       <div className="flex gap-3 pt-4">
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="flex-1 px-4 py-2 bg-primary text-primary-content rounded-lg hover:bg-primary/80 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-        >
+        <Button type="submit" disabled={isSubmitting} className="flex-1">
           {isSubmitting ? 'Saving...' : transaction ? 'Update Transaction' : 'Create Transaction'}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={isSubmitting}
-          className="px-4 py-2 bg-base-200 text-base-content/80 rounded-lg hover:bg-base-300 disabled:opacity-50 font-medium"
-        >
+        </Button>
+        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   );
