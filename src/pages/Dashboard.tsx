@@ -4,6 +4,7 @@ import { ResponsiveLine } from '@nivo/line';
 import { ResponsivePie } from '@nivo/pie';
 import { format, parseISO } from 'date-fns';
 import { nivoTheme, CHART_COLORS, tooltipStyle } from '../lib/nivoTheme';
+import { SunkenCard } from '@/components/ui/SunkenCard';
 import type { MonthlyStats, CategoryBreakdown, SpendingTrend, Transaction } from '../types';
 import SpendingHeatmap from '../components/dashboard/SpendingHeatmap';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -111,161 +112,148 @@ export default function Dashboard() {
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-6 pb-6 pt-6 space-y-8">
+      <div className="flex-1 overflow-y-auto px-10 pb-10 pt-8 space-y-8">
 
-        {/* Summary Stats — no cards, just numbers */}
-        <div className="grid grid-cols-3 divide-x divide-border">
-          {/* Income */}
-          <div className="pr-8">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="w-4 h-4 text-success" />
-              <p className="text-sm text-muted-foreground">Income</p>
-            </div>
-            <p className="text-3xl font-semibold text-foreground tracking-tight">
-              ${currentMonth.income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
-            {previousMonth && incomeChange !== null && (
-              <div className="flex items-center gap-1 mt-1">
-                {incomeChange >= 0
-                  ? <ArrowUpRight className="w-3.5 h-3.5 text-success" />
-                  : <ArrowDownRight className="w-3.5 h-3.5 text-destructive" />}
-                <span className={`text-xs ${incomeChange >= 0 ? 'text-success' : 'text-destructive'}`}>
-                  {Math.abs(incomeChange).toFixed(1)}% vs last month
-                </span>
+        {/* Stats + Charts side by side */}
+        <div className="flex gap-10 items-start">
+          {/* Summary Stats — stacked vertically */}
+          <div className="flex flex-col gap-6 flex-shrink-0 w-44">
+            {/* Income */}
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <TrendingUp className="w-4 h-4 text-success" />
+                <p className="text-sm text-muted-foreground">Income</p>
               </div>
-            )}
+              <p className="text-2xl font-semibold text-foreground tracking-tight">
+                ${currentMonth.income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              {previousMonth && incomeChange !== null && (
+                <div className="flex items-center gap-1 mt-1">
+                  {incomeChange >= 0
+                    ? <ArrowUpRight className="w-3.5 h-3.5 text-success" />
+                    : <ArrowDownRight className="w-3.5 h-3.5 text-destructive" />}
+                  <span className={`text-xs ${incomeChange >= 0 ? 'text-success' : 'text-destructive'}`}>
+                    {Math.abs(incomeChange).toFixed(1)}% vs last month
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Expenses */}
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <TrendingDown className="w-4 h-4 text-destructive" />
+                <p className="text-sm text-muted-foreground">Expenses</p>
+              </div>
+              <p className="text-2xl font-semibold text-foreground tracking-tight">
+                ${currentMonth.expenses.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              {previousMonth && expenseChange !== null && (
+                <div className="flex items-center gap-1 mt-1">
+                  {expenseChange >= 0
+                    ? <ArrowUpRight className="w-3.5 h-3.5 text-destructive" />
+                    : <ArrowDownRight className="w-3.5 h-3.5 text-success" />}
+                  <span className={`text-xs ${expenseChange >= 0 ? 'text-destructive' : 'text-success'}`}>
+                    {Math.abs(expenseChange).toFixed(1)}% vs last month
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Net */}
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <DollarSign className="w-4 h-4 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">Net</p>
+              </div>
+              <p className={`text-2xl font-semibold tracking-tight ${currentMonth.net >= 0 ? 'text-success' : 'text-destructive'}`}>
+                {currentMonth.net >= 0 ? '+' : '-'}${Math.abs(currentMonth.net).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </p>
+              {previousMonth && netChange !== null && (
+                <div className="flex items-center gap-1 mt-1">
+                  {netChange >= 0
+                    ? <ArrowUpRight className="w-3.5 h-3.5 text-success" />
+                    : <ArrowDownRight className="w-3.5 h-3.5 text-destructive" />}
+                  <span className={`text-xs ${netChange >= 0 ? 'text-success' : 'text-destructive'}`}>
+                    {Math.abs(netChange).toFixed(1)}% vs last month
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Expenses */}
-          <div className="px-8">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingDown className="w-4 h-4 text-destructive" />
-              <p className="text-sm text-muted-foreground">Expenses</p>
-            </div>
-            <p className="text-3xl font-semibold text-foreground tracking-tight">
-              ${currentMonth.expenses.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
-            {previousMonth && expenseChange !== null && (
-              <div className="flex items-center gap-1 mt-1">
-                {expenseChange >= 0
-                  ? <ArrowUpRight className="w-3.5 h-3.5 text-destructive" />
-                  : <ArrowDownRight className="w-3.5 h-3.5 text-success" />}
-                <span className={`text-xs ${expenseChange >= 0 ? 'text-destructive' : 'text-success'}`}>
-                  {Math.abs(expenseChange).toFixed(1)}% vs last month
-                </span>
+          {/* Charts */}
+          <div className="flex-1 min-w-0 grid grid-cols-1 lg:grid-cols-2 gap-10">
+            <SunkenCard>
+              <div style={{ height: 260 }}>
+                <ResponsiveLine
+                  data={trendLineData}
+                  theme={nivoTheme}
+                  margin={{ top: 10, right: 16, bottom: 44, left: 16 }}
+                  xScale={{ type: 'point' }}
+                  yScale={{ type: 'linear', min: 0, max: 'auto', stacked: false }}
+                  curve="monotoneX"
+                  enableArea
+                  areaOpacity={0.08}
+                  colors={(d) => d.color}
+                  lineWidth={2.5}
+                  pointSize={6}
+                  pointColor={{ theme: 'background' }}
+                  pointBorderWidth={2}
+                  pointBorderColor={{ from: 'serieColor' }}
+                  enableGridX={false}
+                  axisLeft={null}
+                  axisBottom={{ tickSize: 0, tickPadding: 8 }}
+                  useMesh
+                  tooltip={({ point }) => (
+                    <div style={tooltipStyle}>
+                      <span style={{ color: point.serieColor, marginRight: 6 }}>●</span>
+                      <strong>{point.serieId}</strong>:{' '}
+                      ${(point.data.y as number).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  )}
+                  legends={[{ anchor: 'bottom', direction: 'row', translateY: 40, itemWidth: 80, itemHeight: 14, symbolSize: 10, symbolShape: 'circle' }]}
+                />
               </div>
-            )}
-          </div>
+            </SunkenCard>
 
-          {/* Net */}
-          <div className="pl-8">
-            <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Net</p>
-            </div>
-            <p className={`text-3xl font-semibold tracking-tight ${currentMonth.net >= 0 ? 'text-success' : 'text-destructive'}`}>
-              {currentMonth.net >= 0 ? '+' : '-'}${Math.abs(currentMonth.net).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </p>
-            {previousMonth && netChange !== null && (
-              <div className="flex items-center gap-1 mt-1">
-                {netChange >= 0
-                  ? <ArrowUpRight className="w-3.5 h-3.5 text-success" />
-                  : <ArrowDownRight className="w-3.5 h-3.5 text-destructive" />}
-                <span className={`text-xs ${netChange >= 0 ? 'text-success' : 'text-destructive'}`}>
-                  {Math.abs(netChange).toFixed(1)}% vs last month
-                </span>
+            <SunkenCard>
+              <div style={{ height: 260 }}>
+                <ResponsivePie
+                  data={pieData}
+                  theme={nivoTheme}
+                  margin={{ top: 16, right: 110, bottom: 16, left: 16 }}
+                  innerRadius={0.6}
+                  padAngle={0.5}
+                  cornerRadius={3}
+                  colors={(d) => d.data.color}
+                  borderWidth={0}
+                  enableArcLabels={false}
+                  arcLinkLabelsSkipAngle={10}
+                  arcLinkLabelsTextColor="var(--muted-foreground)"
+                  arcLinkLabelsThickness={1}
+                  arcLinkLabelsColor={{ from: 'color' }}
+                  arcLinkLabel={(d) => `${(d.data as any).percentage.toFixed(1)}%`}
+                  tooltip={({ datum }) => (
+                    <div style={tooltipStyle}>
+                      <span style={{ color: datum.color, marginRight: 6 }}>●</span>
+                      <strong>{datum.label}</strong>: ${datum.value.toFixed(2)}
+                    </div>
+                  )}
+                  legends={[{ anchor: 'right', direction: 'column', translateX: 100, translateY: 0, itemWidth: 90, itemHeight: 18, itemsSpacing: 6, symbolSize: 10, symbolShape: 'circle' }]}
+                />
               </div>
-            )}
+            </SunkenCard>
           </div>
         </div>
 
         {/* Divider */}
-        <div className="border-t border-border/60" />
-
-        {/* Spending Heatmap — no wrapper card */}
-        <SpendingHeatmap selectedMonth={selectedMonth} />
-
-        {/* Divider */}
-        <div className="border-t border-border/60" />
-
-        {/* Charts Row — no card wrappers */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-          <div>
-            <p className="text-sm font-medium text-muted-foreground mb-4">Spending Trends · 6 Months</p>
-            <div style={{ height: 260 }}>
-              <ResponsiveLine
-                data={trendLineData}
-                theme={nivoTheme}
-                margin={{ top: 10, right: 16, bottom: 44, left: 60 }}
-                xScale={{ type: 'point' }}
-                yScale={{ type: 'linear', min: 0, max: 'auto', stacked: false }}
-                curve="monotoneX"
-                enableArea
-                areaOpacity={0.08}
-                colors={(d) => d.color}
-                lineWidth={2.5}
-                pointSize={6}
-                pointColor={{ theme: 'background' }}
-                pointBorderWidth={2}
-                pointBorderColor={{ from: 'serieColor' }}
-                enableGridX={false}
-                axisLeft={{
-                  tickSize: 0,
-                  tickPadding: 8,
-                  tickValues: 5,
-                  format: (v) => `$${v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}`,
-                }}
-                axisBottom={{ tickSize: 0, tickPadding: 8 }}
-                useMesh
-                tooltip={({ point }) => (
-                  <div style={tooltipStyle}>
-                    <span style={{ color: point.serieColor, marginRight: 6 }}>●</span>
-                    <strong>{point.serieId}</strong>:{' '}
-                    ${(point.data.y as number).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                )}
-                legends={[{ anchor: 'bottom', direction: 'row', translateY: 40, itemWidth: 80, itemHeight: 14, symbolSize: 10, symbolShape: 'circle' }]}
-              />
-            </div>
-          </div>
-
-          <div>
-            <p className="text-sm font-medium text-muted-foreground mb-4">Top Expense Categories</p>
-            <div style={{ height: 260 }}>
-              <ResponsivePie
-                data={pieData}
-                theme={nivoTheme}
-                margin={{ top: 16, right: 16, bottom: 56, left: 16 }}
-                innerRadius={0.6}
-                padAngle={0.5}
-                cornerRadius={3}
-                colors={(d) => d.data.color}
-                borderWidth={0}
-                enableArcLabels={false}
-                arcLinkLabelsSkipAngle={10}
-                arcLinkLabelsTextColor="var(--muted-foreground)"
-                arcLinkLabelsThickness={1}
-                arcLinkLabelsColor={{ from: 'color' }}
-                arcLinkLabel={(d) => `${(d.data as any).percentage.toFixed(1)}%`}
-                tooltip={({ datum }) => (
-                  <div style={tooltipStyle}>
-                    <span style={{ color: datum.color, marginRight: 6 }}>●</span>
-                    <strong>{datum.label}</strong>: ${datum.value.toFixed(2)}
-                  </div>
-                )}
-                legends={[{ anchor: 'bottom', direction: 'row', translateY: 48, itemWidth: 90, itemHeight: 14, symbolSize: 10, symbolShape: 'circle' }]}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Divider */}
-        <div className="border-t border-border/60" />
+        <div className="border-t border-border/25" />
 
         {/* Recent Transactions — plain list */}
         <div>
           <p className="text-sm font-medium text-muted-foreground mb-4">Recent Transactions</p>
-          <div className="divide-y divide-border/60">
+          <div className="divide-y divide-border/25">
             {recentTransactions.slice(0, 5).map((transaction) => {
               let dateDisplay = 'Invalid date';
               try {
@@ -288,6 +276,12 @@ export default function Dashboard() {
             })}
           </div>
         </div>
+
+        {/* Divider */}
+        <div className="border-t border-border/25" />
+
+        {/* Daily Spending Activity */}
+        <SpendingHeatmap selectedMonth={selectedMonth} />
 
       </div>
     </div>
