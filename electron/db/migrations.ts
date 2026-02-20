@@ -274,6 +274,19 @@ export const migrations: Migration[] = [
 
       console.log('Migration 7: Done');
     }
+  },
+  {
+    version: 8,
+    name: 'add_tag_description',
+    up: (db: Database.Database) => {
+      const columns = db.pragma('table_info(tags)') as Array<{ name: string }>;
+      if (!columns.some(c => c.name === 'description')) {
+        db.exec(`ALTER TABLE tags ADD COLUMN description TEXT`);
+        console.log('Migration 8: Added description column to tags');
+      } else {
+        console.log('Migration 8: description column already exists');
+      }
+    }
   }
 ];
 

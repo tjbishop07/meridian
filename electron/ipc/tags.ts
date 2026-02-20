@@ -11,7 +11,7 @@ export function registerTagHandlers(): void {
     }
   });
 
-  ipcMain.handle('tags:create', async (_: IpcMainInvokeEvent, data: { name: string; color: string }) => {
+  ipcMain.handle('tags:create', async (_: IpcMainInvokeEvent, data: { name: string; color: string; description?: string }) => {
     try {
       return tagQueries.createTag(data);
     } catch (error) {
@@ -20,11 +20,20 @@ export function registerTagHandlers(): void {
     }
   });
 
-  ipcMain.handle('tags:update', async (_: IpcMainInvokeEvent, data: { id: number; name?: string; color?: string }) => {
+  ipcMain.handle('tags:update', async (_: IpcMainInvokeEvent, data: { id: number; name?: string; color?: string; description?: string }) => {
     try {
       return tagQueries.updateTag(data);
     } catch (error) {
       console.error('Error updating tag:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('tags:get-monthly-stats', async (_: IpcMainInvokeEvent, months?: number) => {
+    try {
+      return tagQueries.getTagMonthlyStats(months ?? 6);
+    } catch (error) {
+      console.error('Error getting tag monthly stats:', error);
       throw error;
     }
   });
@@ -100,7 +109,9 @@ export function registerTagHandlers(): void {
 
       if (allTransactions.length === 0) return { tagged: 0 };
 
-      const tagNames = allTags.map(t => t.name).join(', ');
+      const tagList = allTags
+        .map(t => t.description ? `"${t.name}" (${t.description})` : `"${t.name}"`)
+        .join(', ');
       const tagNameToId = new Map(allTags.map(t => [t.name.toLowerCase(), t.id]));
 
       // Smaller batches produce cleaner, shorter responses that are less likely to be truncated
@@ -115,7 +126,7 @@ export function registerTagHandlers(): void {
           .map(t => `${t.id}: "${t.description}" ${t.amount < 0 ? 'expense' : 'income'} $${Math.abs(t.amount).toFixed(2)}${t.category ? ` [${t.category}]` : ''}`)
           .join('\n');
 
-        const prompt = `Tag these transactions. Available tags: ${tagNames}
+        const prompt = `Tag these transactions. Available tags: ${tagList}
 
 For each transaction return a JSON object with "id" and "tags" (array of matching tag names, empty if none fit).
 Return ONLY a valid JSON array. No markdown, no explanation, no trailing text.

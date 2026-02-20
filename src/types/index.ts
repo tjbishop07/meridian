@@ -4,10 +4,20 @@ export interface Tag {
   id: number;
   name: string;
   color: string;
+  description: string | null;
   created_at: string;
 }
 
 export interface TagStat extends Tag {
+  count: number;
+  total_amount: number;
+}
+
+export interface TagMonthlyRow {
+  tag_id: number;
+  tag_name: string;
+  tag_color: string;
+  month: string;        // YYYY-MM
   count: number;
   total_amount: number;
 }
@@ -439,8 +449,9 @@ export interface ElectronAPI {
 
   // Tags
   invoke(channel: 'tags:get-all'): Promise<Tag[]>;
-  invoke(channel: 'tags:create', data: { name: string; color: string }): Promise<number>;
-  invoke(channel: 'tags:update', data: { id: number; name?: string; color?: string }): Promise<Tag>;
+  invoke(channel: 'tags:create', data: { name: string; color: string; description?: string }): Promise<number>;
+  invoke(channel: 'tags:update', data: { id: number; name?: string; color?: string; description?: string }): Promise<Tag>;
+  invoke(channel: 'tags:get-monthly-stats', months?: number): Promise<TagMonthlyRow[]>;
   invoke(channel: 'tags:delete', id: number): Promise<void>;
   invoke(channel: 'tags:get-for-transaction', transactionId: number): Promise<Tag[]>;
   invoke(channel: 'tags:set-for-transaction', transactionId: number, tagIds: number[]): Promise<void>;

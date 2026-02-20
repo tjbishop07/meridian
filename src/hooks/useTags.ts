@@ -9,13 +9,13 @@ export function useTags() {
     setTags(result);
   }, []);
 
-  const createTag = useCallback(async (data: { name: string; color: string }) => {
+  const createTag = useCallback(async (data: { name: string; color: string; description?: string }) => {
     await window.electron.invoke('tags:create', data);
     const result = await window.electron.invoke('tags:get-all');
     setTags(result);
   }, []);
 
-  const updateTag = useCallback(async (data: { id: number; name?: string; color?: string }) => {
+  const updateTag = useCallback(async (data: { id: number; name?: string; color?: string; description?: string }) => {
     await window.electron.invoke('tags:update', data);
     const result = await window.electron.invoke('tags:get-all');
     setTags(result);

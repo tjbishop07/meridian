@@ -68,7 +68,6 @@ export default function Dashboard() {
   if (!currentMonth) {
     return (
       <div className="p-4">
-        <h1 className="text-3xl font-bold text-base-content mb-6">Dashboard</h1>
         <div className="bg-base-200 rounded-lg p-12 text-center">
           <p className="text-base-content/70">No data available. Import some transactions to get started!</p>
         </div>
@@ -119,13 +118,6 @@ export default function Dashboard() {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="p-4 flex-shrink-0">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-base-content">Dashboard</h1>
-          <div className="text-3xl font-bold text-base-content">
-            {format(new Date(), 'EEEE, MMMM d, yyyy')}
-          </div>
-        </div>
-
         {/* Month Tabs */}
         <div role="tablist" className="tabs tabs-box w-full bg-base-300">
           {months.map((month) => {

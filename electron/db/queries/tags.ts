@@ -1,5 +1,5 @@
 import { getDatabase } from '../index';
-import type { Tag, TagStat } from '../../../src/types';
+import type { Tag, TagStat, TagMonthlyRow } from '../../../src/types';
 import type { Transaction } from '../../../src/types';
 
 export function getAllTags(): Tag[] {
@@ -35,7 +35,7 @@ export function getTagStats(): TagStat[] {
   `).all() as TagStat[];
 }
 
-export function createTag(data: { name: string; color: string }): number {
+export function createTag(data: { name: string; color: string; description?: string }): number {
   const db = getDatabase();
 
   const existing = db.prepare(
@@ -45,13 +45,13 @@ export function createTag(data: { name: string; color: string }): number {
   if (existing) return existing.id;
 
   const result = db.prepare(
-    'INSERT INTO tags (name, color) VALUES (?, ?)'
-  ).run(data.name, data.color);
+    'INSERT INTO tags (name, color, description) VALUES (?, ?, ?)'
+  ).run(data.name, data.color, data.description ?? null);
 
   return result.lastInsertRowid as number;
 }
 
-export function updateTag(data: { id: number; name?: string; color?: string }): Tag {
+export function updateTag(data: { id: number; name?: string; color?: string; description?: string }): Tag {
   const db = getDatabase();
 
   const fields: string[] = [];
@@ -65,6 +65,10 @@ export function updateTag(data: { id: number; name?: string; color?: string }): 
     fields.push('color = ?');
     params.push(data.color);
   }
+  if (data.description !== undefined) {
+    fields.push('description = ?');
+    params.push(data.description);
+  }
 
   if (fields.length === 0) throw new Error('No fields to update');
 
@@ -72,6 +76,25 @@ export function updateTag(data: { id: number; name?: string; color?: string }): 
   db.prepare(`UPDATE tags SET ${fields.join(', ')} WHERE id = ?`).run(...params);
 
   return db.prepare('SELECT * FROM tags WHERE id = ?').get(data.id) as Tag;
+}
+
+export function getTagMonthlyStats(months = 6): TagMonthlyRow[] {
+  const db = getDatabase();
+  return db.prepare(`
+    SELECT
+      t.id   AS tag_id,
+      t.name AS tag_name,
+      t.color AS tag_color,
+      strftime('%Y-%m', tr.date) AS month,
+      COUNT(*) AS count,
+      COALESCE(SUM(ABS(tr.amount)), 0) AS total_amount
+    FROM tags t
+    JOIN transaction_tags tt ON tt.tag_id = t.id
+    JOIN transactions tr ON tr.id = tt.transaction_id
+    WHERE tr.date >= date('now', '-' || ? || ' months')
+    GROUP BY t.id, strftime('%Y-%m', tr.date)
+    ORDER BY t.name, month
+  `).all(months) as TagMonthlyRow[];
 }
 
 export function deleteTag(id: number): void {

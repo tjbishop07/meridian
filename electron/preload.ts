@@ -155,6 +155,7 @@ const electronAPI: ElectronAPI = {
       'tags:auto-tag',
       'tags:get-transactions',
       'tags:get-all-transaction-tags',
+      'tags:get-monthly-stats',
 
       // File operations
       'dialog:open-file',
