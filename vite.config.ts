@@ -19,7 +19,8 @@ export default defineConfig({
                 'better-sqlite3',
                 'puppeteer-core',
                 'bufferutil',
-                'utf-8-validate'
+                'utf-8-validate',
+                'sharp'
               ]
             }
           }

@@ -201,7 +201,7 @@ export default function Dashboard() {
                   key={selectedMonth}
                   data={trendLineData}
                   theme={nivoTheme}
-                  margin={{ top: 10, right: 16, bottom: 44, left: 16 }}
+                  margin={{ top: 10, right: 16, bottom: 16, left: 16 }}
                   xScale={{ type: 'point' }}
                   yScale={{ type: 'linear', min: 0, max: 'auto', stacked: false }}
                   curve="monotoneX"
@@ -217,7 +217,7 @@ export default function Dashboard() {
                   animate
                   motionConfig="gentle"
                   axisLeft={null}
-                  axisBottom={{ tickSize: 0, tickPadding: 8 }}
+                  axisBottom={null}
                   useMesh
                   tooltip={({ point }) => (
                     <div style={tooltipStyle}>

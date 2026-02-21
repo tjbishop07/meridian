@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { ReceiptData } from '../../types';
 
-type CaptureStep = 'starting' | 'waiting' | 'uploading' | 'analyzing' | 'done' | 'error';
+type CaptureStep = 'starting' | 'waiting' | 'uploading' | 'preprocessing' | 'analyzing' | 'done' | 'error';
 
 interface ReceiptCaptureProps {
   transactionId?: number | null;
@@ -45,7 +45,10 @@ export function ReceiptCapture({ transactionId, onDone, onCancel }: ReceiptCaptu
 
     const handleProgress = (data: { step: string; imageDataUrl?: string }) => {
       if (data.step === 'uploading') setStep('uploading');
-      else if (data.step === 'analyzing') {
+      else if (data.step === 'preprocessing') {
+        if (data.imageDataUrl) setReceiptImageDataUrl(data.imageDataUrl);
+        setStep('preprocessing');
+      } else if (data.step === 'analyzing') {
         if (data.imageDataUrl) setReceiptImageDataUrl(data.imageDataUrl);
         setStep('analyzing');
       } else if (data.step === 'done') {
@@ -110,7 +113,7 @@ export function ReceiptCapture({ transactionId, onDone, onCancel }: ReceiptCaptu
   };
 
   const showingImage = receiptImageDataUrl &&
-    (step === 'uploading' || step === 'analyzing' || step === 'done');
+    (step === 'uploading' || step === 'preprocessing' || step === 'analyzing' || step === 'done');
 
   return (
     <>
@@ -186,6 +189,23 @@ export function ReceiptCapture({ transactionId, onDone, onCancel }: ReceiptCaptu
                   style={{ maxHeight: '260px' }}
                 />
 
+                {/* ── Preprocessing overlay ── */}
+                {step === 'preprocessing' && (
+                  <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                    <div className="absolute inset-0 bg-black/30" />
+                    {/* Horizontal scan line sweeping top → bottom */}
+                    <div
+                      className="absolute left-0 right-0"
+                      style={{
+                        height: '3px',
+                        background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent)',
+                        animation: 'aiShimmer 1.8s linear infinite',
+                        transform: 'none',
+                      }}
+                    />
+                  </div>
+                )}
+
                 {/* ── AI analyzing overlay ── */}
                 {step === 'analyzing' && (
                   <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -256,6 +276,12 @@ export function ReceiptCapture({ transactionId, onDone, onCancel }: ReceiptCaptu
                   <p className="text-sm text-muted-foreground">Uploading…</p>
                 </div>
               )}
+              {step === 'preprocessing' && (
+                <div className="text-center space-y-0.5">
+                  <p className="text-sm font-medium text-foreground">Cropping & normalizing</p>
+                  <p className="text-xs text-muted-foreground">Straightening and enhancing image</p>
+                </div>
+              )}
               {step === 'analyzing' && (
                 <div className="text-center space-y-0.5">
                   <p className="text-sm font-medium text-foreground">Analyzing with AI</p>
@@ -273,6 +299,12 @@ export function ReceiptCapture({ transactionId, onDone, onCancel }: ReceiptCaptu
             <>
               <div className="w-10 h-10 border-2 border-muted-foreground/30 border-t-primary rounded-full animate-spin" />
               <p className="text-sm font-medium text-foreground">Uploading photo…</p>
+            </>
+          )}
+          {step === 'preprocessing' && !showingImage && (
+            <>
+              <div className="w-10 h-10 border-2 border-muted-foreground/30 border-t-primary rounded-full animate-spin" />
+              <p className="text-sm font-medium text-foreground">Cropping & normalizing…</p>
             </>
           )}
           {step === 'analyzing' && !showingImage && (

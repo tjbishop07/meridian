@@ -4,6 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
+import sharp from 'sharp';
 import { getDatabase } from '../db';
 import * as receiptQueries from '../db/queries/receipts';
 import { getAllCategories } from '../db/queries/categories';
@@ -387,6 +388,49 @@ function fileToDataUrl(filePath: string): string | null {
   }
 }
 
+async function preprocessReceiptImage(imagePath: string): Promise<void> {
+  const tmpPath = imagePath + '.tmp';
+  try {
+    const imageData = fs.readFileSync(imagePath);
+
+    // Step 1: Auto-orient from EXIF metadata (fixes phone portrait/landscape rotation)
+    let buffer = await sharp(imageData).rotate().toBuffer();
+    console.log('[Receipt] Step 1: auto-oriented');
+
+    // Step 2: Try to trim background border using top-left corner pixel as reference.
+    // trim() throws when no clear background is found — catch and skip.
+    try {
+      buffer = await sharp(buffer).trim({ threshold: 40 }).toBuffer();
+      console.log('[Receipt] Step 2: background trimmed');
+    } catch {
+      console.log('[Receipt] Step 2: trim skipped (no clear uniform background)');
+    }
+
+    // Step 3: Normalize contrast + sharpen for better AI text recognition
+    await sharp(buffer)
+      .normalize()
+      .sharpen({ sigma: 0.6 })
+      .jpeg({ quality: 92 })
+      .toFile(tmpPath);
+
+    fs.renameSync(tmpPath, imagePath);
+    console.log('[Receipt] Preprocessing complete');
+  } catch (err) {
+    console.warn('[Receipt] Preprocessing failed, using original:', err);
+    try { fs.unlinkSync(tmpPath); } catch { /* noop */ }
+  }
+}
+
+async function runReceiptPipeline(receiptId: number, imagePath: string): Promise<void> {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const imageDataUrl = fileToDataUrl(imagePath);
+    mainWindow.webContents.send('receipt:analysis-progress', { step: 'preprocessing', imageDataUrl });
+  }
+
+  await preprocessReceiptImage(imagePath);
+  await runAiAnalysis(receiptId, imagePath);
+}
+
 async function runAiAnalysis(receiptId: number, imagePath: string): Promise<void> {
   if (mainWindow && !mainWindow.isDestroyed()) {
     const imageDataUrl = fileToDataUrl(imagePath);
@@ -486,9 +530,9 @@ function startHttpServer(localIp: string, token: string): Promise<void> {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ success: true }));
 
-            // Run AI analysis asynchronously
-            runAiAnalysis(row.id, filePath).catch((err) => {
-              console.error('[Receipt] Async AI analysis error:', err);
+            // Preprocess (crop/normalize) then run AI analysis
+            runReceiptPipeline(row.id, filePath).catch((err) => {
+              console.error('[Receipt] Async pipeline error:', err);
             });
           } catch (err) {
             console.error('[Receipt] Upload error:', err);
