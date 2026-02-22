@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Upload, FileText, CheckCircle, AlertCircle, Check, Plus, X, ArrowRight, RotateCcw, Cpu, Sparkles } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle, Check, Plus, X, ArrowRight, RotateCcw, Cpu, Sparkles, Play, Clock, Loader2 } from 'lucide-react';
 import { useAccounts } from '../hooks/useAccounts';
 import { Automation, type AutomationHandle } from './Automation';
 import { useAutomationSettings } from '../hooks/useAutomationSettings';
@@ -9,7 +9,39 @@ import { Button } from '@/components/ui/button';
 import { AccentButton } from '@/components/ui/accent-button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { PageSidebar } from '@/components/ui/PageSidebar';
+import { usePageEntrance } from '../hooks/usePageEntrance';
 import { cn } from '@/lib/utils';
+
+interface ScheduleStatus {
+  isRunning: boolean;
+  currentRecordingName: string | null;
+  lastRunAt: string | null;
+  cronExpr: string | null;
+  interval: string | null;
+  enabled: boolean;
+}
+
+const INTERVAL_OPTIONS = [
+  { value: 'hourly',    label: 'Every hour' },
+  { value: 'every_4h',  label: 'Every 4 hours' },
+  { value: 'every_6h',  label: 'Every 6 hours' },
+  { value: 'every_12h', label: 'Every 12 hours' },
+  { value: 'daily',     label: 'Daily at 6 AM' },
+  { value: 'weekly',    label: 'Weekly (Mon 6 AM)' },
+];
+
+function formatRelativeTime(isoString: string | null): string {
+  if (!isoString) return 'Never';
+  const diff = Date.now() - new Date(isoString).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
 
 type Step = 'select' | 'preview' | 'complete';
 
@@ -40,7 +72,62 @@ export default function Import() {
   const automationRef = useRef<AutomationHandle>(null);
   const location = useLocation();
 
-  const [entered, setEntered] = useState(false);
+  const [scheduleStatus, setScheduleStatus] = useState<ScheduleStatus | null>(null);
+  const [scheduleInterval, setScheduleInterval] = useState('daily');
+  const [scheduleUpdating, setScheduleUpdating] = useState(false);
+
+  // Load and poll schedule status
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const status = await window.electron.invoke('schedule:get-status') as ScheduleStatus;
+        if (!cancelled) {
+          setScheduleStatus(status);
+          if (status.interval) setScheduleInterval(status.interval);
+        }
+      } catch { /* ignore */ }
+    };
+    load();
+    const id = setInterval(load, 10000);
+    return () => { cancelled = true; clearInterval(id); };
+  }, []);
+
+  const handleScheduleToggle = async (enabled: boolean) => {
+    setScheduleUpdating(true);
+    try {
+      const status = await window.electron.invoke('schedule:update', { enabled, interval: scheduleInterval }) as ScheduleStatus;
+      setScheduleStatus(status);
+    } finally {
+      setScheduleUpdating(false);
+    }
+  };
+
+  const handleIntervalChange = async (interval: string) => {
+    setScheduleInterval(interval);
+    if (scheduleStatus?.enabled) {
+      setScheduleUpdating(true);
+      try {
+        const status = await window.electron.invoke('schedule:update', { enabled: true, interval }) as ScheduleStatus;
+        setScheduleStatus(status);
+      } finally {
+        setScheduleUpdating(false);
+      }
+    }
+  };
+
+  const handleRunNow = async () => {
+    await window.electron.invoke('schedule:run-now');
+    // Refresh status shortly after
+    setTimeout(async () => {
+      try {
+        const status = await window.electron.invoke('schedule:get-status') as ScheduleStatus;
+        setScheduleStatus(status);
+      } catch { /* ignore */ }
+    }, 500);
+  };
+
+  const { sidebarClass, contentClass } = usePageEntrance();
   const [drawerOpen, setDrawerOpen] = useState(
     (location.state as any)?.source === 'automation'
   );
@@ -52,12 +139,6 @@ export default function Import() {
   const [result, setResult] = useState<ImportResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Double RAF ensures the initial (hidden) state is painted before the transition fires
-    const raf = requestAnimationFrame(() => requestAnimationFrame(() => setEntered(true)));
-    return () => cancelAnimationFrame(raf);
-  }, []);
 
   useEffect(() => { loadAccounts(); }, []);
 
@@ -136,19 +217,7 @@ export default function Import() {
     <div className="flex h-full relative overflow-hidden">
 
       {/* ── Left control panel ──────────────────────────────── */}
-      <aside className={cn(
-        'w-52 flex-shrink-0 border-r border-border/60 flex flex-col bg-card/40',
-        'transition-all duration-500 ease-out',
-        entered ? 'translate-x-0 opacity-100' : '-translate-x-8 opacity-0'
-      )}>
-
-        {/* Page identity */}
-        <div className="px-4 pt-5 pb-4 border-b border-border/40">
-          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35 mb-1">
-            Workspace
-          </p>
-          <h1 className="text-sm font-semibold text-foreground">Import</h1>
-        </div>
+      <PageSidebar title="Import" className={sidebarClass}>
 
         {/* Primary actions */}
         <div className="px-3 pt-4 pb-3 space-y-2 border-b border-border/40">
@@ -171,7 +240,7 @@ export default function Import() {
         </div>
 
         {/* Vision model selector */}
-        <div className="px-4 pt-4 pb-3">
+        <div className="px-4 pt-4 pb-3 border-b border-border/40">
           <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/35 mb-3">
             Vision Model
           </p>
@@ -213,14 +282,83 @@ export default function Import() {
           </div>
         </div>
 
-      </aside>
+        {/* Schedule section */}
+        <div className="px-4 pt-4 pb-4 flex-1">
+          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/35 mb-3">
+            Schedule
+          </p>
+
+          {/* Enable toggle */}
+          <div className="flex items-center justify-between mb-3">
+            <span className={cn(
+              'text-xs font-medium transition-colors',
+              scheduleStatus?.enabled ? 'text-foreground' : 'text-muted-foreground'
+            )}>
+              {scheduleUpdating ? 'Updating…' : scheduleStatus?.enabled ? 'Enabled' : 'Disabled'}
+            </span>
+            <Switch
+              checked={scheduleStatus?.enabled ?? false}
+              onCheckedChange={handleScheduleToggle}
+              disabled={scheduleUpdating}
+            />
+          </div>
+
+          {/* Interval selector */}
+          <div className="mb-3">
+            <Select value={scheduleInterval} onValueChange={handleIntervalChange}>
+              <SelectTrigger className="h-8 text-xs w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {INTERVAL_OPTIONS.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Last run info */}
+          {scheduleStatus?.lastRunAt && (
+            <div className="flex items-center gap-1.5 mb-3">
+              <Clock className="w-3 h-3 text-muted-foreground/40 shrink-0" />
+              <span className="text-[10px] text-muted-foreground/50">
+                Last: {formatRelativeTime(scheduleStatus.lastRunAt)}
+              </span>
+            </div>
+          )}
+
+          {/* Run Now button / running status */}
+          {scheduleStatus?.isRunning ? (
+            <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-primary/8 border border-primary/20">
+              <Loader2 className="w-3 h-3 text-primary animate-spin shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold text-primary leading-none mb-0.5">Running</p>
+                {scheduleStatus.currentRecordingName && (
+                  <p className="text-[10px] text-primary/60 leading-none truncate">
+                    {scheduleStatus.currentRecordingName}
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full justify-start text-xs h-8 gap-2"
+              onClick={handleRunNow}
+            >
+              <Play className="w-3 h-3 shrink-0" />
+              Run All Now
+            </Button>
+          )}
+        </div>
+
+      </PageSidebar>
 
       {/* ── Main recordings area ─────────────────────────────── */}
-      <div className={cn(
-        'flex-1 overflow-hidden',
-        'transition-all duration-500 ease-out delay-[160ms]',
-        entered ? 'translate-x-0 opacity-100' : 'translate-x-8 opacity-0'
-      )}>
+      <div className={cn('flex-1 overflow-hidden', contentClass)}>
         <Automation ref={automationRef} embedded />
       </div>
 

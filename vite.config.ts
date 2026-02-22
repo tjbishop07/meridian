@@ -20,7 +20,8 @@ export default defineConfig({
                 'puppeteer-core',
                 'bufferutil',
                 'utf-8-validate',
-                'sharp'
+                'sharp',
+                'node-cron'
               ]
             }
           }

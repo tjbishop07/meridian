@@ -9,8 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { SectionCard } from '@/components/ui/SectionCard';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PageSidebar } from '@/components/ui/PageSidebar';
+import { usePageEntrance } from '../hooks/usePageEntrance';
+import { cn } from '@/lib/utils';
 
 export default function Analytics() {
+  const { sidebarClass, contentClass } = usePageEntrance();
   const [trends, setTrends] = useState<SpendingTrend[]>([]);
   const [expenseCategories, setExpenseCategories] = useState<CategoryBreakdown[]>([]);
   const [incomeCategories, setIncomeCategories] = useState<CategoryBreakdown[]>([]);
@@ -81,16 +85,14 @@ export default function Analytics() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="p-4 flex-shrink-0 border-b border-border bg-card">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Analytics</h1>
-            <p className="text-muted-foreground mt-1">Detailed financial analysis and trends</p>
-          </div>
+    <div className="flex h-full">
+      <PageSidebar title="Analytics" className={sidebarClass}>
+        <div className="px-4 pt-4 pb-3">
+          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/35 mb-2">
+            Period
+          </p>
           <Select value={String(trendMonths)} onValueChange={(v) => setTrendMonths(Number(v))}>
-            <SelectTrigger className="w-44">
+            <SelectTrigger className="h-8 text-xs w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -100,8 +102,9 @@ export default function Analytics() {
             </SelectContent>
           </Select>
         </div>
-      </div>
+      </PageSidebar>
 
+      <div className={cn('flex-1 flex flex-col overflow-hidden', contentClass)}>
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 pt-4 space-y-6">
         {/* Summary Stats */}
@@ -381,6 +384,7 @@ export default function Analytics() {
             </table>
           </div>
         </SectionCard>
+      </div>
       </div>
     </div>
   );

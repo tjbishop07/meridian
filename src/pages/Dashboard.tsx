@@ -13,8 +13,12 @@ import type { MonthlyStats, CategoryBreakdown, SpendingTrend, Transaction } from
 import DailyPulse from '../components/dashboard/DailyPulse';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PageSidebar } from '@/components/ui/PageSidebar';
+import { usePageEntrance } from '../hooks/usePageEntrance';
+import { cn } from '@/lib/utils';
 
 export default function Dashboard() {
+  const { sidebarClass, contentClass } = usePageEntrance();
   const [currentMonth, setCurrentMonth] = useState<MonthlyStats | null>(null);
   const [previousMonth, setPreviousMonth] = useState<MonthlyStats | null>(null);
   const [topCategories, setTopCategories] = useState<CategoryBreakdown[]>([]);
@@ -82,7 +86,10 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="relative flex flex-col h-full">
+    <div className="flex h-full relative overflow-hidden">
+      <PageSidebar title="Dashboard" className={sidebarClass} />
+
+      <div className={cn('flex-1 flex flex-col overflow-hidden', contentClass)}>
       {/* Month Tabs — always mounted so animation only plays once */}
       <div className="px-10 pt-8 flex-shrink-0">
         <SunkenCard className="p-1">
@@ -310,6 +317,7 @@ export default function Dashboard() {
         onClose={() => setEditingTransaction(null)}
         onSaved={loadDashboardData}
       />
+      </div>
     </div>
   );
 }

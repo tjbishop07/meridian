@@ -6,12 +6,16 @@ import { useGoals } from '../hooks/useGoals';
 import Modal from '../components/ui/Modal';
 import type { Goal, GoalInput, Category, GoalContribution } from '../types';
 import { Button } from '@/components/ui/button';
+import { AccentButton } from '@/components/ui/accent-button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { FormField } from '@/components/ui/FormField';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { PageSidebar } from '@/components/ui/PageSidebar';
+import { usePageEntrance } from '../hooks/usePageEntrance';
+import { cn } from '@/lib/utils';
 
 interface GoalFormProps {
   formData: GoalInput;
@@ -152,6 +156,8 @@ export default function Goals() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { sidebarClass, contentClass } = usePageEntrance();
+
   useEffect(() => { loadCategories(); }, []);
   useEffect(() => { loadGoalsList(); }, [includeCompleted]);
 
@@ -222,26 +228,40 @@ export default function Goals() {
   };
 
   return (
-    <div className="flex flex-col h-full max-w-6xl mx-auto">
-      <div className="p-4 flex-shrink-0 border-b border-border bg-card">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Savings Goals</h1>
-            <p className="text-muted-foreground mt-1">Track your progress towards financial goals</p>
-          </div>
-          <div className="flex gap-3 items-center">
-            <div className="flex items-center gap-2">
-              <Checkbox id="showCompleted" checked={includeCompleted}
-                onCheckedChange={(checked) => setIncludeCompleted(!!checked)} />
-              <Label htmlFor="showCompleted" className="text-sm cursor-pointer">Show completed</Label>
-            </div>
-            <Button onClick={() => setIsCreateModalOpen(true)}>
-              <Plus className="w-5 h-5 mr-2" />Add Goal
-            </Button>
-          </div>
+    <div className="flex h-full">
+      <PageSidebar title="Goals" className={sidebarClass}>
+        <div className="px-3 pt-4 pb-3 space-y-2 border-b border-border/40">
+          <AccentButton
+            onClick={() => setIsCreateModalOpen(true)}
+            className="w-full justify-start text-xs h-8 px-3"
+          >
+            <Plus className="w-3.5 h-3.5 shrink-0" />
+            New Goal
+          </AccentButton>
         </div>
-      </div>
+        <div className="px-4 pt-4 pb-3">
+          <button
+            onClick={() => setIncludeCompleted(!includeCompleted)}
+            className={cn(
+              'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all duration-150',
+              includeCompleted
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+            )}
+          >
+            <div className={cn(
+              'w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors',
+              includeCompleted ? 'bg-primary/15' : 'bg-muted/60'
+            )}>
+              <CheckCircle2 className="w-3 h-3" />
+            </div>
+            <p className="text-xs font-medium leading-none">Show completed</p>
+            {includeCompleted && <div className="w-1.5 h-1.5 rounded-full bg-primary ml-auto shrink-0" />}
+          </button>
+        </div>
+      </PageSidebar>
 
+      <div className={cn('flex-1 flex flex-col overflow-hidden', contentClass)}>
       <div className="flex-1 overflow-y-auto px-4 pb-4 pt-4">
         {isLoading ? (
           <div className="bg-card rounded-xl border border-border shadow-sm p-6 space-y-4">
@@ -373,6 +393,7 @@ export default function Goals() {
           </div>
         )}
       </Modal>
+      </div>
     </div>
   );
 }

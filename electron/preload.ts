@@ -165,6 +165,11 @@ const electronAPI: ElectronAPI = {
       'receipt:link-transaction',
       'receipt:delete',
 
+      // Schedule
+      'schedule:get-status',
+      'schedule:update',
+      'schedule:run-now',
+
       // File operations
       'dialog:open-file',
     ];

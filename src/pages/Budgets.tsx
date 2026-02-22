@@ -5,6 +5,7 @@ import { useCategories } from '../hooks/useCategories';
 import Modal from '../components/ui/Modal';
 import type { Budget, BudgetInput, Category } from '../types';
 import { Button } from '@/components/ui/button';
+import { AccentButton } from '@/components/ui/accent-button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -12,6 +13,9 @@ import { Label } from '@/components/ui/label';
 import { FormField } from '@/components/ui/FormField';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { AlertCircle } from 'lucide-react';
+import { PageSidebar } from '@/components/ui/PageSidebar';
+import { usePageEntrance } from '../hooks/usePageEntrance';
+import { cn } from '@/lib/utils';
 
 interface BudgetFormProps {
   formData: BudgetInput;
@@ -132,6 +136,8 @@ export default function Budgets() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const { sidebarClass, contentClass } = usePageEntrance();
+
   useEffect(() => { loadCategories(); }, []);
   useEffect(() => { loadBudgets(); loadProgress(); }, [selectedMonth]);
 
@@ -225,35 +231,35 @@ export default function Budgets() {
   };
 
   return (
-    <div className="flex flex-col h-full max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="p-4 flex-shrink-0 border-b border-border bg-card">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Budgets</h1>
-            <p className="text-muted-foreground mt-1">Track your spending against monthly budgets</p>
-          </div>
-          <div className="flex gap-3">
-            <Input
-              type="month"
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-40"
-            />
-            {budgets.length > 0 && (
-              <Button variant="outline" onClick={handleCopyToNextMonth}>
-                <Copy className="w-4 h-4 mr-2" />
-                Copy to Next Month
-              </Button>
-            )}
-            <Button onClick={() => setIsCreateModalOpen(true)}>
-              <Plus className="w-5 h-5 mr-2" />
-              Add Budget
+    <div className="flex h-full">
+      <PageSidebar title="Budgets" className={sidebarClass}>
+        <div className="px-3 pt-4 pb-3 space-y-2 border-b border-border/40">
+          <AccentButton
+            onClick={() => setIsCreateModalOpen(true)}
+            className="w-full justify-start text-xs h-8 px-3"
+          >
+            <Plus className="w-3.5 h-3.5 shrink-0" />
+            New Budget
+          </AccentButton>
+          {budgets.length > 0 && (
+            <Button size="sm" variant="outline" onClick={handleCopyToNextMonth}
+              className="w-full justify-start text-xs h-8 gap-2">
+              <Copy className="w-3.5 h-3.5 shrink-0" />
+              Copy to Next Month
             </Button>
-          </div>
+          )}
         </div>
-      </div>
+        <div className="px-4 pt-4 pb-3">
+          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/35 mb-2">
+            Month
+          </p>
+          <Input type="month" value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="w-full h-8 text-xs" />
+        </div>
+      </PageSidebar>
 
+      <div className={cn('flex-1 flex flex-col overflow-hidden', contentClass)}>
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 pt-4 space-y-4">
         {/* Overall Progress */}
@@ -374,6 +380,7 @@ export default function Budgets() {
           onCancel={() => { setEditingBudget(null); resetForm(); }}
           isSubmitting={isSubmitting} error={error} expenseCategories={expenseCategories} isEditing={true} />
       </Modal>
+      </div>
     </div>
   );
 }

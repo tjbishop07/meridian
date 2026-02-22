@@ -15,6 +15,7 @@ import { registerSettingsHandlers } from './ipc/settings';
 import { registerRecorderHandlers } from './ipc/recorder';
 import { registerExportRecipeHandlers } from './ipc/export-recipes';
 import { registerAutomationHandlers, setMainWindow } from './ipc/automation/index';
+import { initScheduler } from './ipc/automation/scheduler';
 import { registerScraperHandlers, setMainWindow as setScraperMainWindow } from './ipc/scraper';
 import { registerAIScraperHandlers, setMainWindow as setAIScraperMainWindow } from './ipc/ai-scraper';
 import { registerOllamaHandlers, setMainWindow as setOllamaMainWindow, checkServerRunning } from './ipc/ollama';
@@ -396,6 +397,7 @@ app.whenReady().then(async () => {
 
     console.log('[Main] Registering automation handlers...');
     registerAutomationHandlers();
+    initScheduler();
     registerAutomationSettingsHandlers();
     registerScraperHandlers();
     registerAIScraperHandlers();

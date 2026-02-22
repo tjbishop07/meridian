@@ -12,6 +12,8 @@ import { scrapeTransactions } from './scraper';
 import { cleanTransactionsWithAI, ensureOllamaRunning } from './ai-cleanup';
 import { registerRecordingHandlers, setMainWindow as setBrowserViewMainWindow } from '../automation-browserview';
 import { getDatabase } from '../../db';
+import { getAutomationSettings, setAutomationSetting } from '../../db/queries/automation-settings';
+import { start, stop, getStatus, runAllNow, INTERVAL_TO_CRON } from './scheduler';
 
 // Window references
 let mainWindow: BrowserWindow | null = null;
@@ -46,13 +48,38 @@ export function registerAutomationHandlers(): void {
     return playbackState;
   });
 
-  console.log('[Automation] IPC handlers registered (recording + playback)');
+  // Schedule: get current status
+  ipcMain.handle('schedule:get-status', () => {
+    return getStatus();
+  });
+
+  // Schedule: update settings and restart cron
+  ipcMain.handle('schedule:update', async (_, { enabled, interval }: { enabled: boolean; interval: string }) => {
+    const cronExpr = INTERVAL_TO_CRON[interval] ?? '0 6 * * *';
+    const db = getDatabase();
+    setAutomationSetting(db, 'schedule_enabled', String(enabled));
+    setAutomationSetting(db, 'schedule_cron', cronExpr);
+    if (enabled) {
+      start(cronExpr);
+    } else {
+      stop();
+    }
+    return getStatus();
+  });
+
+  // Schedule: trigger immediate run of all recordings
+  ipcMain.handle('schedule:run-now', async () => {
+    runAllNow().catch(console.error);
+    return { started: true };
+  });
+
+  console.log('[Automation] IPC handlers registered (recording + playback + schedule)');
 }
 
 /**
  * Play a recorded automation recipe
  */
-async function playRecording(recipeId: string): Promise<{ success: boolean; message?: string }> {
+export async function playRecording(recipeId: string): Promise<{ success: boolean; message?: string }> {
   try {
     console.log('[Automation] Starting playback for recipe:', recipeId);
 

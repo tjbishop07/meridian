@@ -13,8 +13,11 @@ import { format, parseISO } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { PageSidebar } from '@/components/ui/PageSidebar';
+import { usePageEntrance } from '../hooks/usePageEntrance';
 
 export default function Transactions() {
+  const { sidebarClass, contentClass } = usePageEntrance();
   const {
     transactions,
     isLoading,
@@ -190,7 +193,10 @@ export default function Transactions() {
   }
 
   return (
-    <div className="flex flex-col h-full relative overflow-hidden">
+    <div className="flex h-full relative overflow-hidden">
+      <PageSidebar title="Transactions" className={sidebarClass} />
+
+      <div className={cn('flex-1 flex flex-col overflow-hidden', contentClass)}>
       {/* Toolbar */}
       <div className="px-4 py-3 flex gap-2 items-center border-b border-border/60 flex-shrink-0">
         <div className="relative flex-1">
@@ -567,6 +573,7 @@ export default function Transactions() {
             />
           )}
         </div>
+      </div>
       </div>
     </div>
   );
