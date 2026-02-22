@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Upload, FileText, CheckCircle, AlertCircle, Check, Plus, X } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle, Check, Plus, X, ArrowRight, RotateCcw, Cpu, Sparkles } from 'lucide-react';
 import { useAccounts } from '../hooks/useAccounts';
 import { Automation, type AutomationHandle } from './Automation';
 import { useAutomationSettings } from '../hooks/useAutomationSettings';
@@ -8,10 +8,7 @@ import type { CSVFormat, ImportPreview, ImportResult } from '../types';
 import { Button } from '@/components/ui/button';
 import { AccentButton } from '@/components/ui/accent-button';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
 type Step = 'select' | 'preview' | 'complete';
@@ -22,12 +19,28 @@ const STEPS = [
   { key: 'complete', label: 'Complete' },
 ] as const;
 
+const MODEL_OPTIONS = [
+  {
+    value: 'claude' as const,
+    label: 'Claude Vision',
+    description: 'Anthropic API',
+    Icon: Sparkles,
+  },
+  {
+    value: 'ollama' as const,
+    label: 'Local Ollama',
+    description: 'Runs on-device',
+    Icon: Cpu,
+  },
+];
+
 export default function Import() {
   const { accounts, loadAccounts } = useAccounts();
   const { settings: automationSettings, updateSettings: updateAutomationSettings } = useAutomationSettings();
   const automationRef = useRef<AutomationHandle>(null);
   const location = useLocation();
 
+  const [entered, setEntered] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(
     (location.state as any)?.source === 'automation'
   );
@@ -39,6 +52,12 @@ export default function Import() {
   const [result, setResult] = useState<ImportResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Double RAF ensures the initial (hidden) state is painted before the transition fires
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => setEntered(true)));
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   useEffect(() => { loadAccounts(); }, []);
 
@@ -114,212 +133,286 @@ export default function Import() {
   const stepIndex = STEPS.findIndex(s => s.key === step);
 
   return (
-    <div className="flex flex-col h-full relative overflow-hidden">
+    <div className="flex h-full relative overflow-hidden">
 
-      {/* Toolbar */}
-      <div className="flex items-center gap-3 px-6 h-11 border-b border-border flex-shrink-0">
-        <span className="text-xs text-muted-foreground font-medium">AI Model</span>
-        <Separator orientation="vertical" className="h-4" />
-        <div className="flex items-center rounded-md border border-border overflow-hidden">
-          {([
-            { value: 'claude', label: 'Claude Vision' },
-            { value: 'ollama', label: 'Local Ollama' },
-          ] as const).map((opt, idx) => (
-            <Button
-              key={opt.value}
-              variant="ghost"
-              size="sm"
-              onClick={() => updateAutomationSettings({ vision_provider: opt.value })}
-              className={cn(
-                'h-7 px-3 text-xs rounded-none',
-                idx > 0 && 'border-l border-border',
-                automationSettings.vision_provider === opt.value
-                  ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground'
-                  : 'text-muted-foreground hover:text-foreground'
-              )}
-            >
-              {opt.label}
-            </Button>
-          ))}
+      {/* ── Left control panel ──────────────────────────────── */}
+      <aside className={cn(
+        'w-52 flex-shrink-0 border-r border-border/60 flex flex-col bg-card/40',
+        'transition-all duration-500 ease-out',
+        entered ? 'translate-x-0 opacity-100' : '-translate-x-8 opacity-0'
+      )}>
+
+        {/* Page identity */}
+        <div className="px-4 pt-5 pb-4 border-b border-border/40">
+          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35 mb-1">
+            Workspace
+          </p>
+          <h1 className="text-sm font-semibold text-foreground">Import</h1>
         </div>
-        <div className="flex-1" />
-        <AccentButton onClick={() => setDrawerOpen(true)}>
-          <Upload className="w-3.5 h-3.5" />
-          Manual Import
-        </AccentButton>
-        <Button size="sm" onClick={() => automationRef.current?.openNewRecording()}>
-          <Plus className="w-3.5 h-3.5 mr-1.5" />
-          New Recording
-        </Button>
-      </div>
 
-      {/* Automation content */}
-      <div className="flex-1 overflow-hidden">
+        {/* Primary actions */}
+        <div className="px-3 pt-4 pb-3 space-y-2 border-b border-border/40">
+          <AccentButton
+            onClick={() => setDrawerOpen(true)}
+            className="w-full justify-start text-xs h-8 px-3"
+          >
+            <Upload className="w-3.5 h-3.5 shrink-0" />
+            Manual CSV
+          </AccentButton>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full justify-start text-xs h-8 gap-2"
+            onClick={() => automationRef.current?.openNewRecording()}
+          >
+            <Plus className="w-3.5 h-3.5 shrink-0" />
+            New Recording
+          </Button>
+        </div>
+
+        {/* Vision model selector */}
+        <div className="px-4 pt-4 pb-3">
+          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/35 mb-3">
+            Vision Model
+          </p>
+          <div className="space-y-1.5">
+            {MODEL_OPTIONS.map(({ value, label, description, Icon }) => {
+              const isActive = automationSettings.vision_provider === value;
+              return (
+                <button
+                  key={value}
+                  onClick={() => updateAutomationSettings({ vision_provider: value })}
+                  className={cn(
+                    'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all duration-150',
+                    isActive
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                  )}
+                >
+                  <div className={cn(
+                    'w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors',
+                    isActive ? 'bg-primary/15' : 'bg-muted/60'
+                  )}>
+                    <Icon className="w-3 h-3" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium leading-none mb-0.5">{label}</p>
+                    <p className={cn(
+                      'text-[10px] leading-none transition-colors',
+                      isActive ? 'text-primary/60' : 'text-muted-foreground/50'
+                    )}>
+                      {description}
+                    </p>
+                  </div>
+                  {isActive && (
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary ml-auto shrink-0" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+      </aside>
+
+      {/* ── Main recordings area ─────────────────────────────── */}
+      <div className={cn(
+        'flex-1 overflow-hidden',
+        'transition-all duration-500 ease-out delay-[160ms]',
+        entered ? 'translate-x-0 opacity-100' : 'translate-x-8 opacity-0'
+      )}>
         <Automation ref={automationRef} embedded />
       </div>
 
       {/* Overlay */}
       <div
         className={cn(
-          'absolute inset-0 z-40 bg-black/40 transition-opacity duration-300',
+          'absolute inset-0 z-40 bg-black/50 transition-opacity duration-300 backdrop-blur-[2px]',
           drawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         )}
         onClick={closeDrawer}
       />
 
-      {/* Manual Import Drawer */}
+      {/* ── Manual Import Drawer — slides from the right ─────── */}
       <div
         className={cn(
-          'absolute inset-y-0 left-0 z-50 w-[440px] bg-card border-r border-border flex flex-col',
+          'absolute inset-y-0 right-0 z-50 w-[500px] bg-card border-l border-border flex flex-col',
           'transition-transform duration-300 ease-in-out',
-          drawerOpen ? 'translate-x-0' : '-translate-x-full'
+          drawerOpen ? 'translate-x-0' : 'translate-x-full'
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
-          <h2 className="text-sm font-semibold text-foreground">Manual Import</h2>
+        <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-border/50 flex-shrink-0">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/40 mb-0.5">Import</p>
+            <h2 className="text-[17px] font-semibold text-foreground leading-tight">CSV Transactions</h2>
+          </div>
           <button
             onClick={closeDrawer}
-            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors mt-0.5"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-
-          {/* Step indicator */}
-          <div className="flex items-center gap-2">
+        {/* Step indicator */}
+        <div className="px-6 py-5 flex-shrink-0 border-b border-border/40">
+          <div className="flex items-center">
             {STEPS.map((s, idx) => {
               const isDone = stepIndex > idx;
               const isActive = stepIndex === idx;
               return (
-                <div key={s.key} className="flex items-center gap-2">
-                  {idx > 0 && <div className="w-8 h-px bg-border" />}
-                  <div className="flex items-center gap-1.5">
+                <div key={s.key} className="flex items-center flex-1 last:flex-none">
+                  <div className="flex flex-col items-center gap-1.5">
                     <div className={cn(
-                      'w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold transition-colors',
-                      isDone || isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+                      'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold transition-all duration-300',
+                      isDone
+                        ? 'bg-primary text-primary-foreground'
+                        : isActive
+                        ? 'bg-primary text-primary-foreground ring-[3px] ring-primary/25 ring-offset-1 ring-offset-card'
+                        : 'bg-muted text-muted-foreground/50'
                     )}>
                       {isDone ? <Check className="w-3.5 h-3.5" /> : idx + 1}
                     </div>
                     <span className={cn(
-                      'text-sm',
-                      isActive ? 'text-foreground font-medium' : 'text-muted-foreground'
-                    )}>{s.label}</span>
+                      'text-[10px] font-semibold uppercase tracking-[0.1em] whitespace-nowrap transition-colors',
+                      isActive ? 'text-foreground' : 'text-muted-foreground/40'
+                    )}>
+                      {s.label}
+                    </span>
                   </div>
+                  {idx < STEPS.length - 1 && (
+                    <div className={cn(
+                      'flex-1 h-px mx-4 mb-5 transition-all duration-500',
+                      stepIndex > idx ? 'bg-primary/60' : 'bg-border/60'
+                    )} />
+                  )}
                 </div>
               );
             })}
           </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
 
           {/* Error */}
           {error && (
-            <div className="flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+            <div className="flex items-start gap-3 rounded-xl border border-destructive/25 bg-destructive/8 px-4 py-3.5 text-sm">
               <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
               <p className="text-destructive">{error}</p>
             </div>
           )}
 
-          {/* Step: Select */}
+          {/* ── Step: Select ─────────────────────────────── */}
           {step === 'select' && (
-            <Card>
-              <CardContent className="pt-6 space-y-5">
-                <div className="space-y-2">
-                  <Label>Account</Label>
-                  <Select value={selectedAccount} onValueChange={setSelectedAccount}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select an account…" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {accounts.map((account) => (
-                        <SelectItem key={account.id} value={String(account.id)}>
-                          {account.name} — {account.institution}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/50">
+                  Account
+                </Label>
+                <Select value={selectedAccount} onValueChange={setSelectedAccount}>
+                  <SelectTrigger className="w-full h-10">
+                    <SelectValue placeholder="Select an account…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts.map((account) => (
+                      <SelectItem key={account.id} value={String(account.id)}>
+                        {account.name} — {account.institution}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-                <Separator />
-
-                <div className="space-y-2">
-                  <Label>CSV File</Label>
-                  <button
-                    onClick={handleFileSelect}
-                    disabled={isLoading || !selectedAccount}
-                    className={cn(
-                      'w-full rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors',
-                      'disabled:cursor-not-allowed disabled:opacity-50',
-                      selectedFile
-                        ? 'border-primary/40 bg-primary/5 hover:bg-primary/8'
-                        : 'border-border hover:border-primary/40 hover:bg-muted/40'
-                    )}
-                  >
-                    {selectedFile ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <FileText className="w-8 h-8 text-primary" />
-                        <p className="font-medium text-sm text-foreground">{selectedFile.split('/').pop()}</p>
-                        {detectedFormat && (
-                          <Badge variant="secondary" className="text-xs">
-                            {detectedFormat.name} · {detectedFormat.institution}
-                          </Badge>
-                        )}
-                        <p className="text-xs text-muted-foreground mt-1">Click to change file</p>
+              <div className="space-y-2">
+                <Label className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/50">
+                  CSV File
+                </Label>
+                <button
+                  onClick={handleFileSelect}
+                  disabled={isLoading || !selectedAccount}
+                  className={cn(
+                    'group w-full rounded-xl border-2 border-dashed px-6 py-12 text-center transition-all duration-200',
+                    'disabled:cursor-not-allowed disabled:opacity-40',
+                    selectedFile
+                      ? 'border-primary/50 bg-primary/5 hover:bg-primary/8'
+                      : 'border-border/50 hover:border-primary/40 hover:bg-muted/25'
+                  )}
+                >
+                  {selectedFile ? (
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-primary/12 flex items-center justify-center">
+                        <FileText className="w-6 h-6 text-primary" />
                       </div>
-                    ) : (
-                      <div className="flex flex-col items-center gap-2">
-                        <Upload className="w-8 h-8 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground">
+                      <div>
+                        <p className="font-semibold text-sm text-foreground leading-snug">
+                          {selectedFile.split('/').pop()}
+                        </p>
+                        {detectedFormat && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {detectedFormat.name} · {detectedFormat.institution}
+                          </p>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground/50">Click to change file</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-muted/60 flex items-center justify-center group-hover:bg-muted transition-colors">
+                        <Upload className="w-6 h-6 text-muted-foreground/60 group-hover:text-muted-foreground transition-colors" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
                           {isLoading ? 'Reading file…' : 'Click to select a CSV file'}
                         </p>
+                        <p className="text-xs text-muted-foreground/50 mt-0.5">USAA, Chase, and more</p>
                       </div>
-                    )}
-                  </button>
-                </div>
+                    </div>
+                  )}
+                </button>
+              </div>
 
-                {selectedFile && detectedFormat && (
-                  <Button onClick={handlePreview} disabled={isLoading} className="w-full">
-                    {isLoading ? 'Loading…' : 'Continue to Preview'}
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+              {selectedFile && detectedFormat && (
+                <Button onClick={handlePreview} disabled={isLoading} className="w-full h-10 gap-2">
+                  {isLoading ? 'Loading…' : (
+                    <>Preview Transactions <ArrowRight className="w-3.5 h-3.5" /></>
+                  )}
+                </Button>
+              )}
+            </div>
           )}
 
-          {/* Step: Preview */}
+          {/* ── Step: Preview ────────────────────────────── */}
           {step === 'preview' && preview && (
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { label: 'Total Rows', value: preview.rows.length, color: 'text-foreground' },
-                  { label: 'Duplicates', value: preview.duplicates.length, color: 'text-amber-500' },
-                  { label: 'To Import', value: preview.rows.length - preview.duplicates.length, color: 'text-emerald-500' },
-                ].map(({ label, value, color }) => (
-                  <Card key={label}>
-                    <CardContent className="pt-4 pb-4">
-                      <p className="text-xs text-muted-foreground mb-1">{label}</p>
-                      <p className={cn('text-2xl font-bold', color)}>{value}</p>
-                    </CardContent>
-                  </Card>
+                  { label: 'Total Rows', value: preview.rows.length, className: 'border-border/60' },
+                  { label: 'Duplicates', value: preview.duplicates.length, className: 'border-amber-500/20 bg-amber-500/5', valueClass: 'text-amber-400' },
+                  { label: 'To Import', value: preview.rows.length - preview.duplicates.length, className: 'border-emerald-500/20 bg-emerald-500/5', valueClass: 'text-emerald-400' },
+                ].map(({ label, value, className, valueClass }) => (
+                  <div key={label} className={cn('rounded-xl border px-4 py-3.5', className)}>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground/50 mb-1.5">{label}</p>
+                    <p className={cn('text-2xl font-bold tabular-nums', valueClass ?? 'text-foreground')}>{value}</p>
+                  </div>
                 ))}
               </div>
 
               {preview.duplicates.length > 0 && (
-                <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm">
-                  <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                  <p className="text-amber-600 dark:text-amber-400">
-                    {preview.duplicates.length} duplicate{preview.duplicates.length !== 1 ? 's' : ''} found — these will be skipped.
+                <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <p className="text-amber-300/90">
+                    {preview.duplicates.length} duplicate{preview.duplicates.length !== 1 ? 's' : ''} detected — will be skipped automatically.
                   </p>
                 </div>
               )}
 
               {preview.errors.length > 0 && (
-                <div className="flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
+                <div className="flex items-start gap-3 rounded-xl border border-destructive/25 bg-destructive/5 px-4 py-3 text-sm">
                   <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
                   <div className="text-destructive space-y-0.5">
-                    <p className="font-medium">{preview.errors.length} rows have errors</p>
+                    <p className="font-semibold">{preview.errors.length} rows have errors</p>
                     {preview.errors.slice(0, 3).map((err, i) => (
                       <p key={i} className="text-xs opacity-80">Row {err.row}: {err.error}</p>
                     ))}
@@ -327,81 +420,91 @@ export default function Import() {
                 </div>
               )}
 
-              <Card>
-                <CardContent className="p-0">
-                  <div className="px-4 py-3 border-b border-border">
-                    <p className="text-sm font-medium">
-                      Transactions <span className="text-muted-foreground font-normal">({preview.rows.length})</span>
-                    </p>
-                  </div>
-                  <div className="max-h-64 overflow-y-auto">
-                    <table className="w-full text-sm">
-                      <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
-                        <tr>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Date</th>
-                          <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Description</th>
-                          <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Amount</th>
+              <div className="rounded-xl border border-border/50 overflow-hidden">
+                <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between bg-muted/20">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/50">Transactions</p>
+                  <span className="text-xs text-muted-foreground/60">{preview.rows.length} rows</span>
+                </div>
+                <div className="max-h-56 overflow-y-auto">
+                  <table className="w-full">
+                    <thead className="sticky top-0 bg-card/90 backdrop-blur-sm border-b border-border/40">
+                      <tr>
+                        <th className="px-4 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-muted-foreground/40">Date</th>
+                        <th className="px-4 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-muted-foreground/40">Description</th>
+                        <th className="px-4 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-muted-foreground/40">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/30">
+                      {preview.rows.map((row, i) => (
+                        <tr key={i} className="hover:bg-muted/25 transition-colors">
+                          <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap font-mono">{row.date}</td>
+                          <td className="px-4 py-2.5 text-xs text-foreground truncate max-w-[150px]">{row.description}</td>
+                          <td className={cn(
+                            'px-4 py-2.5 text-xs text-right font-bold whitespace-nowrap tabular-nums font-mono',
+                            row.amount < 0 ? 'text-destructive/80' : 'text-emerald-400'
+                          )}>
+                            {row.amount < 0 ? '−' : '+'}${Math.abs(row.amount).toFixed(2)}
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {preview.rows.map((row, i) => (
-                          <tr key={i} className="hover:bg-muted/40 transition-colors">
-                            <td className="px-4 py-2.5 text-muted-foreground whitespace-nowrap">{row.date}</td>
-                            <td className="px-4 py-2.5 text-foreground truncate max-w-[140px]">{row.description}</td>
-                            <td className={cn(
-                              'px-4 py-2.5 text-right font-medium whitespace-nowrap tabular-nums',
-                              row.amount < 0 ? 'text-destructive' : 'text-emerald-500'
-                            )}>
-                              {row.amount < 0 ? '-' : '+'}${Math.abs(row.amount).toFixed(2)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setStep('select')} disabled={isLoading}>
+              <div className="flex gap-3 pt-1">
+                <Button variant="outline" onClick={() => setStep('select')} disabled={isLoading} className="gap-1.5">
+                  <RotateCcw className="w-3.5 h-3.5" />
                   Back
                 </Button>
-                <Button onClick={() => handleImport(true)} disabled={isLoading} className="flex-1">
-                  {isLoading ? 'Importing…' : 'Import Transactions'}
+                <Button onClick={() => handleImport(true)} disabled={isLoading} className="flex-1 gap-2">
+                  {isLoading ? 'Importing…' : (
+                    <>Import {preview.rows.length - preview.duplicates.length} Transactions <ArrowRight className="w-3.5 h-3.5" /></>
+                  )}
                 </Button>
               </div>
             </div>
           )}
 
-          {/* Step: Complete */}
+          {/* ── Step: Complete ───────────────────────────── */}
           {step === 'complete' && result && (
-            <Card>
-              <CardContent className="pt-8 pb-8 text-center space-y-6">
-                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-emerald-500/10">
-                  <CheckCircle className="w-7 h-7 text-emerald-500" />
+            <div className="flex flex-col items-center text-center py-10 space-y-8">
+              <div className="relative flex items-center justify-center">
+                <div className="absolute w-24 h-24 rounded-full bg-emerald-500/8 animate-ping" style={{ animationDuration: '2.5s' }} />
+                <div className="absolute w-20 h-20 rounded-full bg-emerald-500/10" />
+                <div className="relative w-16 h-16 rounded-full bg-emerald-500/15 flex items-center justify-center">
+                  <CheckCircle className="w-8 h-8 text-emerald-400" />
                 </div>
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Import complete</h2>
-                  <p className="text-sm text-muted-foreground mt-1">Your transactions have been added.</p>
+              </div>
+
+              <div>
+                <h2 className="text-xl font-bold text-foreground">Import complete</h2>
+                <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed">
+                  Your transactions have been added to the database.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 w-full max-w-[260px]">
+                <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground/50 mb-1.5">Imported</p>
+                  <p className="text-3xl font-bold tabular-nums text-emerald-400">{result.imported}</p>
                 </div>
-                <div className="grid grid-cols-2 gap-3 max-w-xs mx-auto">
-                  <div className="rounded-lg bg-muted px-4 py-3">
-                    <p className="text-xs text-muted-foreground mb-1">Imported</p>
-                    <p className="text-2xl font-bold text-emerald-500">{result.imported}</p>
-                  </div>
-                  <div className="rounded-lg bg-muted px-4 py-3">
-                    <p className="text-xs text-muted-foreground mb-1">Skipped</p>
-                    <p className="text-2xl font-bold text-foreground">{result.skipped}</p>
-                  </div>
+                <div className="rounded-xl border border-border/60 bg-muted/30 px-5 py-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground/50 mb-1.5">Skipped</p>
+                  <p className="text-3xl font-bold tabular-nums text-foreground">{result.skipped}</p>
                 </div>
-                <div className="flex gap-3 justify-center">
-                  <Button variant="outline" onClick={resetForm}>Import Another</Button>
-                  <Button onClick={() => { closeDrawer(); window.location.hash = '#/transactions'; }}>
-                    View Transactions
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+              </div>
+
+              <div className="flex gap-3 w-full">
+                <Button variant="outline" onClick={resetForm} className="flex-1">Import Another</Button>
+                <Button
+                  onClick={() => { closeDrawer(); window.location.hash = '#/transactions'; }}
+                  className="flex-1"
+                >
+                  View Transactions
+                </Button>
+              </div>
+            </div>
           )}
 
         </div>

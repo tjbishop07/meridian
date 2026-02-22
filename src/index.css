@@ -70,6 +70,7 @@
 :root,
 [data-theme="dark"],
 .dark {
+  color-scheme: dark;
   --radius: 0.5rem;
 
   /* Perplexity dark — navy/teal backgrounds */
@@ -142,6 +143,7 @@
 
 /* ── Light theme ──────────────────────────────────────────── */
 [data-theme="light"] {
+  color-scheme: light;
   --radius: 0.5rem;
 
   --background:          oklch(0.97  0.002 285);   /* zinc-50 */
@@ -177,6 +179,7 @@
 
 /* ── Money theme (refined emerald finance) ────────────────── */
 [data-theme="money"] {
+  color-scheme: light;
   --radius: 0.5rem;
 
   --background:          oklch(0.94  0.04  163);   /* light sage green */
@@ -212,6 +215,7 @@
 
 /* ── Ghibli Studio (warm dark brown) ─────────────────────── */
 [data-theme="ghibli-studio"] {
+  color-scheme: dark;
   --radius: 0.5rem;
   --background:          oklch(0.20 0.01 52.89);
   --foreground:          oklch(0.88 0.05 79.11);
@@ -266,6 +270,7 @@
 
 /* ── Marvel (dark red/blue) ──────────────────────────────── */
 [data-theme="marvel"] {
+  color-scheme: dark;
   --radius: 0rem;
   --background:          oklch(0.17 0.01 31.25);
   --foreground:          oklch(0.95 0.01 25.23);
@@ -320,6 +325,7 @@
 
 /* ── Clean Slate (dark blue-grey) ────────────────────────── */
 [data-theme="clean-slate"] {
+  color-scheme: dark;
   --radius: 0.5rem;
   --background:          oklch(0.21 0.04 264.04);
   --foreground:          oklch(0.93 0.01 256.71);
@@ -374,6 +380,7 @@
 
 /* ── Spotify (very dark navy + green) ────────────────────── */
 [data-theme="spotify"] {
+  color-scheme: dark;
   --radius: 0.25rem;
   --background:          oklch(0.15 0.02 269.18);
   --foreground:          oklch(0.95 0.01 238.46);
@@ -428,6 +435,7 @@
 
 /* ── Neo Brutalism (black + bold primaries) ───────────────── */
 [data-theme="neo-brutalism"] {
+  color-scheme: dark;
   --radius: 0px;
   --background:          oklch(0 0 0);
   --foreground:          oklch(1.00 0 0);
@@ -482,6 +490,7 @@
 
 /* ── Marshmallow (dark grey + pastels) ───────────────────── */
 [data-theme="marshmallow"] {
+  color-scheme: dark;
   --radius: 0rem;
   --background:          oklch(0.22 0 0);
   --foreground:          oklch(0.97 0.01 267.41);
@@ -536,6 +545,7 @@
 
 /* ── Art Deco (warm dark + gold) ─────────────────────────── */
 [data-theme="art-deco"] {
+  color-scheme: dark;
   --radius: 0.5rem;
   --background:          oklch(0.32 0 0);
   --foreground:          oklch(0.96 0.03 106.92);
@@ -590,6 +600,7 @@
 
 /* ── Claude (warm charcoal + orange) ─────────────────────── */
 [data-theme="claude"] {
+  color-scheme: dark;
   --radius: 0.5rem;
   --background:          oklch(0.27 0 0);
   --foreground:          oklch(0.81 0.01 93.53);
@@ -644,6 +655,7 @@
 
 /* ── Material Design (dark purple/violet) ────────────────── */
 [data-theme="material-design"] {
+  color-scheme: dark;
   --radius: 1rem;
   --background:          oklch(0.15 0.01 317.69);
   --foreground:          oklch(0.95 0.01 321.50);
@@ -698,6 +710,7 @@
 
 /* ── Summer (warm dark amber/brown) ──────────────────────── */
 [data-theme="summer"] {
+  color-scheme: dark;
   --radius: 0.6rem;
   --background:          oklch(0.26 0.02 63.41);
   --foreground:          oklch(0.87 0.08 65.83);
@@ -752,6 +765,7 @@
 
 /* ── VS Code (dark navy + blue) ──────────────────────────── */
 [data-theme="vs-code"] {
+  color-scheme: dark;
   --radius: 0rem;
   --background:          oklch(0.18 0.02 271.27);
   --foreground:          oklch(0.90 0.01 238.47);

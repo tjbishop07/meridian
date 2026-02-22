@@ -5,7 +5,7 @@ import { useTags } from '../../hooks/useTags';
 import type { Transaction, CreateTransactionInput, Receipt } from '../../types';
 import { ReceiptViewer } from '../receipts/ReceiptViewer';
 import { format } from 'date-fns';
-import { X } from 'lucide-react';
+import { X, TrendingDown, TrendingUp, ArrowLeftRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,8 +20,45 @@ interface TransactionFormProps {
   onReceiptDeleted?: () => void;
 }
 
+const TYPE_CONFIG = {
+  expense: {
+    icon: TrendingDown,
+    label: 'Expense',
+    activeClass: 'bg-rose-500 text-white shadow-sm',
+    amountClass: 'text-rose-500',
+    accentBorder: 'border-rose-500',
+  },
+  income: {
+    icon: TrendingUp,
+    label: 'Income',
+    activeClass: 'bg-emerald-500 text-white shadow-sm',
+    amountClass: 'text-emerald-500',
+    accentBorder: 'border-emerald-500',
+  },
+  transfer: {
+    icon: ArrowLeftRight,
+    label: 'Transfer',
+    activeClass: 'bg-sky-500 text-white shadow-sm',
+    amountClass: 'text-sky-500',
+    accentBorder: 'border-sky-500',
+  },
+} as const;
+
+const labelClass = 'text-xs font-medium text-muted-foreground';
+
+function SectionDivider({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-3 pt-1">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 whitespace-nowrap">
+        {label}
+      </span>
+      <div className="flex-1 h-px bg-border" />
+    </div>
+  );
+}
+
 const selectClass =
-  'w-full h-9 px-3 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50';
+  'w-full h-9 px-3 text-sm rounded-md border border-input bg-background text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50 cursor-pointer';
 
 export default function TransactionForm({ transaction, receipt, onSubmit, onCancel, onReceiptDeleted }: TransactionFormProps) {
   const { accounts } = useAccounts();
@@ -77,76 +114,73 @@ export default function TransactionForm({ transaction, receipt, onSubmit, onCanc
     }
   };
 
+  const currentType = TYPE_CONFIG[formData.type];
+
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       {/* Error */}
       {error && (
-        <p className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-md px-3 py-2">
+        <div className="flex items-start gap-2 text-sm text-destructive bg-destructive/8 border border-destructive/20 rounded-lg px-3 py-2.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-destructive flex-shrink-0 mt-1.5" />
           {error}
-        </p>
-      )}
-
-      {/* Type segment */}
-      <div className="flex rounded-md border border-border overflow-hidden">
-        {(['expense', 'income', 'transfer'] as const).map((type) => (
-          <button
-            key={type}
-            type="button"
-            onClick={() => setFormData({ ...formData, type, category_id: undefined, to_account_id: undefined })}
-            className={cn(
-              'flex-1 py-2 text-sm font-medium capitalize transition-colors border-r border-border last:border-r-0',
-              formData.type === type
-                ? type === 'expense'
-                  ? 'bg-destructive text-destructive-foreground'
-                  : type === 'income'
-                  ? 'bg-success text-success-foreground'
-                  : 'bg-primary text-primary-foreground'
-                : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
-            )}
-          >
-            {type}
-          </button>
-        ))}
-      </div>
-
-      {/* Account */}
-      <div className="space-y-1.5">
-        <Label>{formData.type === 'transfer' ? 'From Account' : 'Account'}</Label>
-        <select
-          value={formData.account_id}
-          onChange={(e) => setFormData({ ...formData, account_id: Number(e.target.value) })}
-          className={selectClass}
-          required
-        >
-          <option value={0}>Select account…</option>
-          {accounts.map((a) => (
-            <option key={a.id} value={a.id}>{a.name} — {a.institution}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* To Account (transfers) */}
-      {formData.type === 'transfer' && (
-        <div className="space-y-1.5">
-          <Label>To Account</Label>
-          <select
-            value={formData.to_account_id || 0}
-            onChange={(e) => setFormData({ ...formData, to_account_id: Number(e.target.value) })}
-            className={selectClass}
-            required
-          >
-            <option value={0}>Select destination…</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>{a.name} — {a.institution}</option>
-            ))}
-          </select>
         </div>
       )}
 
-      {/* Date + Amount */}
-      <div className="grid grid-cols-2 gap-4">
+      {/* Type Switcher */}
+      <div className="grid grid-cols-3 gap-1 p-1 bg-muted/60 rounded-xl border border-border/40">
+        {(Object.entries(TYPE_CONFIG) as [keyof typeof TYPE_CONFIG, (typeof TYPE_CONFIG)[keyof typeof TYPE_CONFIG]][]).map(
+          ([type, cfg]) => {
+            const Icon = cfg.icon;
+            const isActive = formData.type === type;
+            return (
+              <button
+                key={type}
+                type="button"
+                onClick={() =>
+                  setFormData({ ...formData, type, category_id: undefined, to_account_id: undefined })
+                }
+                className={cn(
+                  'flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all duration-200',
+                  isActive ? cfg.activeClass : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {cfg.label}
+              </button>
+            );
+          }
+        )}
+      </div>
+
+      {/* Amount — prominent */}
+      <div className={cn('space-y-1.5 border-l-2 pl-3', currentType.accentBorder)}>
+        <Label className={labelClass}>Amount</Label>
+        <div className="relative">
+          <span
+            className={cn(
+              'absolute left-3.5 top-1/2 -translate-y-1/2 text-lg font-light pointer-events-none transition-colors duration-200',
+              currentType.amountClass
+            )}
+          >
+            $
+          </span>
+          <Input
+            type="number"
+            step="0.01"
+            min="0"
+            value={formData.amount || ''}
+            onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
+            className="pl-8 h-12 text-2xl font-semibold tabular-nums"
+            placeholder="0.00"
+            required
+          />
+        </div>
+      </div>
+
+      {/* Date + Status */}
+      <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
-          <Label>Date</Label>
+          <Label className={labelClass}>Date</Label>
           <Input
             type="date"
             value={formData.date}
@@ -155,21 +189,26 @@ export default function TransactionForm({ transaction, receipt, onSubmit, onCanc
           />
         </div>
         <div className="space-y-1.5">
-          <Label>Amount</Label>
-          <Input
-            type="number"
-            step="0.01"
-            min="0"
-            value={formData.amount}
-            onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
-            required
-          />
+          <Label className={labelClass}>Status</Label>
+          <select
+            value={formData.status}
+            onChange={(e) =>
+              setFormData({ ...formData, status: e.target.value as 'pending' | 'cleared' | 'reconciled' })
+            }
+            className={selectClass}
+          >
+            <option value="pending">Pending</option>
+            <option value="cleared">Cleared</option>
+            <option value="reconciled">Reconciled</option>
+          </select>
         </div>
       </div>
 
+      <SectionDivider label="Details" />
+
       {/* Description */}
       <div className="space-y-1.5">
-        <Label>Description</Label>
+        <Label className={labelClass}>Description</Label>
         <Input
           type="text"
           value={formData.description}
@@ -179,10 +218,50 @@ export default function TransactionForm({ transaction, receipt, onSubmit, onCanc
         />
       </div>
 
+      {/* Account */}
+      <div className="space-y-1.5">
+        <Label className={labelClass}>
+          {formData.type === 'transfer' ? 'From Account' : 'Account'}
+        </Label>
+        <select
+          value={formData.account_id}
+          onChange={(e) => setFormData({ ...formData, account_id: Number(e.target.value) })}
+          className={selectClass}
+          required
+        >
+          <option value={0}>Select account…</option>
+          {accounts.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name} — {a.institution}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* To Account (transfers) */}
+      {formData.type === 'transfer' && (
+        <div className="space-y-1.5">
+          <Label className={labelClass}>To Account</Label>
+          <select
+            value={formData.to_account_id || 0}
+            onChange={(e) => setFormData({ ...formData, to_account_id: Number(e.target.value) })}
+            className={selectClass}
+            required
+          >
+            <option value={0}>Select destination…</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name} — {a.institution}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Category */}
       {formData.type !== 'transfer' && (
         <div className="space-y-1.5">
-          <Label>Category</Label>
+          <Label className={labelClass}>Category</Label>
           <select
             value={formData.category_id || ''}
             onChange={(e) =>
@@ -192,42 +271,31 @@ export default function TransactionForm({ transaction, receipt, onSubmit, onCanc
           >
             <option value="">Uncategorized</option>
             {filteredCategories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
             ))}
           </select>
         </div>
       )}
 
-      {/* Status */}
-      <div className="space-y-1.5">
-        <Label>Status</Label>
-        <select
-          value={formData.status}
-          onChange={(e) =>
-            setFormData({ ...formData, status: e.target.value as 'pending' | 'cleared' | 'reconciled' })
-          }
-          className={selectClass}
-        >
-          <option value="pending">Pending</option>
-          <option value="cleared">Cleared</option>
-          <option value="reconciled">Reconciled</option>
-        </select>
-      </div>
+      <SectionDivider label="Notes & Tags" />
 
       {/* Notes */}
       <div className="space-y-1.5">
-        <Label>Notes</Label>
+        <Label className={labelClass}>Notes</Label>
         <Textarea
           value={formData.notes || ''}
           onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-          rows={3}
+          rows={2}
           placeholder="Optional notes…"
+          className="resize-none"
         />
       </div>
 
       {/* Tags */}
       <div className="space-y-2">
-        <Label>Tags</Label>
+        <Label className={labelClass}>Tags</Label>
         {selectedTagIds.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {selectedTagIds.map((tagId) => {
@@ -236,37 +304,45 @@ export default function TransactionForm({ transaction, receipt, onSubmit, onCanc
               return (
                 <span
                   key={tagId}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
-                  style={{ backgroundColor: tag.color + '33', color: tag.color }}
+                  className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium"
+                  style={{
+                    backgroundColor: tag.color + '22',
+                    color: tag.color,
+                    border: `1px solid ${tag.color}44`,
+                  }}
                 >
                   {tag.name}
                   <button
                     type="button"
                     onClick={() => setSelectedTagIds((prev) => prev.filter((id) => id !== tagId))}
-                    className="opacity-70 hover:opacity-100"
+                    className="opacity-60 hover:opacity-100 transition-opacity"
                   >
-                    <X className="w-3 h-3" />
+                    <X className="w-2.5 h-2.5" />
                   </button>
                 </span>
               );
             })}
           </div>
         )}
-        <select
-          value=""
-          onChange={(e) => {
-            const id = Number(e.target.value);
-            if (id && !selectedTagIds.includes(id)) setSelectedTagIds((prev) => [...prev, id]);
-          }}
-          className={selectClass}
-        >
-          <option value="">Add a tag…</option>
-          {tags
-            .filter((t) => !selectedTagIds.includes(t.id))
-            .map((tag) => (
-              <option key={tag.id} value={tag.id}>{tag.name}</option>
-            ))}
-        </select>
+        {tags.filter((t) => !selectedTagIds.includes(t.id)).length > 0 && (
+          <select
+            value=""
+            onChange={(e) => {
+              const id = Number(e.target.value);
+              if (id && !selectedTagIds.includes(id)) setSelectedTagIds((prev) => [...prev, id]);
+            }}
+            className={selectClass}
+          >
+            <option value="">Add a tag…</option>
+            {tags
+              .filter((t) => !selectedTagIds.includes(t.id))
+              .map((tag) => (
+                <option key={tag.id} value={tag.id}>
+                  {tag.name}
+                </option>
+              ))}
+          </select>
+        )}
       </div>
 
       {/* Receipt */}
@@ -275,7 +351,7 @@ export default function TransactionForm({ transaction, receipt, onSubmit, onCanc
       )}
 
       {/* Actions — sticky at bottom */}
-      <div className="sticky bottom-0 bg-card pt-4 pb-2 border-t border-border mt-2 flex gap-2">
+      <div className="sticky bottom-0 bg-card/95 backdrop-blur-sm pt-3 pb-1 border-t border-border mt-2 flex gap-2">
         <Button type="submit" disabled={isSubmitting} className="flex-1">
           {isSubmitting ? 'Saving…' : 'Save Changes'}
         </Button>

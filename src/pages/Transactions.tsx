@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Search, Filter, Edit2, Trash2, Camera } from 'lucide-react';
+import { Search, Filter, Edit2, Trash2, Camera, X } from 'lucide-react';
 import { Sparkline } from '@/components/ui/Sparkline';
 import { toast } from 'sonner';
 import { useTransactions } from '../hooks/useTransactions';
@@ -515,23 +515,28 @@ export default function Transactions() {
         }`}
       >
         {/* Drawer header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
-          <h2 className="text-sm font-semibold text-foreground">Edit Transaction</h2>
-          <div className="flex items-center gap-1">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 mb-0.5">
+              Edit Transaction
+            </p>
+            <h2 className="text-sm font-semibold text-foreground truncate">
+              {editingTransaction?.description || 'Transaction'}
+            </h2>
+          </div>
+          <div className="flex items-center gap-0.5 flex-shrink-0 ml-3">
             <button
               onClick={() => setShowReceiptCapture(true)}
               title="Capture receipt"
-              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               <Camera className="w-4 h-4" />
             </button>
             <button
               onClick={() => setEditingTransaction(null)}
-              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>
