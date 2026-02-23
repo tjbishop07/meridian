@@ -21,7 +21,8 @@ export default defineConfig({
                 'bufferutil',
                 'utf-8-validate',
                 'sharp',
-                'node-cron'
+                'node-cron',
+                'electron-updater'
               ]
             }
           }

@@ -34,6 +34,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "electron-updater": "^6.8.3",
     "lucide-react": "^0.468.0",
     "node-cron": "^4.2.1",
     "papaparse": "^5.4.1",
@@ -94,6 +95,11 @@
       "target": "AppImage",
       "category": "Office",
       "icon": "build/icon.png"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "YOUR_GITHUB_USERNAME",
+      "repo": "meridian"
     }
   }
 }

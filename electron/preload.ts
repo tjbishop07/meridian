@@ -173,6 +173,8 @@ const electronAPI: ElectronAPI = {
       // App
       'app:get-launch-at-login',
       'app:set-launch-at-login',
+      'app:check-for-updates',
+      'app:install-update',
 
       // File operations
       'dialog:open-file',
@@ -204,6 +206,7 @@ const electronAPI: ElectronAPI = {
       'receipt:uploaded',
       'receipt:analysis-progress',
       'receipt:error',
+      'app:update-downloaded',
     ];
 
     if (validReceiveChannels.includes(channel)) {
@@ -231,6 +234,7 @@ const electronAPI: ElectronAPI = {
       'receipt:uploaded',
       'receipt:analysis-progress',
       'receipt:error',
+      'app:update-downloaded',
     ];
 
     if (validReceiveChannels.includes(channel)) {

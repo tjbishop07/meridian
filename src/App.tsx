@@ -87,6 +87,19 @@ function App() {
       generateWelcome();
     }
 
+    // Listen for downloaded updates and show a persistent toast
+    const handleUpdateDownloaded = (version: string) => {
+      toast.info(`Meridian ${version} is ready`, {
+        description: 'Restart to install the update.',
+        duration: Infinity,
+        action: {
+          label: 'Restart',
+          onClick: () => window.electron.invoke('app:install-update'),
+        },
+      });
+    };
+    window.electron.on('app:update-downloaded', handleUpdateDownloaded);
+
     // Set up global automation progress listener
     const handleAutomationProgress = (data: any) => {
       console.log('[App] ========== AUTOMATION PROGRESS EVENT ==========');
@@ -125,6 +138,7 @@ function App() {
 
     return () => {
       console.log('[App] Cleaning up global automation event listeners');
+      window.electron.removeListener('app:update-downloaded', handleUpdateDownloaded);
       window.electron.removeListener('automation:progress', handleAutomationProgress);
       window.electron.removeListener('automation:playback-complete', handlePlaybackComplete);
     };

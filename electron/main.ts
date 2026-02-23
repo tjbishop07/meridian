@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Tray, Menu, nativeImage } from 'electron';
+import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -93,6 +94,15 @@ function buildTrayMenu(): Electron.Menu {
         app.setLoginItemSettings({ openAtLogin: item.checked });
         // Rebuild the menu so the checkbox state updates
         if (tray) tray.setContextMenu(buildTrayMenu());
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Check for Updates',
+      click: () => {
+        if (!isDev) {
+          autoUpdater.checkForUpdates().catch(console.error);
+        }
       },
     },
     { type: 'separator' },
@@ -512,6 +522,31 @@ app.whenReady().then(async () => {
       // Rebuild tray menu so checkbox stays in sync
       if (tray) tray.setContextMenu(buildTrayMenu());
       return enabled;
+    });
+
+    // Auto-updater
+    if (!isDev) {
+      autoUpdater.autoDownload = true;
+      autoUpdater.autoInstallOnAppQuit = false;
+
+      autoUpdater.on('update-downloaded', (info) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('app:update-downloaded', info.version);
+        }
+      });
+
+      autoUpdater.checkForUpdates().catch(console.error);
+    }
+
+    ipcMain.handle('app:check-for-updates', async () => {
+      if (isDev) return { updateAvailable: false };
+      const result = await autoUpdater.checkForUpdates();
+      return { updateAvailable: !!result?.updateInfo };
+    });
+
+    ipcMain.handle('app:install-update', () => {
+      isQuitting = true;
+      autoUpdater.quitAndInstall();
     });
 
     // Set main window reference for automation and scraper handlers
