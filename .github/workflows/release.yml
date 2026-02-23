@@ -33,7 +33,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --ignore-scripts
 
-      - name: Build and publish
-        run: pnpm run build
+      - name: Build
+        run: pnpm run copy-preload && pnpm exec vite build
+
+      - name: Publish
+        run: pnpm exec electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
