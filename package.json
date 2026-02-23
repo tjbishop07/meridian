@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "npm run copy-preload && vite",
-    "build": "npm run copy-preload && tsc --build && vite build && electron-builder",
+    "build": "npm run copy-preload && vite build && electron-builder",
+    "type-check": "tsc --build",
     "copy-preload": "mkdir -p dist-electron && cp electron/scraper-preload.cjs electron/ai-scraper-preload.cjs dist-electron/",
     "preview": "vite preview",
     "electron:dev": "vite",

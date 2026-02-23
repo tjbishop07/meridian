@@ -24,7 +24,7 @@ export function getAllGoals(includeCompleted: boolean = false): Goal[] {
   return goals.map((goal) => {
     const progress = goal.target_amount > 0 ? (goal.current_amount / goal.target_amount) * 100 : 0;
 
-    let days_remaining = null;
+    let days_remaining: number | undefined;
     if (goal.target_date) {
       const today = new Date();
       const target = new Date(goal.target_date);

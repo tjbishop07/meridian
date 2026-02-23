@@ -38,7 +38,7 @@ export function start(cronExpr: string): void {
     return;
   }
   activeCronExpr = cronExpr;
-  task = cron.schedule(cronExpr, () => { runAll().catch(console.error); }, { scheduled: true });
+  task = cron.schedule(cronExpr, () => { runAll().catch(console.error); });
   console.log('[Scheduler] Started with cron:', cronExpr);
 }
 

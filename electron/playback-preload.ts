@@ -152,7 +152,7 @@ function highlightElement(selector: string) {
   });
 
   try {
-    let element = null;
+    let element: HTMLElement | null = null;
 
     if (selector.startsWith('label:')) {
       const labelText = selector.substring(6);

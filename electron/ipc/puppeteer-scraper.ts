@@ -363,7 +363,7 @@ export function registerPuppeteerScraperHandlers() {
         if (step.type === 'click') {
           await activePage.waitForSelector(step.selector, { timeout: 5000 });
           await activePage.click(step.selector);
-          await activePage.waitForTimeout(500);
+          await new Promise(resolve => setTimeout(resolve, 500));
         } else if (step.type === 'input') {
           await activePage.waitForSelector(step.selector, { timeout: 5000 });
 
@@ -388,7 +388,7 @@ export function registerPuppeteerScraperHandlers() {
           }
 
           await activePage.type(step.selector, value, { delay: 50 });
-          await activePage.waitForTimeout(300);
+          await new Promise(resolve => setTimeout(resolve, 300));
         } else if (step.type === 'navigate') {
           await activePage.goto(step.url, { waitUntil: 'networkidle2' });
         } else if (step.type === 'wait') {
@@ -399,7 +399,7 @@ export function registerPuppeteerScraperHandlers() {
       // Extract transactions using provided script or default
       const extractionScript = recipe.extractionScript || getDefaultExtractionScript();
 
-      const transactions = await activePage.evaluate(extractionScript);
+      const transactions = await activePage.evaluate(extractionScript) as any[];
 
       console.log('[Puppeteer] Extracted', transactions.length, 'transactions');
 
@@ -426,7 +426,7 @@ export function registerPuppeteerScraperHandlers() {
     try {
       console.log('[Puppeteer] Extracting transactions from current page...');
 
-      const transactions = await activePage.evaluate(getDefaultExtractionScript());
+      const transactions = await activePage.evaluate(getDefaultExtractionScript()) as any[];
 
       console.log('[Puppeteer] Extracted', transactions.length, 'transactions');
 

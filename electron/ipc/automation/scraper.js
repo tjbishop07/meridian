@@ -1,78 +1,73 @@
-import type { BrowserWindow } from 'electron';
-import type { ScrapedTransaction } from './types';
-import { scrapeWithVision, type VisionConfig } from './vision-scraper';
+import { scrapeWithVision } from './vision-scraper';
 import { getDatabase } from '../../db';
 import { getAutomationSettings } from '../../db/queries/automation-settings';
-
 /**
  * Scrape transactions from the current page in the playback window
  * Uses vision-first approach with DOM extraction as fallback
  * Returns transactions and the method used
  */
-export async function scrapeTransactions(window: BrowserWindow): Promise<{ transactions: ScrapedTransaction[]; method: string }> {
-  const db = getDatabase();
-  const settings = getAutomationSettings(db);
-
-  // Try vision scraping first if enabled and configured
-  if (settings.vision_provider === 'claude' && settings.claude_api_key) {
-    console.log('[Scraper] Attempting vision-based scraping with Claude...');
-    try {
-      const visionConfig: VisionConfig = {
-        provider: 'claude',
-        apiKey: settings.claude_api_key,
-        model: settings.claude_model || 'claude-3-5-sonnet-20241022',
-        customPrompt: settings.scraping_prompt || undefined,
-      };
-
-      const transactions = await scrapeWithVision(window, visionConfig);
-
-      if (transactions.length > 0) {
-        console.log('[Scraper] ✓ Vision scraping succeeded with', transactions.length, 'transactions');
-        return { transactions, method: 'claude' };
-      } else {
-        console.log('[Scraper] ⚠️ Vision scraping returned 0 transactions, falling back to DOM');
-      }
-    } catch (error) {
-      console.warn('[Scraper] ⚠️ Vision scraping failed, falling back to DOM:', error instanceof Error ? error.message : String(error));
+export async function scrapeTransactions(window) {
+    const db = getDatabase();
+    const settings = getAutomationSettings(db);
+    // Try vision scraping first if enabled and configured
+    if (settings.vision_provider === 'claude' && settings.claude_api_key) {
+        console.log('[Scraper] Attempting vision-based scraping with Claude...');
+        try {
+            const visionConfig = {
+                provider: 'claude',
+                apiKey: settings.claude_api_key,
+                model: settings.claude_model || 'claude-3-5-sonnet-20241022',
+                customPrompt: settings.scraping_prompt || undefined,
+            };
+            const transactions = await scrapeWithVision(window, visionConfig);
+            if (transactions.length > 0) {
+                console.log('[Scraper] ✓ Vision scraping succeeded with', transactions.length, 'transactions');
+                return { transactions, method: 'claude' };
+            }
+            else {
+                console.log('[Scraper] ⚠️ Vision scraping returned 0 transactions, falling back to DOM');
+            }
+        }
+        catch (error) {
+            console.warn('[Scraper] ⚠️ Vision scraping failed, falling back to DOM:', error instanceof Error ? error.message : String(error));
+        }
     }
-  } else if ((settings.vision_provider as string) === 'ollama') {
-    console.log('[Scraper] Attempting vision-based scraping with Ollama...');
-    try {
-      const visionConfig: VisionConfig = {
-        provider: 'ollama',
-        model: 'llama3.2-vision', // Default Ollama vision model
-        ollamaEndpoint: 'http://localhost:11434',
-        customPrompt: settings.scraping_prompt || undefined,
-      };
-
-      const transactions = await scrapeWithVision(window, visionConfig);
-
-      if (transactions.length > 0) {
-        console.log('[Scraper] ✓ Vision scraping succeeded with', transactions.length, 'transactions');
-        return { transactions, method: 'ollama' };
-      } else {
-        console.log('[Scraper] ⚠️ Vision scraping returned 0 transactions, falling back to DOM');
-      }
-    } catch (error) {
-      console.warn('[Scraper] ⚠️ Vision scraping failed, falling back to DOM:', error instanceof Error ? error.message : String(error));
+    else if (settings.vision_provider === 'ollama') {
+        console.log('[Scraper] Attempting vision-based scraping with Ollama...');
+        try {
+            const visionConfig = {
+                provider: 'ollama',
+                model: 'llama3.2-vision',
+                ollamaEndpoint: 'http://localhost:11434',
+                customPrompt: settings.scraping_prompt || undefined,
+            };
+            const transactions = await scrapeWithVision(window, visionConfig);
+            if (transactions.length > 0) {
+                console.log('[Scraper] ✓ Vision scraping succeeded with', transactions.length, 'transactions');
+                return { transactions, method: 'ollama' };
+            }
+            else {
+                console.log('[Scraper] ⚠️ Vision scraping returned 0 transactions, falling back to DOM');
+            }
+        }
+        catch (error) {
+            console.warn('[Scraper] ⚠️ Vision scraping failed, falling back to DOM:', error instanceof Error ? error.message : String(error));
+        }
     }
-  } else {
-    console.log('[Scraper] Vision scraping disabled or not configured, using DOM extraction');
-  }
-
-  // Fallback to DOM scraping
-  const transactions = await scrapeWithDOM(window);
-  return { transactions, method: 'dom' };
+    else {
+        console.log('[Scraper] Vision scraping disabled or not configured, using DOM extraction');
+    }
+    // Fallback to DOM scraping
+    const transactions = await scrapeWithDOM(window);
+    return { transactions, method: 'dom' };
 }
-
 /**
  * Scrape transactions using DOM extraction (legacy method)
  * Uses smart text cleaning to handle nested elements
  */
-export async function scrapeWithDOM(window: BrowserWindow): Promise<ScrapedTransaction[]> {
-  console.log('[Scraper] Extracting transactions directly from DOM...');
-
-  const scrapedTransactions = await window.webContents.executeJavaScript(`
+export async function scrapeWithDOM(window) {
+    console.log('[Scraper] Extracting transactions directly from DOM...');
+    const scrapedTransactions = await window.webContents.executeJavaScript(`
     (function() {
       const transactions = [];
 
@@ -389,7 +384,6 @@ export async function scrapeWithDOM(window: BrowserWindow): Promise<ScrapedTrans
       return uniqueTransactions;
     })()
   `);
-
-  console.log('[Scraper] Extraction complete! Found', scrapedTransactions?.length || 0, 'transactions');
-  return scrapedTransactions || [];
+    console.log('[Scraper] Extraction complete! Found', scrapedTransactions?.length || 0, 'transactions');
+    return scrapedTransactions || [];
 }
