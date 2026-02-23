@@ -12,6 +12,15 @@ dist
 dist-electron
 release
 
+# tsc --build output (compiled JS/d.ts emitted alongside source)
+electron/**/*.js
+electron/**/*.d.ts
+src/types/**/*.js
+src/types/**/*.d.ts
+vite.config.js
+vite.config.d.ts
+tsconfig.tsbuildinfo
+
 *.local
 *.db
 *.db-shm
