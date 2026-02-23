@@ -33,16 +33,16 @@ export default function Sidebar() {
       <div className="py-8 flex flex-col items-center justify-center gap-2 border-b border-border">
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          viewBox="5 3 14 19"
+          viewBox="0 0 24 24"
           fill="none"
-          className="text-primary logo-sprout"
-          style={{ width: '52px', height: '68px' }}
+          className="text-primary logo-meridian"
+          style={{ width: '48px', height: '48px' }}
         >
-          <path d="M12 21 C11.5 18 12.5 14 12 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          <path d="M12 15 C9.5 14 7 11.5 8 8.5 C10.5 8.5 12.5 11.5 12 15Z" fill="currentColor" opacity="0.7"/>
-          <path d="M12 11 C14.5 9.5 17 7 15.5 4.5 C13 4.5 11 7.5 12 11Z" fill="currentColor"/>
+          <line x1="2" y1="19.5" x2="22" y2="19.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" opacity="0.35"/>
+          <path d="M3 19.5 Q12 3 21 19.5" stroke="currentColor" strokeWidth="1.6" fill="none" strokeLinecap="round"/>
+          <circle cx="12" cy="5.5" r="1.8" fill="currentColor"/>
         </svg>
-        <span className="text-4xl font-bold text-primary lowercase tracking-widest">sprout</span>
+        <span className="text-4xl font-bold text-primary lowercase tracking-widest">meridian</span>
       </div>
 
       {/* Navigation */}

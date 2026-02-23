@@ -147,34 +147,26 @@ function createSplashWindow() {
           animation: fadeIn 0.8s ease-out;
         }
 
-        /* Animated sprout icon */
-        .sprout-icon {
+        /* Animated meridian icon */
+        .meridian-icon {
           width: 120px;
           height: 120px;
           margin: 0 auto 40px;
           display: block;
-          transform-origin: bottom center;
-          animation: sprout-grow 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both,
-                     sprout-sway 3s ease-in-out 1.4s infinite;
+          transform-origin: center;
+          animation: meridian-rise 0.9s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s both;
           filter: drop-shadow(0 0 20px rgba(74, 222, 128, 0.4));
         }
 
-        @keyframes sprout-grow {
+        @keyframes meridian-rise {
           from {
-            transform: scale(0.1) translateY(30px);
+            transform: translateY(20px) scale(0.85);
             opacity: 0;
-            filter: drop-shadow(0 0 0px rgba(74, 222, 128, 0));
           }
           to {
-            transform: scale(1) translateY(0);
+            transform: translateY(0) scale(1);
             opacity: 1;
-            filter: drop-shadow(0 0 20px rgba(74, 222, 128, 0.4));
           }
-        }
-
-        @keyframes sprout-sway {
-          0%, 100% { transform: rotate(-4deg); }
-          50% { transform: rotate(4deg); }
         }
 
         .app-name {
@@ -276,13 +268,13 @@ function createSplashWindow() {
     </head>
     <body>
       <div class="splash-container">
-        <svg class="sprout-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
-          <path d="M12 21 C11.5 18 12.5 14 12 9" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round"/>
-          <path d="M12 15 C9.5 14 7 11.5 8 8.5 C10.5 8.5 12.5 11.5 12 15Z" fill="#4ade80"/>
-          <path d="M12 11 C14.5 9.5 17 7 15.5 4.5 C13 4.5 11 7.5 12 11Z" fill="#22c55e"/>
+        <svg class="meridian-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none">
+          <line x1="2" y1="19.5" x2="22" y2="19.5" stroke="#4ade80" stroke-width="1.1" stroke-linecap="round" opacity="0.35"/>
+          <path d="M3 19.5 Q12 3 21 19.5" stroke="#22c55e" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+          <circle cx="12" cy="5.5" r="1.8" fill="#4ade80"/>
         </svg>
-        <h1 class="app-name">Sprout</h1>
-        <p class="app-tagline">watch your money grow</p>
+        <h1 class="app-name">Meridian</h1>
+        <p class="app-tagline">find your financial north</p>
         <div class="loading-bar">
           <div class="loading-progress"></div>
         </div>
@@ -317,7 +309,7 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: false, // Required for better-sqlite3
     },
-    title: 'Sprout',
+    title: 'Meridian',
     backgroundColor: '#1d232a',
   });
 

@@ -54,7 +54,7 @@ function App() {
       welcomeShown.current = true;
 
       const DEFAULT_WELCOME_PROMPT =
-        'Generate a single witty and funny welcome message for a personal finance app called Sprout. ' +
+        'Generate a single witty and funny welcome message for a personal finance app called Meridian. ' +
         'Make it money or finance related and humorous. Keep it under 120 characters. ' +
         'Return only the message text — no quotes, no explanation, no markdown.';
 
@@ -78,7 +78,7 @@ function App() {
 
         // Fallback: plain date/time message
         const now = new Date();
-        toast.success('Welcome to Sprout', {
+        toast.success('Welcome to Meridian', {
           description: now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) +
             ' · ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
         });

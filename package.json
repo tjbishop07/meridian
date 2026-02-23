@@ -1,7 +1,7 @@
 {
   "name": "personal-finance",
   "version": "1.0.0",
-  "description": "Sprout — grow your finances",
+  "description": "Meridian — find your financial north",
   "main": "dist-electron/main.js",
   "type": "module",
   "scripts": {
@@ -72,8 +72,8 @@
     "vite-plugin-electron-renderer": "^0.14.6"
   },
   "build": {
-    "appId": "com.sprout.app",
-    "productName": "Sprout",
+    "appId": "com.meridian.app",
+    "productName": "Meridian",
     "directories": {
       "output": "release"
     },

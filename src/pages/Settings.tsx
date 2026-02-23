@@ -255,7 +255,7 @@ If the bank shows a category for the transaction, extract it exactly as shown. I
 Extract every visible transaction in the screenshot. Focus on the most recent transactions shown.`;
 
 const DEFAULT_WELCOME_PROMPT =
-  'Generate a single witty and funny welcome message for a personal finance app called Sprout. ' +
+  'Generate a single witty and funny welcome message for a personal finance app called Meridian. ' +
   'Make it money or finance related and humorous. Keep it under 120 characters. ' +
   'Return only the message text — no quotes, no explanation, no markdown.';
 
