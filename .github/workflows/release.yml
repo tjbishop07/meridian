@@ -7,6 +7,8 @@ on:
 
 jobs:
   build:
+    permissions:
+      contents: write
     strategy:
       matrix:
         os: [macos-latest, windows-latest]
@@ -34,4 +36,4 @@ jobs:
       - name: Build and publish
         run: pnpm run build
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
