@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Tray, Menu, nativeImage } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
@@ -27,6 +27,8 @@ import { registerPuppeteerScraperHandlers, setMainWindow as setPuppeteerMainWind
 import { registerAutomationSettingsHandlers } from './ipc/automation-settings';
 import { registerTagHandlers } from './ipc/tags';
 import { registerReceiptHandlers, setReceiptMainWindow } from './ipc/receipt';
+import { runAllNow } from './ipc/automation/scheduler';
+import sharp from 'sharp';
 
 // Get __dirname equivalent in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -35,6 +37,74 @@ const __dirname = dirname(__filename);
 // Keep a global reference of the window objects
 let mainWindow: BrowserWindow | null = null;
 let splashWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
+let isQuitting = false;
+
+// Meridian tray icon SVG (black template image for macOS)
+const TRAY_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 22 22" fill="none">
+  <line x1="2" y1="18" x2="20" y2="18" stroke="black" stroke-width="1.1" stroke-linecap="round" opacity="0.5"/>
+  <path d="M3 18 Q11 4.5 19 18" stroke="black" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+  <circle cx="11" cy="5" r="1.6" fill="black"/>
+</svg>`;
+
+async function createTrayIcon(): Promise<Tray> {
+  let icon: Electron.NativeImage;
+  try {
+    const pngBuffer = await sharp(Buffer.from(TRAY_SVG), { density: 144 })
+      .resize(22, 22)
+      .png()
+      .toBuffer();
+    icon = nativeImage.createFromBuffer(pngBuffer, { scaleFactor: 2 });
+    icon.setTemplateImage(true);
+  } catch {
+    icon = nativeImage.createEmpty();
+  }
+
+  const t = new Tray(icon);
+  t.setToolTip('Meridian');
+  return t;
+}
+
+function buildTrayMenu(): Electron.Menu {
+  const launchAtLogin = app.getLoginItemSettings().openAtLogin;
+  return Menu.buildFromTemplate([
+    {
+      label: 'Open Meridian',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Run All Recordings Now',
+      click: () => {
+        runAllNow().catch(console.error);
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Launch at Login',
+      type: 'checkbox',
+      checked: launchAtLogin,
+      click: (item) => {
+        app.setLoginItemSettings({ openAtLogin: item.checked });
+        // Rebuild the menu so the checkbox state updates
+        if (tray) tray.setContextMenu(buildTrayMenu());
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit Meridian',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    },
+  ]);
+}
 
 const isDev = process.env.NODE_ENV === 'development';
 
@@ -321,8 +391,14 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
-  mainWindow.on('closed', () => {
-    mainWindow = null;
+  mainWindow.on('close', (e) => {
+    if (!isQuitting) {
+      // Hide to tray instead of closing
+      e.preventDefault();
+      mainWindow?.hide();
+    } else {
+      mainWindow = null;
+    }
   });
 
   // When main window is ready to show, close splash and show main
@@ -412,6 +488,32 @@ app.whenReady().then(async () => {
     // Create main window (will be shown after splash)
     createWindow();
 
+    // Create system tray
+    tray = await createTrayIcon();
+    tray.setContextMenu(buildTrayMenu());
+    tray.on('click', () => {
+      if (mainWindow) {
+        if (mainWindow.isVisible()) {
+          mainWindow.focus();
+        } else {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      }
+    });
+
+    // Launch at login IPC handlers
+    ipcMain.handle('app:get-launch-at-login', () => {
+      return app.getLoginItemSettings().openAtLogin;
+    });
+
+    ipcMain.handle('app:set-launch-at-login', (_, enabled: boolean) => {
+      app.setLoginItemSettings({ openAtLogin: enabled });
+      // Rebuild tray menu so checkbox stays in sync
+      if (tray) tray.setContextMenu(buildTrayMenu());
+      return enabled;
+    });
+
     // Set main window reference for automation and scraper handlers
     if (mainWindow) {
       setMainWindow(mainWindow);
@@ -423,8 +525,11 @@ app.whenReady().then(async () => {
     }
 
     app.on('activate', () => {
-      // On macOS it's common to re-create a window when the dock icon is clicked
-      if (BrowserWindow.getAllWindows().length === 0) {
+      // Show the window when the dock icon is clicked (it's hidden, not destroyed)
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.focus();
+      } else {
         createWindow();
       }
     });
@@ -436,16 +541,18 @@ app.whenReady().then(async () => {
   }
 });
 
-// Quit when all windows are closed
+// App lives in the system tray — never quit when windows close
 app.on('window-all-closed', () => {
-  // On macOS it's common for applications to stay open until explicitly quit
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+  // Intentionally empty: the tray keeps the app running
 });
 
 // Clean up before quit
 app.on('before-quit', () => {
+  isQuitting = true;
+  if (tray) {
+    tray.destroy();
+    tray = null;
+  }
   closeDatabase();
 
   // Clean up browser view if it exists

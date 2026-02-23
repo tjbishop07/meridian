@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Building2, Tag, Download, Database, Palette, ScanSearch, MessageSquare, Camera } from 'lucide-react';
+import { Plus, Edit2, Trash2, Building2, Tag, Download, Database, Palette, ScanSearch, MessageSquare, Camera, Monitor } from 'lucide-react';
 import { PageSidebar } from '@/components/ui/PageSidebar';
 import { usePageEntrance } from '../hooks/usePageEntrance';
 import { useAccounts } from '../hooks/useAccounts';
@@ -597,12 +597,16 @@ export default function Settings() {
   const [scrapingTab, setScrapingTab] = useState<'claude' | 'ollama' | 'prompt'>('claude');
   const [promptsTab, setPromptsTab] = useState<'welcome'>('welcome');
   const [receiptTab, setReceiptTab] = useState<'model' | 'prompt'>('model');
+  const [launchAtLogin, setLaunchAtLogin] = useState(false);
   const { sidebarClass, contentClass } = usePageEntrance();
 
   useEffect(() => {
     loadAccounts();
     loadCategories();
     loadTheme();
+    window.electron.invoke('app:get-launch-at-login').then((val: boolean) => {
+      setLaunchAtLogin(val);
+    }).catch(() => {});
   }, []);
 
   const loadTheme = async () => {
@@ -808,6 +812,7 @@ export default function Settings() {
   const expenseCategories = categories.filter((c) => c.type === 'expense');
 
   const SECTIONS = [
+    { id: 'system',          Icon: Monitor,         label: 'System' },
     { id: 'appearance',      Icon: Palette,        label: 'Appearance' },
     { id: 'accounts',        Icon: Building2,       label: 'Accounts' },
     { id: 'categories',      Icon: Tag,             label: 'Categories' },
@@ -844,6 +849,52 @@ export default function Settings() {
       <div className={cn('flex-1 flex flex-col overflow-hidden', contentClass)}>
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto px-10 pt-8 pb-10">
+
+        {/* ── System ── */}
+        <Section
+          id="system"
+          icon={<Monitor className="w-4 h-4" />}
+          title="System"
+          subtitle="Application behavior and startup settings"
+        >
+          <div className="flex items-center justify-between p-4 border border-border rounded-lg">
+            <div>
+              <h3 className="font-medium text-foreground">Launch at Login</h3>
+              <p className="text-sm text-muted-foreground">Start Meridian automatically when you log in to your Mac</p>
+            </div>
+            <button
+              onClick={async () => {
+                const next = !launchAtLogin;
+                setLaunchAtLogin(next);
+                try {
+                  await window.electron.invoke('app:set-launch-at-login', next);
+                } catch {
+                  setLaunchAtLogin(!next); // revert on error
+                }
+              }}
+              className={cn(
+                'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                launchAtLogin ? 'bg-primary' : 'bg-muted'
+              )}
+              role="switch"
+              aria-checked={launchAtLogin}
+            >
+              <span
+                className={cn(
+                  'pointer-events-none block h-5 w-5 rounded-full bg-white shadow-sm ring-0 transition-transform duration-200',
+                  launchAtLogin ? 'translate-x-5' : 'translate-x-0'
+                )}
+              />
+            </button>
+          </div>
+          <div className="flex items-center justify-between p-4 border border-border rounded-lg mt-2">
+            <div>
+              <h3 className="font-medium text-foreground">Background Mode</h3>
+              <p className="text-sm text-muted-foreground">When you close the window, Meridian stays running in the menu bar</p>
+            </div>
+            <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded">Always on</span>
+          </div>
+        </Section>
 
         {/* ── Appearance ── */}
         <Section

@@ -170,6 +170,10 @@ const electronAPI: ElectronAPI = {
       'schedule:update',
       'schedule:run-now',
 
+      // App
+      'app:get-launch-at-login',
+      'app:set-launch-at-login',
+
       // File operations
       'dialog:open-file',
     ];
