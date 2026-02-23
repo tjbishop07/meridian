@@ -169,6 +169,36 @@ export function getTotalsByType(): { income: number; expenses: number; net: numb
   };
 }
 
+export function getTopTransactionsByMonth(month: string, limit = 5) {
+  const db = getDatabase();
+  return db.prepare(`
+    SELECT t.*, a.name as account_name, c.name as category_name
+    FROM transactions t
+    LEFT JOIN accounts a ON t.account_id = a.id
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE t.type = 'expense'
+      AND strftime('%Y-%m', t.date) = ?
+    ORDER BY t.amount DESC
+    LIMIT ?
+  `).all(month, limit);
+}
+
+export function getDailySpendingForMonth(month: string): Array<{ date: string; expenses: number }> {
+  const db = getDatabase();
+  const rows = db.prepare(`
+    SELECT
+      date,
+      COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expenses
+    FROM transactions
+    WHERE strftime('%Y-%m', date) = ?
+      AND type != 'transfer'
+    GROUP BY date
+    ORDER BY date ASC
+  `).all(month) as any[];
+
+  return rows.map((row) => ({ date: row.date, expenses: row.expenses }));
+}
+
 export function getDailySpending(days: number = 365): Array<{ date: string; amount: number; count: number }> {
   const db = getDatabase();
 

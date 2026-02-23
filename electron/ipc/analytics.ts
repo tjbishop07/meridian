@@ -50,21 +50,21 @@ export function registerAnalyticsHandlers(): void {
       const prevMonth = prevDate.toISOString().slice(0, 7);
       const previousMonth = analyticsQueries.getMonthlyStats(prevMonth);
 
-      // Get top expense categories
+      // Get top expense categories for current and previous month
       const topExpenseCategories = analyticsQueries.getTopExpenseCategories(month, 5);
+      const prevMonthCategories = analyticsQueries.getTopExpenseCategories(prevMonth, 5);
 
-      // Get recent transactions
+      // Get recent transactions and biggest transactions for the month
       const recentTransactions = analyticsQueries.getRecentTransactions(10);
-
-      // Get spending trends (last 6 months)
-      const spendingTrends = analyticsQueries.getSpendingTrends(6);
+      const topTransactions = analyticsQueries.getTopTransactionsByMonth(month, 5);
 
       return {
         currentMonth,
         previousMonth,
         topExpenseCategories,
+        prevMonthCategories,
         recentTransactions,
-        spendingTrends,
+        topTransactions,
       };
     } catch (error) {
       console.error('Error getting dashboard data:', error);

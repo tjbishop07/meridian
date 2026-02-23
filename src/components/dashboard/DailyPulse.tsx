@@ -35,7 +35,7 @@ export default function DailyPulse({ selectedMonth }: Props) {
   };
 
   if (isLoading) {
-    return <div className="animate-pulse h-40 bg-muted/30 rounded-lg" />;
+    return <div className="animate-pulse h-[56px] bg-muted/30 rounded-lg" />;
   }
 
   const monthDate = parseISO(selectedMonth + '-01');
@@ -60,7 +60,7 @@ export default function DailyPulse({ selectedMonth }: Props) {
     .map((d) => format(d, 'd'));
 
   return (
-    <div style={{ height: 160 }}>
+    <div style={{ height: 56 }}>
       {!hasData ? (
         <ChartEmpty />
       ) : (

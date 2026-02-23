@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Upload, FileText, CheckCircle, AlertCircle, Check, Plus, X, ArrowRight, RotateCcw, Cpu, Sparkles, Play, Clock, Loader2 } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle, Check, Plus, X, ArrowRight, RotateCcw, Cpu, Sparkles, Play, Clock, Loader2, Calendar } from 'lucide-react';
 import { useAccounts } from '../hooks/useAccounts';
 import { Automation, type AutomationHandle } from './Automation';
 import { useAutomationSettings } from '../hooks/useAutomationSettings';
@@ -54,14 +54,14 @@ const STEPS = [
 const MODEL_OPTIONS = [
   {
     value: 'claude' as const,
-    label: 'Claude Vision',
+    label: 'Claude',
     description: 'Anthropic API',
     Icon: Sparkles,
   },
   {
     value: 'ollama' as const,
-    label: 'Local Ollama',
-    description: 'Runs on-device',
+    label: 'Ollama',
+    description: 'On-device',
     Icon: Cpu,
   },
 ];
@@ -118,7 +118,6 @@ export default function Import() {
 
   const handleRunNow = async () => {
     await window.electron.invoke('schedule:run-now');
-    // Refresh status shortly after
     setTimeout(async () => {
       try {
         const status = await window.electron.invoke('schedule:get-status') as ScheduleStatus;
@@ -212,6 +211,8 @@ export default function Import() {
   };
 
   const stepIndex = STEPS.findIndex(s => s.key === step);
+  const scheduleEnabled = scheduleStatus?.enabled ?? false;
+  const scheduleRunning = scheduleStatus?.isRunning ?? false;
 
   return (
     <div className="flex h-full relative overflow-hidden">
@@ -220,18 +221,18 @@ export default function Import() {
       <PageSidebar title="Import" className={sidebarClass}>
 
         {/* Primary actions */}
-        <div className="px-3 pt-4 pb-3 space-y-2 border-b border-border/40">
+        <div className="px-3 pt-3 pb-3 space-y-1.5">
           <AccentButton
             onClick={() => setDrawerOpen(true)}
-            className="w-full justify-start text-xs h-8 px-3"
+            className="w-full justify-start text-xs h-9 px-3 gap-2"
           >
             <Upload className="w-3.5 h-3.5 shrink-0" />
-            Manual CSV
+            Manual CSV Import
           </AccentButton>
           <Button
             size="sm"
-            variant="outline"
-            className="w-full justify-start text-xs h-8 gap-2"
+            variant="ghost"
+            className="w-full justify-start text-xs h-9 gap-2 text-muted-foreground hover:text-foreground"
             onClick={() => automationRef.current?.openNewRecording()}
           >
             <Plus className="w-3.5 h-3.5 shrink-0" />
@@ -239,12 +240,14 @@ export default function Import() {
           </Button>
         </div>
 
-        {/* Vision model selector */}
-        <div className="px-4 pt-4 pb-3 border-b border-border/40">
-          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/35 mb-3">
+        <div className="mx-3 border-t border-border/40" />
+
+        {/* Vision Model — tile selector */}
+        <div className="px-3 pt-4 pb-4">
+          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35 mb-2.5 px-0.5">
             Vision Model
           </p>
-          <div className="space-y-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
             {MODEL_OPTIONS.map(({ value, label, description, Icon }) => {
               const isActive = automationSettings.vision_provider === value;
               return (
@@ -252,29 +255,30 @@ export default function Import() {
                   key={value}
                   onClick={() => updateAutomationSettings({ vision_provider: value })}
                   className={cn(
-                    'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all duration-150',
+                    'relative flex flex-col items-center gap-2 px-2 py-3 rounded-xl text-center transition-all duration-150',
+                    'border',
                     isActive
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                      ? 'bg-primary/10 border-primary/30 text-primary'
+                      : 'border-border/50 text-muted-foreground hover:text-foreground hover:border-border/80 hover:bg-muted/20'
                   )}
                 >
                   <div className={cn(
-                    'w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors',
-                    isActive ? 'bg-primary/15' : 'bg-muted/60'
+                    'w-8 h-8 rounded-lg flex items-center justify-center transition-colors',
+                    isActive ? 'bg-primary/15' : 'bg-muted/50'
                   )}>
-                    <Icon className="w-3 h-3" />
+                    <Icon className="w-4 h-4" />
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium leading-none mb-0.5">{label}</p>
+                  <div>
+                    <p className="text-[11px] font-semibold leading-none mb-0.5">{label}</p>
                     <p className={cn(
-                      'text-[10px] leading-none transition-colors',
-                      isActive ? 'text-primary/60' : 'text-muted-foreground/50'
+                      'text-[9px] leading-none',
+                      isActive ? 'text-primary/55' : 'text-muted-foreground/45'
                     )}>
                       {description}
                     </p>
                   </div>
                   {isActive && (
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary ml-auto shrink-0" />
+                    <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-primary" />
                   )}
                 </button>
               );
@@ -282,77 +286,102 @@ export default function Import() {
           </div>
         </div>
 
-        {/* Schedule section */}
-        <div className="px-4 pt-4 pb-4 flex-1">
-          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/35 mb-3">
+        <div className="mx-3 border-t border-border/40" />
+
+        {/* Schedule */}
+        <div className="px-3 pt-4 pb-4 flex-1 flex flex-col gap-3">
+          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35 px-0.5">
             Schedule
           </p>
 
-          {/* Enable toggle */}
-          <div className="flex items-center justify-between mb-3">
-            <span className={cn(
-              'text-xs font-medium transition-colors',
-              scheduleStatus?.enabled ? 'text-foreground' : 'text-muted-foreground'
-            )}>
-              {scheduleUpdating ? 'Updating…' : scheduleStatus?.enabled ? 'Enabled' : 'Disabled'}
-            </span>
-            <Switch
-              checked={scheduleStatus?.enabled ?? false}
-              onCheckedChange={handleScheduleToggle}
-              disabled={scheduleUpdating}
-            />
+          {/* Enable card */}
+          <div className={cn(
+            'rounded-xl border px-3 py-2.5 transition-all duration-300',
+            scheduleEnabled
+              ? 'border-emerald-500/25 bg-emerald-500/[0.06]'
+              : 'border-border/50 bg-muted/10'
+          )}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  'w-6 h-6 rounded-md flex items-center justify-center transition-colors',
+                  scheduleEnabled ? 'bg-emerald-500/15' : 'bg-muted/50'
+                )}>
+                  <Calendar className={cn(
+                    'w-3 h-3 transition-colors',
+                    scheduleEnabled ? 'text-emerald-400' : 'text-muted-foreground/50'
+                  )} />
+                </div>
+                <div>
+                  <p className={cn(
+                    'text-[11px] font-semibold leading-none',
+                    scheduleEnabled ? 'text-emerald-400' : 'text-foreground/50'
+                  )}>
+                    {scheduleUpdating ? 'Updating…' : scheduleEnabled ? 'Active' : 'Disabled'}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground/40 mt-0.5 leading-none">
+                    Auto-run all
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={scheduleEnabled}
+                onCheckedChange={handleScheduleToggle}
+                disabled={scheduleUpdating}
+              />
+            </div>
           </div>
 
           {/* Interval selector */}
-          <div className="mb-3">
-            <Select value={scheduleInterval} onValueChange={handleIntervalChange}>
-              <SelectTrigger className="h-8 text-xs w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {INTERVAL_OPTIONS.map(opt => (
-                  <SelectItem key={opt.value} value={opt.value} className="text-xs">
-                    {opt.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Select value={scheduleInterval} onValueChange={handleIntervalChange}>
+            <SelectTrigger className="h-8 text-xs w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {INTERVAL_OPTIONS.map(opt => (
+                <SelectItem key={opt.value} value={opt.value} className="text-xs">
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          {/* Last run info */}
+          {/* Last run */}
           {scheduleStatus?.lastRunAt && (
-            <div className="flex items-center gap-1.5 mb-3">
-              <Clock className="w-3 h-3 text-muted-foreground/40 shrink-0" />
-              <span className="text-[10px] text-muted-foreground/50">
+            <div className="flex items-center gap-1.5 px-0.5">
+              <Clock className="w-3 h-3 text-muted-foreground/35 shrink-0" />
+              <span className="text-[10px] text-muted-foreground/45">
                 Last: {formatRelativeTime(scheduleStatus.lastRunAt)}
               </span>
             </div>
           )}
 
-          {/* Run Now button / running status */}
-          {scheduleStatus?.isRunning ? (
-            <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg bg-primary/8 border border-primary/20">
-              <Loader2 className="w-3 h-3 text-primary animate-spin shrink-0" />
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold text-primary leading-none mb-0.5">Running</p>
-                {scheduleStatus.currentRecordingName && (
-                  <p className="text-[10px] text-primary/60 leading-none truncate">
-                    {scheduleStatus.currentRecordingName}
-                  </p>
-                )}
+          {/* Run Now / Running status */}
+          <div className="mt-auto">
+            {scheduleRunning ? (
+              <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-primary/8 border border-primary/20">
+                <Loader2 className="w-3.5 h-3.5 text-primary animate-spin shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold text-primary leading-none mb-0.5">Running</p>
+                  {scheduleStatus?.currentRecordingName && (
+                    <p className="text-[9px] text-primary/55 leading-none truncate">
+                      {scheduleStatus.currentRecordingName}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              className="w-full justify-start text-xs h-8 gap-2"
-              onClick={handleRunNow}
-            >
-              <Play className="w-3 h-3 shrink-0" />
-              Run All Now
-            </Button>
-          )}
+            ) : (
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full justify-start text-xs h-9 gap-2"
+                onClick={handleRunNow}
+              >
+                <Play className="w-3 h-3 shrink-0" />
+                Run All Now
+              </Button>
+            )}
+          </div>
         </div>
 
       </PageSidebar>

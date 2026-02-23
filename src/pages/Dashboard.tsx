@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, ArrowUpRight, ArrowDownRight } from 'lucide-react';
-import { ResponsiveLine } from '@nivo/line';
+import { ResponsiveBar } from '@nivo/bar';
 import { ResponsivePie } from '@nivo/pie';
 import { format, parseISO } from 'date-fns';
 import { nivoTheme, CHART_COLORS, tooltipStyle } from '../lib/nivoTheme';
@@ -9,12 +9,13 @@ import { ChartEmpty } from '@/components/ui/ChartEmpty';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { FloatingBubbles } from '@/components/ui/FloatingBubbles';
 import { EditTransactionDrawer } from '../components/transactions/EditTransactionDrawer';
-import type { MonthlyStats, CategoryBreakdown, SpendingTrend, Transaction } from '../types';
+import type { MonthlyStats, CategoryBreakdown, Transaction } from '../types';
 import DailyPulse from '../components/dashboard/DailyPulse';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageSidebar } from '@/components/ui/PageSidebar';
 import { usePageEntrance } from '../hooks/usePageEntrance';
+import { useCountUp } from '../hooks/useCountUp';
 import { cn } from '@/lib/utils';
 
 export default function Dashboard() {
@@ -22,7 +23,8 @@ export default function Dashboard() {
   const [currentMonth, setCurrentMonth] = useState<MonthlyStats | null>(null);
   const [previousMonth, setPreviousMonth] = useState<MonthlyStats | null>(null);
   const [topCategories, setTopCategories] = useState<CategoryBreakdown[]>([]);
-  const [trends, setTrends] = useState<SpendingTrend[]>([]);
+  const [prevCategories, setPrevCategories] = useState<CategoryBreakdown[]>([]);
+  const [topTransactions, setTopTransactions] = useState<Transaction[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [isLoading, setIsLoading] = useState(true);
@@ -39,7 +41,8 @@ export default function Dashboard() {
       setCurrentMonth(data.currentMonth);
       setPreviousMonth(data.previousMonth);
       setTopCategories(data.topExpenseCategories);
-      setTrends(data.spendingTrends);
+      setPrevCategories(data.prevMonthCategories);
+      setTopTransactions(data.topTransactions);
       setRecentTransactions(data.recentTransactions);
     } catch (error) {
       console.error('Error loading dashboard:', error);
@@ -57,18 +60,18 @@ export default function Dashboard() {
   const expenseChange = currentMonth && previousMonth ? calculatePercentChange(currentMonth.expenses, previousMonth.expenses) : 0;
   const netChange = currentMonth && previousMonth ? calculatePercentChange(currentMonth.net, previousMonth.net) : 0;
 
-  const trendLineData = [
-    {
-      id: 'Income',
-      color: '#10b981',
-      data: trends.map((t) => ({ x: format(new Date(t.month + '-01'), 'MMM'), y: t.income })),
-    },
-    {
-      id: 'Expenses',
-      color: '#ef4444',
-      data: trends.map((t) => ({ x: format(new Date(t.month + '-01'), 'MMM'), y: t.expenses })),
-    },
-  ];
+  const animatedIncome = useCountUp(currentMonth?.income ?? 0);
+  const animatedExpenses = useCountUp(currentMonth?.expenses ?? 0);
+  const animatedNet = useCountUp(currentMonth?.net ?? 0);
+
+  const categoryComparisonData = [...topCategories]
+    .slice(0, 5)
+    .map((cat) => {
+      const prev = prevCategories.find((p) => p.category_name === cat.category_name);
+      const name = cat.category_name.length > 10 ? cat.category_name.slice(0, 9) + '…' : cat.category_name;
+      return { category: name, 'This Month': cat.amount, 'Last Month': prev?.amount ?? 0 };
+    })
+    .reverse();
 
   const pieData = topCategories.map((cat, i) => ({
     id: cat.category_name,
@@ -79,16 +82,17 @@ export default function Dashboard() {
   }));
 
   const currentYear = format(new Date(), 'yyyy');
+  const currentMonthStr = format(new Date(), 'yyyy-MM');
   const months = Array.from({ length: 12 }, (_, i) => {
     const monthNum = i + 1;
     const value = `${currentYear}-${monthNum.toString().padStart(2, '0')}`;
-    return { value, label: format(new Date(currentYear, i, 1), 'MMM') };
+    return { value, label: format(new Date(currentYear, i, 1), 'MMM'), isFuture: value > currentMonthStr };
   });
 
   return (
     <div className="flex h-full relative overflow-hidden">
       <PageSidebar title="Dashboard" className={sidebarClass}>
-        <div className="px-4 pt-4 pb-4 space-y-5 border-t border-border/40">
+        <div className="px-4 pt-4 pb-4 space-y-8 border-t border-border/40">
           {isLoading ? (
             <div className="space-y-5 pt-1">
               <Skeleton className="h-12 w-full" />
@@ -104,7 +108,7 @@ export default function Dashboard() {
                   <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50">Income</p>
                 </div>
                 <p className="text-xl font-semibold text-foreground tracking-tight">
-                  ${currentMonth.income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ${animatedIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
                 {previousMonth && incomeChange !== null && (
                   <div className="flex items-center gap-1 mt-0.5">
@@ -125,7 +129,7 @@ export default function Dashboard() {
                   <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50">Expenses</p>
                 </div>
                 <p className="text-xl font-semibold text-foreground tracking-tight">
-                  ${currentMonth.expenses.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  ${animatedExpenses.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
                 {previousMonth && expenseChange !== null && (
                   <div className="flex items-center gap-1 mt-0.5">
@@ -146,7 +150,7 @@ export default function Dashboard() {
                   <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50">Net</p>
                 </div>
                 <p className={`text-xl font-semibold tracking-tight ${currentMonth.net >= 0 ? 'text-success' : 'text-destructive'}`}>
-                  {currentMonth.net >= 0 ? '+' : '-'}${Math.abs(currentMonth.net).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {currentMonth.net >= 0 ? '+' : '-'}${Math.abs(animatedNet).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
                 {previousMonth && netChange !== null && (
                   <div className="flex items-center gap-1 mt-0.5">
@@ -170,16 +174,35 @@ export default function Dashboard() {
         <SunkenCard className="p-1">
           <Tabs value={selectedMonth} onValueChange={setSelectedMonth}>
             <TabsList className="w-full bg-transparent">
-              {months.map((month, i) => (
-                <TabsTrigger
-                  key={month.value}
-                  value={month.value}
-                  className="flex-1 text-xs"
-                  style={{ animation: `bounce-up 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both`, animationDelay: `${i * 40}ms` }}
-                >
-                  {month.label}
-                </TabsTrigger>
-              ))}
+              {months.map((month, i) => {
+                const isActive = selectedMonth === month.value;
+                return (
+                  <TabsTrigger
+                    key={month.value}
+                    value={month.value}
+                    disabled={month.isFuture}
+                    className={cn('flex-1 text-xs', month.isFuture && 'cursor-not-allowed')}
+                    style={{
+                      animation: `bounce-up 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both`,
+                      animationDelay: `${i * 40}ms`,
+                      ...(month.isFuture && { opacity: 0.15 }),
+                      ...(isActive && { background: 'transparent', borderColor: 'transparent' }),
+                    }}
+                  >
+                    {month.label}
+                    {isActive && (
+                      <span
+                        className="pointer-events-none absolute -bottom-[5px] left-1/2 -translate-x-1/2"
+                        style={{
+                          width: '36px',
+                          height: '16px',
+                          background: 'radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--color-primary) 30%, transparent) 0%, transparent 80%)',
+                        }}
+                      />
+                    )}
+                  </TabsTrigger>
+                );
+              })}
             </TabsList>
           </Tabs>
         </SunkenCard>
@@ -207,40 +230,37 @@ export default function Dashboard() {
 
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-            <SunkenCard title="Spending Trends">
+            <SunkenCard title="vs Last Month">
               <div key={selectedMonth} style={{ height: 260 }} className="animate-in fade-in slide-in-from-bottom-3 duration-500">
-                {trends.length < 2
+                {categoryComparisonData.length === 0
                   ? <ChartEmpty />
-                  : <ResponsiveLine
+                  : <ResponsiveBar
                   key={selectedMonth}
-                  data={trendLineData}
+                  data={categoryComparisonData}
+                  keys={['This Month', 'Last Month']}
+                  indexBy="category"
+                  layout="vertical"
+                  groupMode="grouped"
                   theme={nivoTheme}
-                  margin={{ top: 10, right: 16, bottom: 16, left: 16 }}
-                  xScale={{ type: 'point' }}
-                  yScale={{ type: 'linear', min: 0, max: 'auto', stacked: false }}
-                  curve="monotoneX"
-                  enableArea
-                  areaOpacity={0.08}
-                  colors={(d) => d.color}
-                  lineWidth={2.5}
-                  pointSize={6}
-                  pointColor={{ theme: 'background' }}
-                  pointBorderWidth={2}
-                  pointBorderColor={{ from: 'serieColor' }}
+                  margin={{ top: 10, right: 16, bottom: 10, left: 16 }}
+                  colors={['var(--color-primary)', 'var(--color-muted-foreground)']}
+                  colorBy="id"
+                  borderRadius={2}
+                  padding={0.3}
+                  innerPadding={3}
                   enableGridX={false}
-                  animate
-                  motionConfig="gentle"
+                  enableGridY={false}
                   axisLeft={null}
                   axisBottom={null}
-                  useMesh
-                  tooltip={({ point }) => (
+                  enableLabel={false}
+                  animate
+                  motionConfig="gentle"
+                  tooltip={({ id, value, color, indexValue }) => (
                     <div style={tooltipStyle}>
-                      <span style={{ color: point.serieColor, marginRight: 6 }}>●</span>
-                      <strong>{point.serieId}</strong>:{' '}
-                      ${(point.data.y as number).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <span style={{ color, marginRight: 6 }}>●</span>
+                      <strong>{indexValue}</strong> · {id}: ${(value as number).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
                   )}
-                  legends={[{ anchor: 'bottom', direction: 'row', translateY: 40, itemWidth: 80, itemHeight: 14, symbolSize: 10, symbolShape: 'circle' }]}
                 />}
               </div>
             </SunkenCard>
@@ -287,31 +307,63 @@ export default function Dashboard() {
         </SunkenCard>
 
 
-        {/* Recent Transactions — plain list */}
-        <div>
-          <SectionLabel>Recent Transactions</SectionLabel>
-          <div className="divide-y divide-border/25">
-            {recentTransactions.slice(0, 5).map((transaction) => {
-              let dateDisplay = 'Invalid date';
-              try {
-                const parsed = parseISO(transaction.date);
-                if (!isNaN(parsed.getTime())) dateDisplay = format(parsed, 'MMM d, yyyy');
-              } catch (e) {}
-              return (
-                <div key={transaction.id} className="py-3 flex items-center justify-between hover:bg-muted/20 rounded-md px-2 -mx-2 transition-colors cursor-pointer" onClick={() => setEditingTransaction(transaction)}>
-                  <div className="flex-1">
-                    <p className="font-medium text-foreground text-sm">{transaction.description}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {dateDisplay} · {transaction.category_name || 'Uncategorized'}
+        {/* Bottom two-column: Biggest + Recent */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+
+          {/* Biggest Transactions */}
+          <div>
+            <SectionLabel>Biggest Transactions</SectionLabel>
+            <div className="divide-y divide-border/25">
+              {topTransactions.length === 0
+                ? <p className="text-sm text-muted-foreground py-4">No transactions this month.</p>
+                : topTransactions.map((t, i) => {
+                  let dateDisplay = '';
+                  try {
+                    const parsed = parseISO(t.date);
+                    if (!isNaN(parsed.getTime())) dateDisplay = format(parsed, 'MMM d');
+                  } catch (e) {}
+                  return (
+                    <div key={t.id} className="py-3 flex items-center gap-3 hover:bg-muted/20 rounded-md px-2 -mx-2 transition-colors cursor-pointer" onClick={() => setEditingTransaction(t)}>
+                      <span className="text-xs font-bold text-muted-foreground/40 w-4 shrink-0 text-right">{i + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground text-sm truncate">{t.description}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{dateDisplay} · {(t as any).category_name || 'Uncategorized'}</p>
+                      </div>
+                      <p className="text-sm font-semibold text-foreground shrink-0">${t.amount.toFixed(2)}</p>
+                    </div>
+                  );
+                })
+              }
+            </div>
+          </div>
+
+          {/* Recent Transactions */}
+          <div>
+            <SectionLabel>Recent Transactions</SectionLabel>
+            <div className="divide-y divide-border/25">
+              {recentTransactions.slice(0, 5).map((transaction) => {
+                let dateDisplay = 'Invalid date';
+                try {
+                  const parsed = parseISO(transaction.date);
+                  if (!isNaN(parsed.getTime())) dateDisplay = format(parsed, 'MMM d, yyyy');
+                } catch (e) {}
+                return (
+                  <div key={transaction.id} className="py-3 flex items-center justify-between hover:bg-muted/20 rounded-md px-2 -mx-2 transition-colors cursor-pointer" onClick={() => setEditingTransaction(transaction)}>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground text-sm truncate">{transaction.description}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {dateDisplay} · {transaction.category_name || 'Uncategorized'}
+                      </p>
+                    </div>
+                    <p className={`text-sm font-semibold shrink-0 ml-3 ${transaction.type === 'income' ? 'text-success' : 'text-foreground'}`}>
+                      {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toFixed(2)}
                     </p>
                   </div>
-                  <p className={`text-sm font-semibold ${transaction.type === 'income' ? 'text-success' : 'text-foreground'}`}>
-                    {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toFixed(2)}
-                  </p>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
+
         </div>
 
         </>}

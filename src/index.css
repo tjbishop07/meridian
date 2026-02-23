@@ -833,6 +833,15 @@
   100% { transform: translateY(0)  scale(1); }
 }
 
+/* ── Sidebar bounce-in (delayed, after main content) ─────── */
+@keyframes sidebar-bounce-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+.sidebar-entrance {
+  animation: sidebar-bounce-in 0.45s ease-out 320ms both;
+}
+
 /* ── Sprout logo animations ───────────────────────────────── */
 @keyframes sprout-sway {
   0%, 100% { transform: rotate(-4deg); }

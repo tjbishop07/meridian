@@ -4,7 +4,7 @@ import { format, parseISO } from 'date-fns';
 import { ResponsiveBar } from '@nivo/bar';
 import { nivoTheme, tooltipStyle } from '../lib/nivoTheme';
 import { useTags } from '../hooks/useTags';
-import { useTickerStore } from '../store/tickerStore';
+import { toast } from 'sonner';
 import Modal from '../components/ui/Modal';
 import TransactionForm from '../components/transactions/TransactionForm';
 import PageHeader from '../components/layout/PageHeader';
@@ -197,16 +197,15 @@ export default function Tags() {
 
   const handleAutoTag = async () => {
     setIsAutoTagging(true);
-    useTickerStore.getState().addMessage({ content: 'Auto-tagging transactions with AI…', type: 'info', duration: 0 });
+    const loadingToast = toast.loading('Auto-tagging transactions with AI…');
     try {
       const result = await window.electron.invoke('tags:auto-tag');
       await loadStats();
-      useTickerStore.getState().addMessage({
-        content: `Auto-tagging complete — ${result.tagged} transactions tagged`,
-        type: 'success', duration: 5000,
-      });
+      toast.dismiss(loadingToast);
+      toast.success(`Auto-tagging complete — ${result.tagged} transactions tagged`);
     } catch {
-      useTickerStore.getState().addMessage({ content: 'Auto-tagging failed — is Ollama running?', type: 'error', duration: 5000 });
+      toast.dismiss(loadingToast);
+      toast.error('Auto-tagging failed — is Ollama running?');
     } finally {
       setIsAutoTagging(false);
     }

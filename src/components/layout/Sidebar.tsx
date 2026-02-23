@@ -28,7 +28,7 @@ export default function Sidebar() {
   const location = useLocation();
 
   return (
-    <div className="w-64 bg-card border-r border-border flex flex-col">
+    <div className="w-64 bg-card border-r border-border/30 flex flex-col">
       {/* Logo */}
       <div className="py-8 flex flex-col items-center justify-center gap-2 border-b border-border">
         <svg

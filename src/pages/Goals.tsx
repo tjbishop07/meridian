@@ -262,7 +262,7 @@ export default function Goals() {
       </PageSidebar>
 
       <div className={cn('flex-1 flex flex-col overflow-hidden', contentClass)}>
-      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-4">
+      <div className="flex-1 overflow-y-auto px-10 pt-8 pb-10">
         {isLoading ? (
           <div className="bg-card rounded-xl border border-border shadow-sm p-6 space-y-4">
             {[1, 2, 3].map((i) => <div key={i} className="h-32 bg-muted rounded-lg animate-pulse" />)}

@@ -7,8 +7,8 @@ import { EmptyState } from '../components/automation/EmptyState';
 import { EditRecordingModal } from '../components/automation/EditRecordingModal';
 import { useCategories } from '../hooks/useCategories';
 import { useAutomationSettings } from '../hooks/useAutomationSettings';
-import { useTickerStore } from '../store/tickerStore';
 import { useAutomationStore } from '../store/automationStore';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -87,7 +87,7 @@ function Automation({ embedded = false }, ref) {
 
       if (!data) {
         console.error('[Automation] Scrape complete event received with undefined data');
-        useTickerStore.getState().addMessage({ content: 'Automation failed: no data received', type: 'error', duration: 6000 });
+        toast.error('Automation failed: no data received');
         isImportingRef.current = false;
         setIsImporting(false);
         return;
@@ -95,7 +95,7 @@ function Automation({ embedded = false }, ref) {
 
       if (!data.transactions || !Array.isArray(data.transactions)) {
         console.error('[Automation] Invalid transactions data:', data);
-        useTickerStore.getState().addMessage({ content: 'Automation failed: invalid data format', type: 'error', duration: 6000 });
+        toast.error('Automation failed: invalid data format');
         isImportingRef.current = false;
         setIsImporting(false);
         return;
@@ -134,7 +134,7 @@ function Automation({ embedded = false }, ref) {
 
         if (!accountId) {
           console.error('[Automation] No accounts available for import');
-          useTickerStore.getState().addMessage({ content: 'No accounts available — please create an account first', type: 'error', duration: 6000 });
+          toast.error('No accounts available — please create an account first');
           isImportingRef.current = false;
           setIsImporting(false);
           return;
@@ -304,18 +304,11 @@ function Automation({ embedded = false }, ref) {
             `${recordingName}: Zero transactions imported. Your finances are apparently on vacation.`,
             `${recordingName}: Nothing to import. The transactions must be stuck in traffic.`,
           ];
-          const tickerMessage = {
-            content: created === 0
-              ? noNewMessages[Math.floor(Math.random() * noNewMessages.length)]
-              : `✓ ${recordingName}: Imported ${created} transaction${created === 1 ? '' : 's'} successfully`,
-            type: (created === 0 ? 'info' : 'success') as const,
-            duration: 8000,
-          };
-          console.log('[Automation] Ticker message:', tickerMessage);
-
-          useTickerStore.getState().addMessage(tickerMessage);
-          console.log('[Automation] Ticker store after add:', useTickerStore.getState().messages);
-          console.log('[Automation] ================================================');
+          if (created === 0) {
+            toast.info(noNewMessages[Math.floor(Math.random() * noNewMessages.length)], { duration: 8000 });
+          } else {
+            toast.success(`${recordingName}: Imported ${created} transaction${created === 1 ? '' : 's'} successfully`, { duration: 8000 });
+          }
 
           clearProgress(String(data.recipeId));
 
@@ -324,11 +317,7 @@ function Automation({ embedded = false }, ref) {
           }, 1500);
         } catch (error) {
           console.error('[Automation] Failed to save transactions:', error);
-          useTickerStore.getState().addMessage({
-            content: 'Failed to save transactions: ' + (error instanceof Error ? error.message : String(error)),
-            type: 'error',
-            duration: 8000,
-          });
+          toast.error('Failed to save transactions: ' + (error instanceof Error ? error.message : String(error)), { duration: 8000 });
 
           clearProgress(String(data.recipeId));
         } finally {
@@ -343,11 +332,7 @@ function Automation({ embedded = false }, ref) {
           `${recordingName}: The page was visited, the AI squinted at it, and found… nothing. Completely transaction-free.`,
           `${recordingName}: No transactions detected. The robots have searched and come up empty-handed.`,
         ];
-        useTickerStore.getState().addMessage({
-          content: noTxMessages[Math.floor(Math.random() * noTxMessages.length)],
-          type: 'info',
-          duration: 6000,
-        });
+        toast.info(noTxMessages[Math.floor(Math.random() * noTxMessages.length)], { duration: 6000 });
 
         clearProgress(String(data.recipeId));
       }
@@ -410,7 +395,7 @@ function Automation({ embedded = false }, ref) {
 
   const handleStartRecording = async () => {
     if (!selectedAccountId) {
-      useTickerStore.getState().addMessage({ content: 'Please select an account first', type: 'warning', duration: 4000 });
+      toast.warning('Please select an account first');
       return;
     }
 
@@ -419,11 +404,11 @@ function Automation({ embedded = false }, ref) {
       const result = await window.electron.invoke('automation:start-recording', startUrl, selectedAccountId);
 
       if (!result.success) {
-        useTickerStore.getState().addMessage({ content: 'Failed to open recording browser', type: 'error', duration: 5000 });
+        toast.error('Failed to open recording browser');
       }
     } catch (error) {
       console.error('Failed to start recording:', error);
-      useTickerStore.getState().addMessage({ content: 'Failed to start recording', type: 'error', duration: 5000 });
+      toast.error('Failed to start recording');
     }
   };
 
@@ -455,7 +440,7 @@ function Automation({ embedded = false }, ref) {
 
     } catch (error) {
       console.error('[Automation] Failed to play recording:', error);
-      useTickerStore.getState().addMessage({ content: 'Failed to play recording', type: 'error', duration: 5000 });
+      toast.error('Failed to play recording');
       clearProgress(String(id));
     }
     console.log('[Automation] ================================================');

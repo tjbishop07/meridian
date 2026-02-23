@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Drives the sidebar-slides-left / content-slides-right entrance animation
- * used consistently across all pages. Uses a double-RAF to ensure the
- * initial hidden state is painted before the transition fires.
+ * Drives the page entrance animation:
+ * - Content slides in from the right immediately
+ * - Sidebar bounces in from the left after a 320ms delay (once content is underway)
  */
 export function usePageEntrance() {
   const [entered, setEntered] = useState(false);
@@ -15,12 +15,10 @@ export function usePageEntrance() {
   }, []);
 
   return {
-    sidebarClass: cn(
-      'transition-all duration-500 ease-out',
-      entered ? 'translate-x-0 opacity-100' : '-translate-x-8 opacity-0',
-    ),
+    // Pure CSS animation — fill-mode: backwards keeps it hidden during the delay
+    sidebarClass: 'sidebar-entrance',
     contentClass: cn(
-      'transition-all duration-500 ease-out delay-[160ms]',
+      'transition-all duration-500 ease-out',
       entered ? 'translate-x-0 opacity-100' : 'translate-x-8 opacity-0',
     ),
   };

@@ -18,13 +18,15 @@ export default function Toaster() {
   return (
     <Sonner
       theme={isDark ? 'dark' : 'light'}
-      position="top-center"
+      position="bottom-right"
       toastOptions={{
         duration: 6000,
         classNames: {
-          toast: 'bg-card! border-border! text-card-foreground! shadow-lg!',
-          title: 'text-card-foreground! font-medium!',
-          description: 'text-muted-foreground!',
+          toast: 'bg-foreground! border-foreground/10! text-background! shadow-[0_8px_40px_rgba(0,0,0,0.35)]! rounded-xl!',
+          title: 'text-background! font-semibold! text-sm!',
+          description: 'text-background/55! text-xs!',
+          closeButton: 'bg-background/15! border-background/10! text-background/70! hover:bg-background/25! hover:text-background!',
+          icon: '[&>svg]:text-background/80!',
         },
       }}
     />

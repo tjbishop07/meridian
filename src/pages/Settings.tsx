@@ -547,7 +547,7 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div id={id} className="mb-14">
+    <div id={id} className="mb-14 pb-14 border-b border-border/20 last:border-0 last:mb-0 last:pb-0">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
@@ -843,7 +843,7 @@ export default function Settings() {
 
       <div className={cn('flex-1 flex flex-col overflow-hidden', contentClass)}>
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-4">
+      <div className="flex-1 overflow-y-auto px-10 pt-8 pb-10">
 
         {/* ── Appearance ── */}
         <Section

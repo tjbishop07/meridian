@@ -298,7 +298,7 @@ export default function Bills() {
       </PageSidebar>
 
       <div className={cn('flex-1 flex flex-col overflow-hidden', contentClass)}>
-      <div className="flex-1 overflow-y-auto px-4 pb-4 pt-4 space-y-6">
+      <div className="flex-1 overflow-y-auto px-10 pt-8 pb-10 space-y-6">
         {bills.length > 0 && (
           <div className="bg-card rounded-xl border border-border shadow-sm p-6">
             <div className="flex items-center justify-between">

@@ -12,7 +12,6 @@ import Settings from './pages/Settings';
 import Browser from './pages/Browser';
 import Tags from './pages/Tags';
 import Toaster from './components/ui/Toaster';
-import { useTickerStore } from './store/tickerStore';
 import { useAutomationStore } from './store/automationStore';
 import { toast } from 'sonner';
 
@@ -54,14 +53,6 @@ function App() {
     if (!welcomeShown.current) {
       welcomeShown.current = true;
 
-      setTimeout(() => {
-        const now = new Date();
-        toast.success('Sprout loaded', {
-          description: now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) +
-            ' · ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-        });
-      }, 300);
-
       const DEFAULT_WELCOME_PROMPT =
         'Generate a single witty and funny welcome message for a personal finance app called Sprout. ' +
         'Make it money or finance related and humorous. Keep it under 120 characters. ' +
@@ -78,11 +69,7 @@ function App() {
           });
 
           if (result.success && result.response?.trim()) {
-            useTickerStore.getState().addMessage({
-              content: result.response.trim(),
-              type: 'info',
-              duration: 0,
-            });
+            toast.success(result.response.trim());
             return;
           }
         } catch {
@@ -91,10 +78,9 @@ function App() {
 
         // Fallback: plain date/time message
         const now = new Date();
-        useTickerStore.getState().addMessage({
-          content: `Welcome to Sprout — ${now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`,
-          type: 'info',
-          duration: 0,
+        toast.success('Welcome to Sprout', {
+          description: now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) +
+            ' · ' + now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
         });
       };
 
