@@ -87,7 +87,82 @@ export default function Dashboard() {
 
   return (
     <div className="flex h-full relative overflow-hidden">
-      <PageSidebar title="Dashboard" className={sidebarClass} />
+      <PageSidebar title="Dashboard" className={sidebarClass}>
+        <div className="px-4 pt-4 pb-4 space-y-5 border-t border-border/40">
+          {isLoading ? (
+            <div className="space-y-5 pt-1">
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-12 w-full" />
+            </div>
+          ) : currentMonth ? (
+            <>
+              {/* Income */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <TrendingUp className="w-3.5 h-3.5 text-success" />
+                  <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50">Income</p>
+                </div>
+                <p className="text-xl font-semibold text-foreground tracking-tight">
+                  ${currentMonth.income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                {previousMonth && incomeChange !== null && (
+                  <div className="flex items-center gap-1 mt-0.5">
+                    {incomeChange >= 0
+                      ? <ArrowUpRight className="w-3 h-3 text-success" />
+                      : <ArrowDownRight className="w-3 h-3 text-destructive" />}
+                    <span className={`text-[10px] ${incomeChange >= 0 ? 'text-success' : 'text-destructive'}`}>
+                      {Math.abs(incomeChange).toFixed(1)}% vs last month
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Expenses */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <TrendingDown className="w-3.5 h-3.5 text-destructive" />
+                  <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50">Expenses</p>
+                </div>
+                <p className="text-xl font-semibold text-foreground tracking-tight">
+                  ${currentMonth.expenses.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                {previousMonth && expenseChange !== null && (
+                  <div className="flex items-center gap-1 mt-0.5">
+                    {expenseChange >= 0
+                      ? <ArrowUpRight className="w-3 h-3 text-destructive" />
+                      : <ArrowDownRight className="w-3 h-3 text-success" />}
+                    <span className={`text-[10px] ${expenseChange >= 0 ? 'text-destructive' : 'text-success'}`}>
+                      {Math.abs(expenseChange).toFixed(1)}% vs last month
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Net */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
+                  <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50">Net</p>
+                </div>
+                <p className={`text-xl font-semibold tracking-tight ${currentMonth.net >= 0 ? 'text-success' : 'text-destructive'}`}>
+                  {currentMonth.net >= 0 ? '+' : '-'}${Math.abs(currentMonth.net).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
+                {previousMonth && netChange !== null && (
+                  <div className="flex items-center gap-1 mt-0.5">
+                    {netChange >= 0
+                      ? <ArrowUpRight className="w-3 h-3 text-success" />
+                      : <ArrowDownRight className="w-3 h-3 text-destructive" />}
+                    <span className={`text-[10px] ${netChange >= 0 ? 'text-success' : 'text-destructive'}`}>
+                      {Math.abs(netChange).toFixed(1)}% vs last month
+                    </span>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : null}
+        </div>
+      </PageSidebar>
 
       <div className={cn('flex-1 flex flex-col overflow-hidden', contentClass)}>
       {/* Month Tabs — always mounted so animation only plays once */}
@@ -115,10 +190,10 @@ export default function Dashboard() {
 
         {isLoading && (
           <div className="space-y-8">
-            <div className="grid grid-cols-3 gap-8">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20" />)}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+              <Skeleton className="h-72" />
+              <Skeleton className="h-72" />
             </div>
-            <Skeleton className="h-72" />
             <Skeleton className="h-40" />
             <Skeleton className="h-72" />
           </div>
@@ -130,76 +205,8 @@ export default function Dashboard() {
 
         {!isLoading && currentMonth && <>
 
-        {/* Stats + Charts side by side */}
-        <div className="flex gap-10 items-start">
-          {/* Summary Stats — stacked vertically */}
-          <div className="flex flex-col gap-11 flex-shrink-0 w-44">
-            {/* Income */}
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <TrendingUp className="w-4 h-4 text-success" />
-                <p className="text-sm text-muted-foreground">Income</p>
-              </div>
-              <p className="text-2xl font-semibold text-foreground tracking-tight">
-                ${currentMonth.income.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-              {previousMonth && incomeChange !== null && (
-                <div className="flex items-center gap-1 mt-1">
-                  {incomeChange >= 0
-                    ? <ArrowUpRight className="w-3.5 h-3.5 text-success" />
-                    : <ArrowDownRight className="w-3.5 h-3.5 text-destructive" />}
-                  <span className={`text-xs ${incomeChange >= 0 ? 'text-success' : 'text-destructive'}`}>
-                    {Math.abs(incomeChange).toFixed(1)}% vs last month
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Expenses */}
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <TrendingDown className="w-4 h-4 text-destructive" />
-                <p className="text-sm text-muted-foreground">Expenses</p>
-              </div>
-              <p className="text-2xl font-semibold text-foreground tracking-tight">
-                ${currentMonth.expenses.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-              {previousMonth && expenseChange !== null && (
-                <div className="flex items-center gap-1 mt-1">
-                  {expenseChange >= 0
-                    ? <ArrowUpRight className="w-3.5 h-3.5 text-destructive" />
-                    : <ArrowDownRight className="w-3.5 h-3.5 text-success" />}
-                  <span className={`text-xs ${expenseChange >= 0 ? 'text-destructive' : 'text-success'}`}>
-                    {Math.abs(expenseChange).toFixed(1)}% vs last month
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* Net */}
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <DollarSign className="w-4 h-4 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">Net</p>
-              </div>
-              <p className={`text-2xl font-semibold tracking-tight ${currentMonth.net >= 0 ? 'text-success' : 'text-destructive'}`}>
-                {currentMonth.net >= 0 ? '+' : '-'}${Math.abs(currentMonth.net).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </p>
-              {previousMonth && netChange !== null && (
-                <div className="flex items-center gap-1 mt-1">
-                  {netChange >= 0
-                    ? <ArrowUpRight className="w-3.5 h-3.5 text-success" />
-                    : <ArrowDownRight className="w-3.5 h-3.5 text-destructive" />}
-                  <span className={`text-xs ${netChange >= 0 ? 'text-success' : 'text-destructive'}`}>
-                    {Math.abs(netChange).toFixed(1)}% vs last month
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Charts */}
-          <div className="flex-1 min-w-0 grid grid-cols-1 lg:grid-cols-2 gap-10">
+        {/* Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
             <SunkenCard title="Spending Trends">
               <div key={selectedMonth} style={{ height: 260 }} className="animate-in fade-in slide-in-from-bottom-3 duration-500">
                 {trends.length < 2
@@ -270,7 +277,6 @@ export default function Dashboard() {
                 />}
               </div>
             </SunkenCard>
-          </div>
         </div>
 
 

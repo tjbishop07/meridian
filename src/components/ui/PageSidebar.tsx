@@ -7,12 +7,17 @@ interface PageSidebarProps {
   className?: string;
 }
 
+const NOISE_TEXTURE = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='0.055'/%3E%3C/svg%3E")`;
+
 export function PageSidebar({ title, children, className }: PageSidebarProps) {
   return (
-    <aside className={cn(
-      'w-52 flex-shrink-0 border-r border-sidebar-border flex flex-col bg-sidebar',
-      className
-    )}>
+    <aside
+      className={cn(
+        'w-52 flex-shrink-0 border-r border-sidebar-border flex flex-col bg-sidebar',
+        className
+      )}
+      style={{ backgroundImage: NOISE_TEXTURE }}
+    >
       <div className="px-4 pt-5 pb-4 border-b border-border/40">
         <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35 mb-1">
           Workspace

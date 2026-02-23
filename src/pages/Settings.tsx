@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Building2, Tag, Download, Database, Palette, ScanSearch, MessageSquare, ChevronDown, Camera } from 'lucide-react';
+import { Plus, Edit2, Trash2, Building2, Tag, Download, Database, Palette, ScanSearch, MessageSquare, Camera } from 'lucide-react';
 import { PageSidebar } from '@/components/ui/PageSidebar';
 import { usePageEntrance } from '../hooks/usePageEntrance';
 import { useAccounts } from '../hooks/useAccounts';
@@ -530,14 +530,12 @@ function ReceiptPromptEditor() {
   );
 }
 
-// ── Section wrapper with collapsible header ──────────────────────────────────
+// ── Section ───────────────────────────────────────────────────────────────────
 function Section({
   id,
   icon,
   title,
   subtitle,
-  isOpen,
-  onToggle,
   headerAction,
   children,
 }: {
@@ -545,41 +543,22 @@ function Section({
   icon: React.ReactNode;
   title: string;
   subtitle?: string;
-  isOpen: boolean;
-  onToggle: () => void;
   headerAction?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-card rounded-xl border border-border shadow-sm mb-6 overflow-hidden">
-      <div
-        className="flex items-center justify-between px-6 py-4 cursor-pointer select-none"
-        onClick={onToggle}
-      >
+    <div id={id} className="mb-14">
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
-            {icon}
+          <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+            {icon && <span className="text-muted-foreground">{icon}</span>}
             {title}
           </h2>
-          {subtitle && <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
+          {subtitle && <p className="text-xs text-muted-foreground mt-0.5">{subtitle}</p>}
         </div>
-        <div className="flex items-center gap-3">
-          {headerAction && isOpen && (
-            <div onClick={(e) => e.stopPropagation()}>{headerAction}</div>
-          )}
-          <ChevronDown
-            className={cn(
-              'w-5 h-5 text-muted-foreground transition-transform duration-200',
-              isOpen && 'rotate-180'
-            )}
-          />
-        </div>
+        {headerAction && <div>{headerAction}</div>}
       </div>
-      {isOpen && (
-        <div className="px-6 pb-6 border-t border-border pt-4">
-          {children}
-        </div>
-      )}
+      {children}
     </div>
   );
 }
@@ -618,12 +597,6 @@ export default function Settings() {
   const [scrapingTab, setScrapingTab] = useState<'claude' | 'ollama' | 'prompt'>('claude');
   const [promptsTab, setPromptsTab] = useState<'welcome'>('welcome');
   const [receiptTab, setReceiptTab] = useState<'model' | 'prompt'>('model');
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({
-    appearance: true, accounts: true, categories: true, scraping: true, prompts: true, receipt_scanning: true, data: true,
-  });
-  const toggle = (key: string) => setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }));
-  const isOpen = (key: string) => !collapsed[key];
-
   const { sidebarClass, contentClass } = usePageEntrance();
 
   useEffect(() => {
@@ -855,22 +828,13 @@ export default function Settings() {
             {SECTIONS.map(({ id, Icon, label }) => (
               <button
                 key={id}
-                onClick={() => toggle(id)}
-                className={cn(
-                  'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all duration-150',
-                  isOpen(id)
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
-                )}
+                onClick={() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all duration-150"
               >
-                <div className={cn(
-                  'w-5 h-5 rounded-md flex items-center justify-center shrink-0 transition-colors',
-                  isOpen(id) ? 'bg-primary/15' : 'bg-muted/60'
-                )}>
+                <div className="w-5 h-5 rounded-md flex items-center justify-center shrink-0 bg-muted/60">
                   <Icon className="w-3 h-3" />
                 </div>
                 <p className="text-xs font-medium leading-none">{label}</p>
-                {isOpen(id) && <div className="w-1.5 h-1.5 rounded-full bg-primary ml-auto shrink-0" />}
               </button>
             ))}
           </div>
@@ -879,16 +843,14 @@ export default function Settings() {
 
       <div className={cn('flex-1 flex flex-col overflow-hidden', contentClass)}>
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-4 pb-4">
+      <div className="flex-1 overflow-y-auto px-4 pt-4 pb-4">
 
         {/* ── Appearance ── */}
         <Section
           id="appearance"
-          icon={<Palette className="w-5 h-5" />}
+          icon={<Palette className="w-4 h-4" />}
           title="Appearance"
           subtitle="Choose a theme for the application"
-          isOpen={isOpen('appearance')}
-          onToggle={() => toggle('appearance')}
         >
           <div className="flex flex-wrap gap-3">
             {THEMES.map((theme) => {
@@ -935,11 +897,9 @@ export default function Settings() {
         {/* ── Accounts ── */}
         <Section
           id="accounts"
-          icon={<Building2 className="w-5 h-5" />}
+          icon={<Building2 className="w-4 h-4" />}
           title="Accounts"
           subtitle="Manage your bank accounts and credit cards"
-          isOpen={isOpen('accounts')}
-          onToggle={() => toggle('accounts')}
           headerAction={
             <Button size="sm" onClick={() => setIsCreateAccountOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
@@ -1004,11 +964,9 @@ export default function Settings() {
         {/* ── Categories ── */}
         <Section
           id="categories"
-          icon={<Tag className="w-5 h-5" />}
+          icon={<Tag className="w-4 h-4" />}
           title="Categories"
           subtitle="Organize your transactions into categories"
-          isOpen={isOpen('categories')}
-          onToggle={() => toggle('categories')}
           headerAction={
             <Button size="sm" onClick={() => setIsCreateCategoryOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
@@ -1114,10 +1072,8 @@ export default function Settings() {
         {/* ── Scraping ── */}
         <Section
           id="scraping"
-          icon={<ScanSearch className="w-5 h-5" />}
+          icon={<ScanSearch className="w-4 h-4" />}
           title="Scraping"
-          isOpen={isOpen('scraping')}
-          onToggle={() => toggle('scraping')}
         >
           {/* Inner tab bar */}
           <div className="flex border-b border-border mb-6 -mx-6 px-6">
@@ -1164,11 +1120,9 @@ export default function Settings() {
         {/* ── Prompts ── */}
         <Section
           id="prompts"
-          icon={<MessageSquare className="w-5 h-5" />}
+          icon={<MessageSquare className="w-4 h-4" />}
           title="Prompts"
           subtitle="Customize the AI prompts used throughout the app"
-          isOpen={isOpen('prompts')}
-          onToggle={() => toggle('prompts')}
         >
           <div className="flex border-b border-border mb-6 -mx-6 px-6">
             {([{ key: 'welcome' as const, label: 'Welcome Message' }]).map((tab) => (
@@ -1205,11 +1159,9 @@ export default function Settings() {
         {/* ── Receipt Scanning ── */}
         <Section
           id="receipt_scanning"
-          icon={<Camera className="w-5 h-5" />}
+          icon={<Camera className="w-4 h-4" />}
           title="Receipt Scanning"
           subtitle="Capture and analyze receipts with AI from your phone"
-          isOpen={isOpen('receipt_scanning')}
-          onToggle={() => toggle('receipt_scanning')}
         >
           {/* Inner tab bar */}
           <div className="flex border-b border-border mb-6 -mx-6 px-6">
@@ -1238,11 +1190,9 @@ export default function Settings() {
         {/* ── Data Management ── */}
         <Section
           id="data"
-          icon={<Database className="w-5 h-5" />}
+          icon={<Database className="w-4 h-4" />}
           title="Data Management"
           subtitle="Export data and manage database records"
-          isOpen={isOpen('data')}
-          onToggle={() => toggle('data')}
         >
           <div className="space-y-4">
             <div className="flex items-center justify-between p-4 border border-border rounded-lg">
