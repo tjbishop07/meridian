@@ -194,7 +194,48 @@ export default function Transactions() {
 
   return (
     <div className="flex h-full relative overflow-hidden">
-      <PageSidebar title="Transactions" className={sidebarClass} />
+      <PageSidebar title="Transactions" className={sidebarClass}>
+        <div className="px-4 pt-4 pb-4 space-y-6 border-t border-border/40 overflow-y-auto flex-1">
+          {accounts.filter((a) => a.is_active).map((account) => {
+            const balance = latestBalanceByAccount.get(account.id);
+            const sparkData = sparklineByAccount.get(account.id) ?? [];
+            const isCreditCard = account.type === 'credit_card';
+            const isNegative = balance != null && balance < 0;
+            const balanceColor = balance == null
+              ? 'text-muted-foreground'
+              : isCreditCard
+                ? (isNegative ? 'text-destructive' : 'text-success')
+                : (isNegative ? 'text-destructive' : 'text-foreground');
+            const trending = sparkData.length >= 2 ? sparkData[sparkData.length - 1] - sparkData[0] : 0;
+            const sparkColor = sparkData.length < 2
+              ? 'var(--muted-foreground)'
+              : trending > 0 ? 'var(--success)' : trending < 0 ? 'var(--destructive)' : 'var(--muted-foreground)';
+            return (
+              <div key={account.id}>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50 truncate">
+                    {account.name}
+                  </p>
+                </div>
+                <p className={`text-xl font-semibold tracking-tight tabular-nums ${balanceColor}`}>
+                  {balance == null
+                    ? '—'
+                    : `${isNegative ? '-' : ''}$${Math.abs(balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  }
+                </p>
+                {sparkData.length > 1 && (
+                  <div className="mt-1.5">
+                    <Sparkline data={sparkData} color={sparkColor} width={140} height={28} />
+                  </div>
+                )}
+                {account.institution && (
+                  <p className="text-[10px] text-muted-foreground/50 mt-0.5">{account.institution}</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </PageSidebar>
 
       <div className={cn('flex-1 flex flex-col overflow-hidden', contentClass)}>
       {/* Toolbar */}
@@ -252,55 +293,6 @@ export default function Transactions() {
           Uncategorized
         </button>
       </div>
-
-      {/* Account balances stats row */}
-      {accounts.filter((a) => a.is_active).length > 0 && (
-        <div className="flex-shrink-0 border-b border-border/60 px-6 py-5 overflow-x-auto">
-          <div className="flex divide-x divide-border min-w-max">
-            {accounts.filter((a) => a.is_active).map((account) => {
-              const balance = latestBalanceByAccount.get(account.id);
-              const sparkData = sparklineByAccount.get(account.id) ?? [];
-              const isCreditCard = account.type === 'credit_card';
-              const isNegative = balance != null && balance < 0;
-              const balanceColor = balance == null
-                ? 'text-muted-foreground'
-                : isCreditCard
-                  ? (isNegative ? 'text-destructive' : 'text-success')
-                  : (isNegative ? 'text-destructive' : 'text-foreground');
-
-              // Trend: compare first vs last balance in sparkline
-              const trending = sparkData.length >= 2
-                ? sparkData[sparkData.length - 1] - sparkData[0]
-                : 0;
-              const sparkColor = sparkData.length < 2
-                ? 'var(--muted-foreground)'
-                : trending > 0
-                ? 'var(--success)'
-                : trending < 0
-                ? 'var(--destructive)'
-                : 'var(--muted-foreground)';
-
-              return (
-                <div key={account.id} className="pr-8 pl-8 first:pl-0">
-                  <p className="text-xs text-muted-foreground mb-1">{account.name}</p>
-                  <div className="flex items-center gap-3">
-                    <p className={`text-2xl font-semibold tracking-tight tabular-nums ${balanceColor}`}>
-                      {balance == null
-                        ? '—'
-                        : `${isNegative ? '-' : ''}$${Math.abs(balance).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                      }
-                    </p>
-                    <Sparkline data={sparkData} color={sparkColor} width={88} height={32} />
-                  </div>
-                  {account.institution && (
-                    <p className="text-xs text-muted-foreground mt-0.5">{account.institution}</p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Table area */}
       <div className="flex-1 overflow-hidden flex flex-col">
