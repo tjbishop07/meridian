@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { FormField } from '@/components/ui/FormField';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 const THEMES = [
   'dark', 'light', 'money',
@@ -628,8 +629,10 @@ export default function Settings() {
     }
     try {
       await window.electron.invoke('settings:set', { key: 'theme', value: theme });
+      toast.success(`${THEME_LABELS[theme] ?? theme} theme applied`);
     } catch (err) {
       console.error('Failed to save theme:', err);
+      toast.error('Failed to save theme');
     }
   };
 
