@@ -12,6 +12,7 @@ import type { Transaction, CreateTransactionInput, Tag, Receipt } from '../types
 import { format, parseISO } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { PageSidebar } from '@/components/ui/PageSidebar';
 import { usePageEntrance } from '../hooks/usePageEntrance';
@@ -196,6 +197,20 @@ export default function Transactions() {
     <div className="flex h-full relative overflow-hidden">
       <PageSidebar title="Transactions" className={sidebarClass}>
         <div className="px-4 pt-4 pb-4 space-y-6 border-t border-border/40 overflow-y-auto flex-1">
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50 mb-1">
+              Transactions
+            </p>
+            <p className="text-xl font-semibold tracking-tight tabular-nums text-foreground">
+              {transactions.length.toLocaleString()}
+            </p>
+            {filteredTransactions.length !== transactions.length && (
+              <p className="text-[10px] text-muted-foreground/50 mt-0.5">
+                {filteredTransactions.length.toLocaleString()} filtered
+              </p>
+            )}
+          </div>
+
           {accounts.filter((a) => a.is_active).map((account) => {
             const balance = latestBalanceByAccount.get(account.id);
             const sparkData = sparklineByAccount.get(account.id) ?? [];
@@ -459,37 +474,46 @@ export default function Transactions() {
 
             {/* Pagination */}
 
-            <div className="flex items-center justify-between px-4 pt-2.5 pb-6 border-t border-border/60 flex-shrink-0">
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">
+            <div className="flex items-center justify-between p-4 border-t border-border/60 flex-shrink-0">
+              <div className="flex items-center gap-2.5">
+                <span className="text-base text-muted-foreground">
                   {startIndex + 1}–{Math.min(startIndex + pageSize, filteredTransactions.length)} of {filteredTransactions.length}
                 </span>
-                <select
-                  value={pageSize}
-                  onChange={(e) => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
-                  className="text-xs px-1.5 py-1 border border-border rounded bg-background text-foreground focus:outline-none"
+                <Select
+                  value={String(pageSize)}
+                  onValueChange={(v) => { setPageSize(Number(v)); setCurrentPage(1); }}
                 >
-                  {[25, 50, 100, 250].map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
+                  <SelectTrigger className="h-9 text-base w-20 border-border/60">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[25, 50, 100, 250].map((n) => (
+                      <SelectItem key={n} value={String(n)} className="text-base">{n}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <span className="text-base text-muted-foreground/50">per page</span>
               </div>
 
               <div className="flex items-center gap-3">
-                <span className="text-sm text-muted-foreground">Page {currentPage} of {totalPages}</span>
-                <div className="flex rounded-md overflow-hidden border border-primary">
+                <span className="text-base text-muted-foreground">Page {currentPage} of {totalPages}</span>
+                <div className="flex items-center gap-1.5">
                   {[
                     { label: '«', action: () => setCurrentPage(1), disabled: currentPage === 1 },
                     { label: '‹', action: () => setCurrentPage((p) => p - 1), disabled: currentPage === 1 },
                     { label: '›', action: () => setCurrentPage((p) => p + 1), disabled: currentPage === totalPages },
                     { label: '»', action: () => setCurrentPage(totalPages), disabled: currentPage === totalPages },
                   ].map(({ label, action, disabled }, i) => (
-                    <button
+                    <Button
                       key={i}
+                      variant="outline"
+                      size="default"
                       onClick={action}
                       disabled={disabled}
-                      className="w-8 h-8 text-sm font-medium bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/80 disabled:opacity-30 disabled:cursor-not-allowed transition-colors border-r border-primary-foreground/20 last:border-r-0"
+                      className="h-9 w-9 p-0 text-base border-border/60"
                     >
                       {label}
-                    </button>
+                    </Button>
                   ))}
                 </div>
               </div>

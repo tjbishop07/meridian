@@ -170,7 +170,7 @@ export default function Dashboard() {
 
       <div className={cn('flex-1 flex flex-col overflow-hidden', contentClass)}>
       {/* Month Tabs — always mounted so animation only plays once */}
-      <div className="px-10 pt-8 flex-shrink-0">
+      <div className="px-6 pt-5 flex-shrink-0">
         <SunkenCard className="p-1">
           <Tabs value={selectedMonth} onValueChange={setSelectedMonth}>
             <TabsList className="w-full bg-transparent">
@@ -181,22 +181,22 @@ export default function Dashboard() {
                     key={month.value}
                     value={month.value}
                     disabled={month.isFuture}
-                    className={cn('flex-1 text-xs', month.isFuture && 'cursor-not-allowed')}
+                    className={cn('flex-1 text-sm relative', month.isFuture && 'cursor-not-allowed')}
                     style={{
                       animation: `bounce-up 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both`,
                       animationDelay: `${i * 40}ms`,
                       ...(month.isFuture && { opacity: 0.15 }),
-                      ...(isActive && { background: 'transparent', borderColor: 'transparent' }),
+                      ...(isActive && { background: 'transparent', borderColor: 'transparent', color: 'var(--color-primary)', fontWeight: 600 }),
                     }}
                   >
                     {month.label}
                     {isActive && (
                       <span
-                        className="pointer-events-none absolute -bottom-[5px] left-1/2 -translate-x-1/2"
+                        className="pointer-events-none absolute bottom-0.5 left-1/2 -translate-x-1/2 rounded-full"
                         style={{
-                          width: '36px',
-                          height: '16px',
-                          background: 'radial-gradient(ellipse at 50% 100%, color-mix(in srgb, var(--color-primary) 30%, transparent) 0%, transparent 80%)',
+                          width: '20px',
+                          height: '2px',
+                          background: 'var(--color-primary)',
                         }}
                       />
                     )}
@@ -209,7 +209,7 @@ export default function Dashboard() {
       </div>
 
       {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto px-10 pb-10 pt-8 space-y-8">
+      <div className="flex-1 overflow-y-auto px-6 pb-6 pt-5 space-y-8">
 
         {isLoading && (
           <div className="space-y-8">
