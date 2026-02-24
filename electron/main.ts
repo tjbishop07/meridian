@@ -528,8 +528,7 @@ app.whenReady().then(async () => {
 
     // Auto-updater
     if (!isDev) {
-      // macOS: Squirrel.Mac requires code signing — skip auto-download and notify instead
-      autoUpdater.autoDownload = process.platform !== 'darwin';
+      autoUpdater.autoDownload = true;
       autoUpdater.autoInstallOnAppQuit = false;
       autoUpdater.logger = console;
 
@@ -564,9 +563,51 @@ app.whenReady().then(async () => {
         send('app:update-progress', Math.round(progress.percent));
       });
 
-      autoUpdater.on('update-downloaded', (info) => {
+      autoUpdater.on('update-downloaded', async (info) => {
         console.log('[Updater] Update downloaded:', info.version);
-        send('app:update-downloaded', info.version);
+
+        if (process.platform === 'darwin' && info.downloadedFile) {
+          try {
+            // Strip quarantine from the DMG
+            await execAsync(`xattr -cr "${info.downloadedFile}"`);
+
+            // Mount the DMG silently
+            const { stdout } = await execAsync(
+              `hdiutil attach "${info.downloadedFile}" -nobrowse -noautoopen`
+            );
+
+            // Parse mount point from hdiutil output (last /Volumes/... entry)
+            const mountPoint = stdout.split('\n')
+              .map(l => l.match(/\/Volumes\/.+/)?.[0]?.trim())
+              .filter(Boolean)
+              .pop();
+
+            if (!mountPoint) throw new Error('Could not find DMG mount point');
+
+            // Determine install destination from current exe path
+            const exePath = app.getPath('exe');
+            const appBundle = path.resolve(exePath, '../../..'); // .../Meridian.app
+            const installDir = path.dirname(appBundle);          // .../Applications
+
+            // Copy new app over the existing one
+            await execAsync(`cp -Rf "${mountPoint}/Meridian.app" "${installDir}/"`);
+
+            // Unmount and clean up
+            await execAsync(`hdiutil detach "${mountPoint}" -force`);
+
+            // Strip quarantine from the newly installed app
+            await execAsync(`xattr -cr "${appBundle}"`);
+
+            console.log('[Updater] macOS install complete, ready to relaunch');
+            send('app:update-downloaded', info.version);
+          } catch (err) {
+            console.error('[Updater] macOS auto-install failed, falling back to browser:', err);
+            send('app:update-error', 'Auto-install failed — opening releases page');
+            shell.openExternal('https://github.com/tjbishop07/meridian/releases/latest');
+          }
+        } else {
+          send('app:update-downloaded', info.version);
+        }
       });
 
       autoUpdater.checkForUpdates().catch(console.error);
@@ -580,7 +621,10 @@ app.whenReady().then(async () => {
 
     ipcMain.handle('app:install-update', () => {
       if (process.platform === 'darwin') {
-        shell.openExternal('https://github.com/tjbishop07/meridian/releases/latest');
+        // App is already copied — just relaunch
+        app.relaunch();
+        isQuitting = true;
+        app.quit();
       } else {
         isQuitting = true;
         autoUpdater.quitAndInstall();

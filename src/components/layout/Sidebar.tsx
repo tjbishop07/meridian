@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
+import pkg from '../../../package.json';
 import {
   LayoutDashboard,
   Receipt,
@@ -66,6 +67,11 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Version */}
+      <div className="pb-4 text-center">
+        <span className="text-xs text-muted-foreground/40 tracking-widest">v{pkg.version}</span>
+      </div>
     </div>
   );
 }
