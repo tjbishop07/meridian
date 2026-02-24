@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Tray, Menu, nativeImage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell, Tray, Menu, nativeImage } from 'electron';
 import electronUpdater from 'electron-updater';
 const { autoUpdater } = electronUpdater;
 import path from 'path';
@@ -102,6 +102,7 @@ function buildTrayMenu(): Electron.Menu {
       label: 'Check for Updates',
       click: () => {
         if (!isDev) {
+          if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
           autoUpdater.checkForUpdates().catch(console.error);
         }
       },
@@ -527,46 +528,45 @@ app.whenReady().then(async () => {
 
     // Auto-updater
     if (!isDev) {
-      autoUpdater.autoDownload = true;
+      // macOS: Squirrel.Mac requires code signing — skip auto-download and notify instead
+      autoUpdater.autoDownload = process.platform !== 'darwin';
       autoUpdater.autoInstallOnAppQuit = false;
       autoUpdater.logger = console;
 
+      const send = (channel: string, ...args: any[]) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send(channel, ...args);
+        }
+      };
+
       autoUpdater.on('checking-for-update', () => {
         console.log('[Updater] Checking for update...');
+        send('app:update-checking');
       });
 
       autoUpdater.on('update-available', (info) => {
         console.log('[Updater] Update available:', info.version);
+        send('app:update-available', info.version);
       });
 
       autoUpdater.on('update-not-available', (info) => {
         console.log('[Updater] Already up to date:', info.version);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('app:update-not-available');
-        }
+        send('app:update-not-available');
       });
 
       autoUpdater.on('error', (err) => {
         console.error('[Updater] Error:', err);
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('app:update-error', err.message);
-        }
+        send('app:update-error', err.message);
       });
 
       autoUpdater.on('download-progress', (progress) => {
         console.log(`[Updater] Download progress: ${Math.round(progress.percent)}%`);
+        send('app:update-progress', Math.round(progress.percent));
       });
 
       autoUpdater.on('update-downloaded', (info) => {
-        // Strip macOS quarantine flag from the downloaded DMG so unsigned app can install
-        if (process.platform === 'darwin' && info.downloadedFile) {
-          exec(`xattr -cr "${info.downloadedFile}"`, (err) => {
-            if (err) console.error('[Updater] xattr failed:', err);
-          });
-        }
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('app:update-downloaded', info.version);
-        }
+        console.log('[Updater] Update downloaded:', info.version);
+        send('app:update-downloaded', info.version);
       });
 
       autoUpdater.checkForUpdates().catch(console.error);
@@ -579,8 +579,12 @@ app.whenReady().then(async () => {
     });
 
     ipcMain.handle('app:install-update', () => {
-      isQuitting = true;
-      autoUpdater.quitAndInstall();
+      if (process.platform === 'darwin') {
+        shell.openExternal('https://github.com/tjbishop07/meridian/releases/latest');
+      } else {
+        isQuitting = true;
+        autoUpdater.quitAndInstall();
+      }
     });
 
     // Set main window reference for automation and scraper handlers

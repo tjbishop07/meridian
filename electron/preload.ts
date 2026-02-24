@@ -206,9 +206,12 @@ const electronAPI: ElectronAPI = {
       'receipt:uploaded',
       'receipt:analysis-progress',
       'receipt:error',
+      'app:update-checking',
+      'app:update-available',
       'app:update-downloaded',
       'app:update-not-available',
       'app:update-error',
+      'app:update-progress',
     ];
 
     if (validReceiveChannels.includes(channel)) {
@@ -236,9 +239,12 @@ const electronAPI: ElectronAPI = {
       'receipt:uploaded',
       'receipt:analysis-progress',
       'receipt:error',
+      'app:update-checking',
+      'app:update-available',
       'app:update-downloaded',
       'app:update-not-available',
       'app:update-error',
+      'app:update-progress',
     ];
 
     if (validReceiveChannels.includes(channel)) {

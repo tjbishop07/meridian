@@ -87,23 +87,37 @@ function App() {
       generateWelcome();
     }
 
-    // Listen for downloaded updates and show a persistent toast
-    const handleUpdateDownloaded = (version: string) => {
-      toast.info(`Meridian ${version} is ready`, {
-        description: 'Restart to install the update.',
+    // Update toast flow — all events share one ID so toasts morph into each other
+    const UPDATER_TOAST_ID = 'meridian-updater';
+    window.electron.on('app:update-checking', () => {
+      toast.loading('Checking for updates...', { id: UPDATER_TOAST_ID });
+    });
+    window.electron.on('app:update-available', (version: string) => {
+      toast.info(`Meridian ${version} is available`, {
+        id: UPDATER_TOAST_ID,
+        description: 'Downloading in the background...',
+        duration: 6000,
+      });
+    });
+    window.electron.on('app:update-progress', (percent: number) => {
+      toast.loading(`Downloading update... ${percent}%`, { id: UPDATER_TOAST_ID });
+    });
+    window.electron.on('app:update-downloaded', (version: string) => {
+      toast.success(`Meridian ${version} is ready`, {
+        id: UPDATER_TOAST_ID,
+        description: 'Click to install.',
         duration: Infinity,
         action: {
-          label: 'Download',
+          label: 'Install',
           onClick: () => window.electron.invoke('app:install-update'),
         },
       });
-    };
-    window.electron.on('app:update-downloaded', handleUpdateDownloaded);
+    });
     window.electron.on('app:update-not-available', () => {
-      toast.info('Meridian is up to date');
+      toast.success('Meridian is up to date', { id: UPDATER_TOAST_ID, duration: 4000 });
     });
     window.electron.on('app:update-error', (message: string) => {
-      toast.error('Update check failed', { description: message });
+      toast.error('Update check failed', { id: UPDATER_TOAST_ID, description: message });
     });
 
     // Set up global automation progress listener
@@ -144,7 +158,12 @@ function App() {
 
     return () => {
       console.log('[App] Cleaning up global automation event listeners');
-      window.electron.removeListener('app:update-downloaded', handleUpdateDownloaded);
+      window.electron.removeListener('app:update-checking', () => {});
+      window.electron.removeListener('app:update-available', () => {});
+      window.electron.removeListener('app:update-progress', () => {});
+      window.electron.removeListener('app:update-downloaded', () => {});
+      window.electron.removeListener('app:update-not-available', () => {});
+      window.electron.removeListener('app:update-error', () => {});
       window.electron.removeListener('automation:progress', handleAutomationProgress);
       window.electron.removeListener('automation:playback-complete', handlePlaybackComplete);
     };
