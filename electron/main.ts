@@ -529,6 +529,33 @@ app.whenReady().then(async () => {
     if (!isDev) {
       autoUpdater.autoDownload = true;
       autoUpdater.autoInstallOnAppQuit = false;
+      autoUpdater.logger = console;
+
+      autoUpdater.on('checking-for-update', () => {
+        console.log('[Updater] Checking for update...');
+      });
+
+      autoUpdater.on('update-available', (info) => {
+        console.log('[Updater] Update available:', info.version);
+      });
+
+      autoUpdater.on('update-not-available', (info) => {
+        console.log('[Updater] Already up to date:', info.version);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('app:update-not-available');
+        }
+      });
+
+      autoUpdater.on('error', (err) => {
+        console.error('[Updater] Error:', err);
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('app:update-error', err.message);
+        }
+      });
+
+      autoUpdater.on('download-progress', (progress) => {
+        console.log(`[Updater] Download progress: ${Math.round(progress.percent)}%`);
+      });
 
       autoUpdater.on('update-downloaded', (info) => {
         // Strip macOS quarantine flag from the downloaded DMG so unsigned app can install

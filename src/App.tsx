@@ -99,6 +99,12 @@ function App() {
       });
     };
     window.electron.on('app:update-downloaded', handleUpdateDownloaded);
+    window.electron.on('app:update-not-available', () => {
+      toast.info('Meridian is up to date');
+    });
+    window.electron.on('app:update-error', (message: string) => {
+      toast.error('Update check failed', { description: message });
+    });
 
     // Set up global automation progress listener
     const handleAutomationProgress = (data: any) => {

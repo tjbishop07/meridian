@@ -207,6 +207,8 @@ const electronAPI: ElectronAPI = {
       'receipt:analysis-progress',
       'receipt:error',
       'app:update-downloaded',
+      'app:update-not-available',
+      'app:update-error',
     ];
 
     if (validReceiveChannels.includes(channel)) {
@@ -235,6 +237,8 @@ const electronAPI: ElectronAPI = {
       'receipt:analysis-progress',
       'receipt:error',
       'app:update-downloaded',
+      'app:update-not-available',
+      'app:update-error',
     ];
 
     if (validReceiveChannels.includes(channel)) {
