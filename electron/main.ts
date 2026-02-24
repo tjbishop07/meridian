@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Tray, Menu, nativeImage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell, Tray, Menu, nativeImage } from 'electron';
 import electronUpdater from 'electron-updater';
 const { autoUpdater } = electronUpdater;
 import path from 'path';
@@ -546,8 +546,7 @@ app.whenReady().then(async () => {
     });
 
     ipcMain.handle('app:install-update', () => {
-      isQuitting = true;
-      autoUpdater.quitAndInstall();
+      shell.openExternal('https://github.com/tjbishop07/meridian/releases/latest');
     });
 
     // Set main window reference for automation and scraper handlers
