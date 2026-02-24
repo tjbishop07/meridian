@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell, Tray, Menu, nativeImage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Tray, Menu, nativeImage } from 'electron';
 import electronUpdater from 'electron-updater';
 const { autoUpdater } = electronUpdater;
 import path from 'path';
@@ -531,6 +531,12 @@ app.whenReady().then(async () => {
       autoUpdater.autoInstallOnAppQuit = false;
 
       autoUpdater.on('update-downloaded', (info) => {
+        // Strip macOS quarantine flag from the downloaded DMG so unsigned app can install
+        if (process.platform === 'darwin' && info.downloadedFile) {
+          exec(`xattr -cr "${info.downloadedFile}"`, (err) => {
+            if (err) console.error('[Updater] xattr failed:', err);
+          });
+        }
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send('app:update-downloaded', info.version);
         }
@@ -546,7 +552,8 @@ app.whenReady().then(async () => {
     });
 
     ipcMain.handle('app:install-update', () => {
-      shell.openExternal('https://github.com/tjbishop07/meridian/releases/latest');
+      isQuitting = true;
+      autoUpdater.quitAndInstall();
     });
 
     // Set main window reference for automation and scraper handlers

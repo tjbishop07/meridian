@@ -90,7 +90,7 @@ function App() {
     // Listen for downloaded updates and show a persistent toast
     const handleUpdateDownloaded = (version: string) => {
       toast.info(`Meridian ${version} is ready`, {
-        description: 'Download and reinstall to update.',
+        description: 'Restart to install the update.',
         duration: Infinity,
         action: {
           label: 'Download',
