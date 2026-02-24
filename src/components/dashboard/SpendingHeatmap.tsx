@@ -172,7 +172,7 @@ export default function SpendingHeatmap({ selectedMonth }: Props) {
                           {/* Tooltip on hover */}
                           {hoveredCell?.date.getTime() === cell.date.getTime() && (
                             <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 z-10 pointer-events-none hidden group-hover:block">
-                              <div className="bg-muted text-foreground px-3 py-2 rounded-lg shadow-lg text-sm whitespace-nowrap border border-border">
+                              <div className="bg-card text-foreground px-3 py-2 rounded-lg shadow-lg text-sm whitespace-nowrap border border-border">
                                 <div className="font-semibold">
                                   {format(cell.date, 'EEE, MMM d')}
                                 </div>

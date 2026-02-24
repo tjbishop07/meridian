@@ -23,17 +23,14 @@ export default function Toaster() {
         duration: 6000,
         classNames: {
           // Base — card look used by loading/default
-          toast:       'bg-card! border! border-border! text-card-foreground! shadow-[0_8px_40px_rgba(0,0,0,0.35)]! rounded-xl!',
+          toast:       'bg-card! border-none! text-card-foreground! shadow-[0_8px_40px_rgba(0,0,0,0.35)]! rounded-xl!',
           title:       'font-semibold! text-sm! text-card-foreground!',
           description: 'text-muted-foreground! text-xs!',
-          closeButton: 'bg-muted! border-border! text-muted-foreground! hover:bg-muted/80! hover:text-foreground!',
+          closeButton: 'bg-muted! border-none! text-muted-foreground! hover:bg-muted/80! hover:text-foreground!',
           icon:        '[&>svg]:text-muted-foreground!',
 
           // Info — blue
           info: [
-            'bg-blue-500/10!',
-            'dark:bg-blue-500/10!',
-            'border-blue-500/25!',
             '[&_[data-title]]:text-blue-600!',
             'dark:[&_[data-title]]:text-blue-400!',
             '[&_[data-description]]:text-blue-600/60!',
@@ -44,9 +41,6 @@ export default function Toaster() {
 
           // Success — emerald
           success: [
-            'bg-emerald-500/10!',
-            'dark:bg-emerald-500/10!',
-            'border-emerald-500/25!',
             '[&_[data-title]]:text-emerald-600!',
             'dark:[&_[data-title]]:text-emerald-400!',
             '[&_[data-description]]:text-emerald-600/60!',
@@ -57,9 +51,6 @@ export default function Toaster() {
 
           // Error — red
           error: [
-            'bg-red-500/10!',
-            'dark:bg-red-500/10!',
-            'border-red-500/25!',
             '[&_[data-title]]:text-red-600!',
             'dark:[&_[data-title]]:text-red-400!',
             '[&_[data-description]]:text-red-600/60!',
@@ -70,9 +61,6 @@ export default function Toaster() {
 
           // Warning — amber
           warning: [
-            'bg-amber-500/10!',
-            'dark:bg-amber-500/10!',
-            'border-amber-500/25!',
             '[&_[data-title]]:text-amber-600!',
             'dark:[&_[data-title]]:text-amber-400!',
             '[&_[data-description]]:text-amber-600/60!',

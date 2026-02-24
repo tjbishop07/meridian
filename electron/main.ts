@@ -30,6 +30,7 @@ import { registerAutomationSettingsHandlers } from './ipc/automation-settings';
 import { registerTagHandlers } from './ipc/tags';
 import { registerReceiptHandlers, setReceiptMainWindow } from './ipc/receipt';
 import { runAllNow } from './ipc/automation/scheduler';
+import { addLog, setLogWindow, registerLogHandlers } from './ipc/logs';
 import sharp from 'sharp';
 
 // Get __dirname equivalent in ESM
@@ -101,10 +102,15 @@ function buildTrayMenu(): Electron.Menu {
     {
       label: 'Check for Updates',
       click: () => {
-        if (!isDev) {
-          if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
-          autoUpdater.checkForUpdates().catch(console.error);
+        if (mainWindow) { mainWindow.show(); mainWindow.focus(); }
+        if (isDev) {
+          addLog('debug', 'Updater', 'Update check skipped — running in dev mode');
+          return;
         }
+        addLog('info', 'Updater', 'Manual update check triggered from tray');
+        autoUpdater.checkForUpdates().catch((err) => {
+          addLog('error', 'Updater', `Check failed: ${(err as Error).message}`);
+        });
       },
     },
     { type: 'separator' },
@@ -485,7 +491,8 @@ app.whenReady().then(async () => {
     registerPuppeteerScraperHandlers();
     registerTagHandlers();
     registerReceiptHandlers();
-    console.log('[Main] Automation, scraper, Ollama, Puppeteer, tag, and receipt handlers registered');
+    registerLogHandlers();
+    console.log('[Main] Automation, scraper, Ollama, Puppeteer, tag, receipt, and log handlers registered');
 
     // File dialog handler
     ipcMain.handle('dialog:open-file', async (_, options) => {
@@ -499,6 +506,11 @@ app.whenReady().then(async () => {
 
     // Create main window (will be shown after splash)
     createWindow();
+
+    // Wire up log window immediately so addLog can reach the renderer
+    if (mainWindow) {
+      setLogWindow(mainWindow);
+    }
 
     // Create system tray
     tray = await createTrayIcon();
@@ -526,100 +538,132 @@ app.whenReady().then(async () => {
       return enabled;
     });
 
-    // Auto-updater
+    // Auto-updater — event listeners always registered so logs work in all modes
+    autoUpdater.logger = console;
+
+    const send = (channel: string, ...args: any[]) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(channel, ...args);
+      }
+    };
+
+    autoUpdater.on('checking-for-update', () => {
+      console.log('[Updater] Checking for update...');
+      addLog('info', 'Updater', 'Contacting update server...');
+      send('app:update-checking');
+    });
+
+    autoUpdater.on('update-available', (info) => {
+      console.log('[Updater] Update available:', info.version);
+      addLog('info', 'Updater', `Update available: v${info.version}`);
+      addLog('debug', 'Updater', `Release date: ${info.releaseDate ?? 'unknown'}`);
+      send('app:update-available', info.version);
+    });
+
+    autoUpdater.on('update-not-available', (info) => {
+      console.log('[Updater] Already up to date:', info.version);
+      addLog('success', 'Updater', `Already on latest version (v${info.version})`);
+      send('app:update-not-available');
+    });
+
+    autoUpdater.on('error', (err) => {
+      console.error('[Updater] Error:', err);
+      addLog('error', 'Updater', err.message);
+      send('app:update-error', err.message);
+    });
+
+    autoUpdater.on('download-progress', (progress) => {
+      const pct = Math.round(progress.percent);
+      const transferred = (progress.transferred / 1024 / 1024).toFixed(1);
+      const total = (progress.total / 1024 / 1024).toFixed(1);
+      const bps = (progress.bytesPerSecond / 1024).toFixed(0);
+      console.log(`[Updater] Download progress: ${pct}%`);
+      addLog('debug', 'Updater', `Downloading: ${pct}% (${transferred} / ${total} MB @ ${bps} KB/s)`);
+      send('app:update-progress', pct);
+    });
+
+    autoUpdater.on('update-downloaded', async (info) => {
+      console.log('[Updater] Update downloaded:', info.version);
+      addLog('info', 'Updater', `v${info.version} download complete`);
+
+      if (process.platform === 'darwin' && info.downloadedFile) {
+        try {
+          addLog('debug', 'Updater', `DMG path: ${info.downloadedFile}`);
+
+          addLog('debug', 'Updater', 'Stripping quarantine from DMG...');
+          await execAsync(`xattr -cr "${info.downloadedFile}"`);
+          addLog('debug', 'Updater', 'Quarantine stripped from DMG');
+
+          addLog('debug', 'Updater', 'Mounting DMG with hdiutil...');
+          const { stdout } = await execAsync(
+            `hdiutil attach "${info.downloadedFile}" -nobrowse -noautoopen`
+          );
+
+          const mountPoint = stdout.split('\n')
+            .map(l => l.match(/\/Volumes\/.+/)?.[0]?.trim())
+            .filter(Boolean)
+            .pop();
+
+          if (!mountPoint) throw new Error('Could not find DMG mount point in hdiutil output');
+          addLog('debug', 'Updater', `DMG mounted at ${mountPoint}`);
+
+          const exePath = app.getPath('exe');
+          const appBundle = path.resolve(exePath, '../../..'); // .../Meridian.app
+          const installDir = path.dirname(appBundle);          // .../Applications
+          addLog('debug', 'Updater', `Install destination: ${installDir}/Meridian.app`);
+
+          addLog('debug', 'Updater', 'Copying Meridian.app over existing installation (cp -Rf)...');
+          await execAsync(`cp -Rf "${mountPoint}/Meridian.app" "${installDir}/"`);
+          addLog('debug', 'Updater', 'App bundle replaced successfully');
+
+          addLog('debug', 'Updater', `Unmounting ${mountPoint}...`);
+          await execAsync(`hdiutil detach "${mountPoint}" -force`);
+          addLog('debug', 'Updater', 'DMG unmounted');
+
+          addLog('debug', 'Updater', 'Stripping quarantine from installed app...');
+          await execAsync(`xattr -cr "${appBundle}"`);
+          addLog('debug', 'Updater', 'Quarantine stripped from installed app');
+
+          console.log('[Updater] macOS install complete, ready to relaunch');
+          addLog('success', 'Updater', 'Install complete — click Install in the notification to relaunch');
+          send('app:update-downloaded', info.version);
+        } catch (err) {
+          const errMsg = (err as Error).message || String(err);
+          console.error('[Updater] macOS auto-install failed, falling back to browser:', errMsg);
+          addLog('error', 'Updater', `Auto-install failed: ${errMsg}`);
+          addLog('info', 'Updater', 'Opening GitHub releases page as fallback...');
+          send('app:update-error', `Auto-install failed: ${errMsg}`);
+          shell.openExternal('https://github.com/tjbishop07/meridian/releases/latest');
+        }
+      } else {
+        send('app:update-downloaded', info.version);
+      }
+    });
+
+    // Only run actual update checks in production
     if (!isDev) {
       autoUpdater.autoDownload = true;
       autoUpdater.autoInstallOnAppQuit = false;
-      autoUpdater.logger = console;
-
-      const send = (channel: string, ...args: any[]) => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(channel, ...args);
-        }
-      };
-
-      autoUpdater.on('checking-for-update', () => {
-        console.log('[Updater] Checking for update...');
-        send('app:update-checking');
+      addLog('debug', 'Updater', 'Startup update check...');
+      autoUpdater.checkForUpdates().catch((err) => {
+        addLog('error', 'Updater', `Startup check failed: ${(err as Error).message}`);
       });
-
-      autoUpdater.on('update-available', (info) => {
-        console.log('[Updater] Update available:', info.version);
-        send('app:update-available', info.version);
-      });
-
-      autoUpdater.on('update-not-available', (info) => {
-        console.log('[Updater] Already up to date:', info.version);
-        send('app:update-not-available');
-      });
-
-      autoUpdater.on('error', (err) => {
-        console.error('[Updater] Error:', err);
-        send('app:update-error', err.message);
-      });
-
-      autoUpdater.on('download-progress', (progress) => {
-        console.log(`[Updater] Download progress: ${Math.round(progress.percent)}%`);
-        send('app:update-progress', Math.round(progress.percent));
-      });
-
-      autoUpdater.on('update-downloaded', async (info) => {
-        console.log('[Updater] Update downloaded:', info.version);
-
-        if (process.platform === 'darwin' && info.downloadedFile) {
-          try {
-            // Strip quarantine from the DMG
-            await execAsync(`xattr -cr "${info.downloadedFile}"`);
-
-            // Mount the DMG silently
-            const { stdout } = await execAsync(
-              `hdiutil attach "${info.downloadedFile}" -nobrowse -noautoopen`
-            );
-
-            // Parse mount point from hdiutil output (last /Volumes/... entry)
-            const mountPoint = stdout.split('\n')
-              .map(l => l.match(/\/Volumes\/.+/)?.[0]?.trim())
-              .filter(Boolean)
-              .pop();
-
-            if (!mountPoint) throw new Error('Could not find DMG mount point');
-
-            // Determine install destination from current exe path
-            const exePath = app.getPath('exe');
-            const appBundle = path.resolve(exePath, '../../..'); // .../Meridian.app
-            const installDir = path.dirname(appBundle);          // .../Applications
-
-            // Copy new app over the existing one
-            await execAsync(`cp -Rf "${mountPoint}/Meridian.app" "${installDir}/"`);
-
-            // Unmount and clean up
-            await execAsync(`hdiutil detach "${mountPoint}" -force`);
-
-            // Strip quarantine from the newly installed app
-            await execAsync(`xattr -cr "${appBundle}"`);
-
-            console.log('[Updater] macOS install complete, ready to relaunch');
-            send('app:update-downloaded', info.version);
-          } catch (err) {
-            console.error('[Updater] macOS auto-install failed, falling back to browser:', err);
-            send('app:update-error', 'Auto-install failed — opening releases page');
-            shell.openExternal('https://github.com/tjbishop07/meridian/releases/latest');
-          }
-        } else {
-          send('app:update-downloaded', info.version);
-        }
-      });
-
-      autoUpdater.checkForUpdates().catch(console.error);
+    } else {
+      addLog('debug', 'Updater', 'Auto-update disabled in dev mode');
     }
 
     ipcMain.handle('app:check-for-updates', async () => {
-      if (isDev) return { updateAvailable: false };
+      if (isDev) {
+        addLog('debug', 'Updater', 'Update check skipped — running in dev mode');
+        return { updateAvailable: false };
+      }
+      addLog('info', 'Updater', 'Manual update check triggered from Settings');
       const result = await autoUpdater.checkForUpdates();
       return { updateAvailable: !!result?.updateInfo };
     });
 
     ipcMain.handle('app:install-update', () => {
+      addLog('info', 'Updater', 'Installing update and relaunching...');
       if (process.platform === 'darwin') {
         // App is already copied — just relaunch
         app.relaunch();
@@ -640,6 +684,8 @@ app.whenReady().then(async () => {
       setPuppeteerMainWindow(mainWindow);
       setReceiptMainWindow(mainWindow);
     }
+
+    addLog('info', 'App', 'Meridian started');
 
     app.on('activate', () => {
       // Show the window when the dock icon is clicked (it's hidden, not destroyed)
