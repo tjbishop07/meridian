@@ -39,14 +39,11 @@ export default function Toaster() {
             'dark:[&_[data-icon]>svg]:text-blue-400!',
           ].join(' '),
 
-          // Success — emerald
+          // Success — matches income text color (--success)
           success: [
-            '[&_[data-title]]:text-emerald-600!',
-            'dark:[&_[data-title]]:text-emerald-400!',
-            '[&_[data-description]]:text-emerald-600/60!',
-            'dark:[&_[data-description]]:text-emerald-400/60!',
-            '[&_[data-icon]>svg]:text-emerald-500!',
-            'dark:[&_[data-icon]>svg]:text-emerald-400!',
+            '[&_[data-title]]:text-success!',
+            '[&_[data-description]]:text-success/60!',
+            '[&_[data-icon]>svg]:text-success!',
           ].join(' '),
 
           // Error — red
