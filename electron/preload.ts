@@ -176,6 +176,10 @@ const electronAPI: ElectronAPI = {
       'app:check-for-updates',
       'app:install-update',
 
+      // Logs
+      'logs:get-all',
+      'logs:clear',
+
       // File operations
       'dialog:open-file',
     ];
@@ -212,6 +216,7 @@ const electronAPI: ElectronAPI = {
       'app:update-not-available',
       'app:update-error',
       'app:update-progress',
+      'logs:new-entry',
     ];
 
     if (validReceiveChannels.includes(channel)) {
@@ -245,6 +250,7 @@ const electronAPI: ElectronAPI = {
       'app:update-not-available',
       'app:update-error',
       'app:update-progress',
+      'logs:new-entry',
     ];
 
     if (validReceiveChannels.includes(channel)) {

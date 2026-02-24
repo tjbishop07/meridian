@@ -26,7 +26,9 @@ export const nivoTheme = {
       fontSize: 12,
       borderRadius: 8,
       boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+      border: '1px solid var(--border)',
       padding: '8px 12px',
+      opacity: 1,
     },
   },
 };
@@ -44,10 +46,12 @@ export const CHART_COLORS = [
 
 /** Reusable tooltip box styling — uses CSS variables for theme responsiveness */
 export const tooltipStyle: CSSProperties = {
-  background: 'var(--card)',
+  backgroundColor: 'var(--card)',
   color: 'var(--foreground)',
   fontSize: 12,
   borderRadius: 8,
   boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
+  border: '1px solid var(--border)',
   padding: '8px 12px',
+  opacity: 1,
 };

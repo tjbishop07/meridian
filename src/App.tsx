@@ -9,6 +9,7 @@ import Goals from './pages/Goals';
 import Bills from './pages/Bills';
 import Analytics from './pages/Analytics';
 import Settings from './pages/Settings';
+import Logs from './pages/Logs';
 import Browser from './pages/Browser';
 import Tags from './pages/Tags';
 import Toaster from './components/ui/Toaster';
@@ -185,6 +186,7 @@ function App() {
           <Route path="goals" element={<Goals />} />
           <Route path="bills" element={<Bills />} />
           <Route path="analytics" element={<Analytics />} />
+          <Route path="logs" element={<Logs />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Route>

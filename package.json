@@ -1,6 +1,6 @@
 {
   "name": "personal-finance",
-  "version": "1.0.9",
+  "version": "1.1.0",
   "description": "Meridian — find your financial north",
   "main": "dist-electron/main.js",
   "type": "module",
@@ -84,7 +84,10 @@
       "dist-electron/**/*"
     ],
     "mac": {
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "category": "public.app-category.finance",
       "icon": "build/icon.icns"
     },

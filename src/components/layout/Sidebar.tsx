@@ -10,6 +10,7 @@ import {
   Settings,
   BarChart3,
   Tag,
+  ScrollText,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -22,6 +23,7 @@ const navigation = [
   { name: 'Goals', href: '/goals', icon: Target },
   { name: 'Bills', href: '/bills', icon: FileText },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { name: 'Logs', href: '/logs', icon: ScrollText },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
