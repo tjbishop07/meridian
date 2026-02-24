@@ -588,37 +588,66 @@ app.whenReady().then(async () => {
 
       if (process.platform === 'darwin' && info.downloadedFile) {
         try {
-          addLog('debug', 'Updater', `DMG path: ${info.downloadedFile}`);
-
-          addLog('debug', 'Updater', 'Stripping quarantine from DMG...');
-          await execAsync(`xattr -cr "${info.downloadedFile}"`);
-          addLog('debug', 'Updater', 'Quarantine stripped from DMG');
-
-          addLog('debug', 'Updater', 'Mounting DMG with hdiutil...');
-          const { stdout } = await execAsync(
-            `hdiutil attach "${info.downloadedFile}" -nobrowse -noautoopen`
-          );
-
-          const mountPoint = stdout.split('\n')
-            .map(l => l.match(/\/Volumes\/.+/)?.[0]?.trim())
-            .filter(Boolean)
-            .pop();
-
-          if (!mountPoint) throw new Error('Could not find DMG mount point in hdiutil output');
-          addLog('debug', 'Updater', `DMG mounted at ${mountPoint}`);
+          const downloadedFile = info.downloadedFile;
+          const isZip = downloadedFile.endsWith('.zip');
+          const isDmg = downloadedFile.endsWith('.dmg');
+          addLog('debug', 'Updater', `Downloaded file: ${downloadedFile} (${isZip ? 'ZIP' : isDmg ? 'DMG' : 'unknown'})`);
 
           const exePath = app.getPath('exe');
           const appBundle = path.resolve(exePath, '../../..'); // .../Meridian.app
           const installDir = path.dirname(appBundle);          // .../Applications
           addLog('debug', 'Updater', `Install destination: ${installDir}/Meridian.app`);
 
-          addLog('debug', 'Updater', 'Copying Meridian.app over existing installation (cp -Rf)...');
-          await execAsync(`cp -Rf "${mountPoint}/Meridian.app" "${installDir}/"`);
-          addLog('debug', 'Updater', 'App bundle replaced successfully');
+          addLog('debug', 'Updater', 'Stripping quarantine from downloaded file...');
+          await execAsync(`xattr -cr "${downloadedFile}"`);
+          addLog('debug', 'Updater', 'Quarantine stripped');
 
-          addLog('debug', 'Updater', `Unmounting ${mountPoint}...`);
-          await execAsync(`hdiutil detach "${mountPoint}" -force`);
-          addLog('debug', 'Updater', 'DMG unmounted');
+          if (isZip) {
+            // ZIP install: unzip to temp dir, copy .app, clean up
+            const tmpDir = path.join(app.getPath('temp'), `meridian-update-${Date.now()}`);
+            addLog('debug', 'Updater', `Unzipping to temp dir: ${tmpDir}`);
+            await execAsync(`mkdir -p "${tmpDir}"`);
+            await execAsync(`unzip -q "${downloadedFile}" -d "${tmpDir}"`);
+
+            const { stdout: findOut } = await execAsync(`find "${tmpDir}" -name "*.app" -maxdepth 3`);
+            const appPath = findOut.trim().split('\n').filter(Boolean)[0];
+            if (!appPath) throw new Error('No .app bundle found inside ZIP');
+            addLog('debug', 'Updater', `Found app bundle: ${appPath}`);
+
+            addLog('debug', 'Updater', 'Copying app bundle to install dir (cp -Rf)...');
+            await execAsync(`cp -Rf "${appPath}" "${installDir}/"`);
+            addLog('debug', 'Updater', 'App bundle replaced successfully');
+
+            addLog('debug', 'Updater', 'Cleaning up temp dir...');
+            await execAsync(`rm -rf "${tmpDir}"`);
+            addLog('debug', 'Updater', 'Temp dir removed');
+
+          } else if (isDmg) {
+            // DMG install: mount, copy .app, unmount
+            addLog('debug', 'Updater', 'Mounting DMG with hdiutil...');
+            const { stdout } = await execAsync(
+              `hdiutil attach "${downloadedFile}" -nobrowse -noautoopen`
+            );
+
+            const mountPoint = stdout.split('\n')
+              .map(l => l.match(/\/Volumes\/.+/)?.[0]?.trim())
+              .filter(Boolean)
+              .pop();
+
+            if (!mountPoint) throw new Error('Could not find DMG mount point in hdiutil output');
+            addLog('debug', 'Updater', `DMG mounted at ${mountPoint}`);
+
+            addLog('debug', 'Updater', 'Copying Meridian.app over existing installation (cp -Rf)...');
+            await execAsync(`cp -Rf "${mountPoint}/Meridian.app" "${installDir}/"`);
+            addLog('debug', 'Updater', 'App bundle replaced successfully');
+
+            addLog('debug', 'Updater', `Unmounting ${mountPoint}...`);
+            await execAsync(`hdiutil detach "${mountPoint}" -force`);
+            addLog('debug', 'Updater', 'DMG unmounted');
+
+          } else {
+            throw new Error(`Unrecognised file type for auto-install: ${path.basename(downloadedFile)}`);
+          }
 
           addLog('debug', 'Updater', 'Stripping quarantine from installed app...');
           await execAsync(`xattr -cr "${appBundle}"`);

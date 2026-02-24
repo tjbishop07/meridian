@@ -1,6 +1,6 @@
 {
   "name": "personal-finance",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Meridian — find your financial north",
   "main": "dist-electron/main.js",
   "type": "module",
