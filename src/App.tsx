@@ -103,16 +103,24 @@ function App() {
     window.electron.on('app:update-progress', (percent: number) => {
       toast.loading(`Downloading update... ${percent}%`, { id: UPDATER_TOAST_ID });
     });
-    window.electron.on('app:update-downloaded', (version: string) => {
-      toast.success(`Meridian ${version} is ready`, {
-        id: UPDATER_TOAST_ID,
-        description: 'Click to install.',
-        duration: Infinity,
-        action: {
-          label: 'Install',
-          onClick: () => window.electron.invoke('app:install-update'),
-        },
-      });
+    window.electron.on('app:update-restart-pending', (version: string) => {
+      let secondsLeft = 5;
+      const tick = () => {
+        toast.success(`Meridian ${version} installed`, {
+          id: UPDATER_TOAST_ID,
+          description: `Restarting in ${secondsLeft}s…`,
+          duration: Infinity,
+          action: {
+            label: 'Restart Now',
+            onClick: () => window.electron.invoke('app:restart-now'),
+          },
+        });
+        if (secondsLeft > 0) {
+          secondsLeft--;
+          setTimeout(tick, 1000);
+        }
+      };
+      tick();
     });
     window.electron.on('app:update-not-available', () => {
       toast.success('Meridian is up to date', { id: UPDATER_TOAST_ID, duration: 4000 });
@@ -162,7 +170,7 @@ function App() {
       window.electron.removeListener('app:update-checking', () => {});
       window.electron.removeListener('app:update-available', () => {});
       window.electron.removeListener('app:update-progress', () => {});
-      window.electron.removeListener('app:update-downloaded', () => {});
+      window.electron.removeListener('app:update-restart-pending', () => {});
       window.electron.removeListener('app:update-not-available', () => {});
       window.electron.removeListener('app:update-error', () => {});
       window.electron.removeListener('automation:progress', handleAutomationProgress);

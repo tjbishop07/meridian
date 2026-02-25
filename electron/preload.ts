@@ -175,6 +175,7 @@ const electronAPI: ElectronAPI = {
       'app:set-launch-at-login',
       'app:check-for-updates',
       'app:install-update',
+      'app:restart-now',
 
       // Logs
       'logs:get-all',
@@ -213,6 +214,7 @@ const electronAPI: ElectronAPI = {
       'app:update-checking',
       'app:update-available',
       'app:update-downloaded',
+      'app:update-restart-pending',
       'app:update-not-available',
       'app:update-error',
       'app:update-progress',
@@ -247,6 +249,7 @@ const electronAPI: ElectronAPI = {
       'app:update-checking',
       'app:update-available',
       'app:update-downloaded',
+      'app:update-restart-pending',
       'app:update-not-available',
       'app:update-error',
       'app:update-progress',

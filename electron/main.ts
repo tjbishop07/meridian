@@ -274,9 +274,19 @@ function createSplashWindow() {
           color: #94a3b8;
           font-size: 18px;
           font-weight: 500;
-          margin-bottom: 50px;
+          margin-bottom: 16px;
           animation: slideUp 0.8s ease-out 1.2s both;
           letter-spacing: 0.5px;
+        }
+
+        .app-version {
+          color: #475569;
+          font-size: 12px;
+          font-weight: 500;
+          margin-bottom: 42px;
+          animation: slideUp 0.8s ease-out 1.35s both;
+          letter-spacing: 2px;
+          text-transform: uppercase;
         }
 
         .loading-bar {
@@ -363,6 +373,7 @@ function createSplashWindow() {
         </svg>
         <h1 class="app-name">Meridian</h1>
         <p class="app-tagline">find your financial north</p>
+        <p class="app-version">v${app.getVersion()}</p>
         <div class="loading-bar">
           <div class="loading-progress"></div>
         </div>
@@ -547,6 +558,23 @@ app.whenReady().then(async () => {
       }
     };
 
+    let restartTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const doRestartForUpdate = () => {
+      if (restartTimer) { clearTimeout(restartTimer); restartTimer = null; }
+      addLog('info', 'Updater', 'Restarting for update...');
+      if (process.platform === 'darwin') {
+        app.relaunch();
+        isQuitting = true;
+        app.quit();
+      } else {
+        isQuitting = true;
+        autoUpdater.quitAndInstall(false, true);
+      }
+    };
+
+    ipcMain.handle('app:restart-now', () => doRestartForUpdate());
+
     autoUpdater.on('checking-for-update', () => {
       console.log('[Updater] Checking for update...');
       addLog('info', 'Updater', 'Contacting update server...');
@@ -653,9 +681,10 @@ app.whenReady().then(async () => {
           await execAsync(`xattr -cr "${appBundle}"`);
           addLog('debug', 'Updater', 'Quarantine stripped from installed app');
 
-          console.log('[Updater] macOS install complete, ready to relaunch');
-          addLog('success', 'Updater', 'Install complete — click Install in the notification to relaunch');
-          send('app:update-downloaded', info.version);
+          console.log('[Updater] macOS install complete, scheduling auto-restart in 5s');
+          addLog('success', 'Updater', 'Install complete — restarting in 5 seconds');
+          send('app:update-restart-pending', info.version);
+          restartTimer = setTimeout(doRestartForUpdate, 5000);
         } catch (err) {
           const errMsg = (err as Error).message || String(err);
           console.error('[Updater] macOS auto-install failed, falling back to browser:', errMsg);
@@ -665,7 +694,9 @@ app.whenReady().then(async () => {
           shell.openExternal('https://github.com/tjbishop07/meridian/releases/latest');
         }
       } else {
-        send('app:update-downloaded', info.version);
+        addLog('success', 'Updater', `v${info.version} ready — restarting in 5 seconds`);
+        send('app:update-restart-pending', info.version);
+        restartTimer = setTimeout(doRestartForUpdate, 5000);
       }
     });
 
@@ -691,18 +722,7 @@ app.whenReady().then(async () => {
       return { updateAvailable: !!result?.updateInfo };
     });
 
-    ipcMain.handle('app:install-update', () => {
-      addLog('info', 'Updater', 'Installing update and relaunching...');
-      if (process.platform === 'darwin') {
-        // App is already copied — just relaunch
-        app.relaunch();
-        isQuitting = true;
-        app.quit();
-      } else {
-        isQuitting = true;
-        autoUpdater.quitAndInstall();
-      }
-    });
+    ipcMain.handle('app:install-update', () => doRestartForUpdate());
 
     // Set main window reference for automation and scraper handlers
     if (mainWindow) {
