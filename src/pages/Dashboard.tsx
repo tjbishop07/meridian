@@ -29,6 +29,16 @@ export default function Dashboard() {
   const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
   const [isLoading, setIsLoading] = useState(true);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [disabledCategories, setDisabledCategories] = useState<Set<string>>(new Set());
+
+  const toggleCategory = (name: string) => {
+    setDisabledCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
 
   useEffect(() => {
     loadDashboardData();
@@ -80,6 +90,8 @@ export default function Dashboard() {
     color: CHART_COLORS[i % CHART_COLORS.length],
     percentage: cat.percentage,
   }));
+
+  const activePieData = pieData.filter(d => !disabledCategories.has(d.id));
 
   const currentYear = format(new Date(), 'yyyy');
   const currentMonthStr = format(new Date(), 'yyyy-MM');
@@ -266,35 +278,62 @@ export default function Dashboard() {
             </SunkenCard>
 
             <SunkenCard title="Top Categories">
-              <div key={selectedMonth} style={{ height: 260 }} className="animate-in fade-in slide-in-from-bottom-3 duration-700">
-                {pieData.length === 0
-                  ? <ChartEmpty />
-                  : <ResponsivePie
-                  key={selectedMonth}
-                  data={pieData}
-                  theme={nivoTheme}
-                  margin={{ top: 16, right: 110, bottom: 16, left: 16 }}
-                  innerRadius={0.6}
-                  padAngle={0.5}
-                  cornerRadius={3}
-                  colors={(d) => d.data.color}
-                  borderWidth={0}
-                  animate
-                  motionConfig="gentle"
-                  enableArcLabels={false}
-                  arcLinkLabelsSkipAngle={10}
-                  arcLinkLabelsTextColor="var(--muted-foreground)"
-                  arcLinkLabelsThickness={1}
-                  arcLinkLabelsColor={{ from: 'color' }}
-                  arcLinkLabel={(d) => `${(d.data as any).percentage.toFixed(1)}%`}
-                  tooltip={({ datum }) => (
-                    <div style={tooltipStyle}>
-                      <span style={{ color: datum.color, marginRight: 6 }}>●</span>
-                      <strong>{datum.label}</strong>: ${datum.value.toFixed(2)}
-                    </div>
-                  )}
-                  legends={[{ anchor: 'right', direction: 'column', translateX: 100, translateY: 0, itemWidth: 90, itemHeight: 18, itemsSpacing: 6, symbolSize: 10, symbolShape: 'circle' }]}
-                />}
+              <div key={selectedMonth} className="animate-in fade-in slide-in-from-bottom-3 duration-700">
+                <div style={{ height: 220 }}>
+                  {pieData.length === 0
+                    ? <ChartEmpty />
+                    : activePieData.length === 0
+                    ? <div className="h-full flex items-center justify-center text-sm text-muted-foreground">All categories hidden</div>
+                    : <ResponsivePie
+                    data={activePieData}
+                    theme={nivoTheme}
+                    margin={{ top: 16, right: 16, bottom: 16, left: 16 }}
+                    innerRadius={0.6}
+                    padAngle={0.5}
+                    cornerRadius={3}
+                    colors={(d) => d.data.color}
+                    borderWidth={0}
+                    animate
+                    motionConfig="gentle"
+                    enableArcLabels={false}
+                    arcLinkLabelsSkipAngle={10}
+                    arcLinkLabelsTextColor="var(--muted-foreground)"
+                    arcLinkLabelsThickness={1}
+                    arcLinkLabelsColor={{ from: 'color' }}
+                    arcLinkLabel={(d) => `${(d.data as any).percentage.toFixed(1)}%`}
+                    tooltip={({ datum }) => (
+                      <div style={tooltipStyle}>
+                        <span style={{ color: datum.color, marginRight: 6 }}>●</span>
+                        <strong>{datum.label}</strong>: ${datum.value.toFixed(2)}
+                      </div>
+                    )}
+                  />}
+                </div>
+                {pieData.length > 0 && (
+                  <div className="flex flex-wrap justify-center gap-1.5 px-2 pb-3 pt-1">
+                    {pieData.map((item) => {
+                      const isDisabled = disabledCategories.has(item.id);
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => toggleCategory(item.id)}
+                          className={cn(
+                            'flex items-center gap-1.5 text-xs px-2 py-1 rounded-full border transition-all',
+                            isDisabled
+                              ? 'border-border/30 text-muted-foreground/40 opacity-40'
+                              : 'border-border/60 text-foreground hover:border-border'
+                          )}
+                        >
+                          <span
+                            className="w-2 h-2 rounded-full flex-shrink-0 transition-colors"
+                            style={{ background: isDisabled ? 'var(--muted-foreground)' : item.color }}
+                          />
+                          {item.id}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </SunkenCard>
         </div>
