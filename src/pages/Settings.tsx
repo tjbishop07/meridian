@@ -260,6 +260,30 @@ const DEFAULT_WELCOME_PROMPT =
   'Make it money or finance related and humorous. Keep it under 120 characters. ' +
   'Return only the message text — no quotes, no explanation, no markdown.';
 
+const DEFAULT_AUTO_TAG_PROMPT =
+`You are a financial transaction tagger for a personal finance app. Assign tags to bank transactions based on what they clearly represent.
+
+RULES (follow strictly):
+- Only tag a transaction if you are CERTAIN it matches (90%+ confidence)
+- When in doubt, return an EMPTY tags array — a missed tag is far better than a wrong one
+- Use each tag's description to understand exactly what it covers
+- A transaction may match zero, one, or multiple tags
+- Do not infer tags from vague similarities — require a clear, direct match
+
+Available tags:
+{{TAG_LIST}}
+
+Transactions to classify (format — id: "description" type $amount [category]):
+{{TX_LINES}}
+
+Return a JSON array with one object per transaction:
+  { "id": <number>, "tags": [<matched tag names>] }
+
+If no tags match a transaction, return "tags": [].
+Return ONLY the raw JSON array — no markdown, no explanation, no extra text.
+
+JSON:`;
+
 const DEFAULT_RECEIPT_PROMPT =
   'Analyze this receipt image and return ONLY a JSON object — no explanation, no markdown.\n\n' +
   'Available expense categories: {categories}\n\n' +
@@ -278,7 +302,7 @@ const DEFAULT_RECEIPT_PROMPT =
   '}';
 
 interface PromptEditorTabProps {
-  settingKey: 'scraping_prompt' | 'prompt_welcome';
+  settingKey: 'scraping_prompt' | 'prompt_welcome' | 'prompt_auto_tag';
   defaultPrompt: string;
   title: string;
   description: string;
@@ -596,7 +620,7 @@ export default function Settings() {
   const [showClearCategoriesConfirm, setShowClearCategoriesConfirm] = useState(false);
   const [clearCategoriesStatus, setClearCategoriesStatus] = useState<string | null>(null);
   const [scrapingTab, setScrapingTab] = useState<'claude' | 'ollama' | 'prompt'>('claude');
-  const [promptsTab, setPromptsTab] = useState<'welcome'>('welcome');
+  const [promptsTab, setPromptsTab] = useState<'welcome' | 'auto_tag'>('welcome');
   const [receiptTab, setReceiptTab] = useState<'model' | 'prompt'>('model');
   const [launchAtLogin, setLaunchAtLogin] = useState(false);
   const { sidebarClass, contentClass } = usePageEntrance();
@@ -1179,7 +1203,10 @@ export default function Settings() {
           subtitle="Customize the AI prompts used throughout the app"
         >
           <div className="flex border-b border-border mb-6 -mx-6 px-6">
-            {([{ key: 'welcome' as const, label: 'Welcome Message' }]).map((tab) => (
+            {([
+              { key: 'welcome' as const, label: 'Welcome Message' },
+              { key: 'auto_tag' as const, label: 'Auto-tag' },
+            ]).map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setPromptsTab(tab.key)}
@@ -1206,6 +1233,23 @@ export default function Settings() {
                 </p>
               }
               rows={6}
+            />
+          )}
+          {promptsTab === 'auto_tag' && (
+            <PromptEditorTab
+              settingKey="prompt_auto_tag"
+              defaultPrompt={DEFAULT_AUTO_TAG_PROMPT}
+              title="Auto-tag Prompt"
+              description="The prompt sent to Ollama when auto-tagging transactions. Customize it to improve accuracy for your specific tags and spending patterns."
+              hint={
+                <p className="text-xs text-muted-foreground">
+                  Use <code className="px-1 py-0.5 bg-muted rounded font-mono">{'{{TAG_LIST}}'}</code> and{' '}
+                  <code className="px-1 py-0.5 bg-muted rounded font-mono">{'{{TX_LINES}}'}</code> as placeholders — they are replaced at runtime with your tags and transaction data.
+                  The prompt must instruct the model to return a JSON array of{' '}
+                  <code className="px-1 py-0.5 bg-muted rounded font-mono">{'{ "id": number, "tags": string[] }'}</code> objects.
+                </p>
+              }
+              rows={16}
             />
           )}
         </Section>

@@ -601,13 +601,7 @@ app.whenReady().then(async () => {
     });
 
     autoUpdater.on('download-progress', (progress) => {
-      const pct = Math.round(progress.percent);
-      const transferred = (progress.transferred / 1024 / 1024).toFixed(1);
-      const total = (progress.total / 1024 / 1024).toFixed(1);
-      const bps = (progress.bytesPerSecond / 1024).toFixed(0);
-      console.log(`[Updater] Download progress: ${pct}%`);
-      addLog('debug', 'Updater', `Downloading: ${pct}% (${transferred} / ${total} MB @ ${bps} KB/s)`);
-      send('app:update-progress', pct);
+      send('app:update-progress', Math.round(progress.percent));
     });
 
     autoUpdater.on('update-downloaded', async (info) => {

@@ -13,6 +13,7 @@ import { cleanTransactionsWithAI, ensureOllamaRunning } from './ai-cleanup';
 import { registerRecordingHandlers, setMainWindow as setBrowserViewMainWindow } from '../automation-browserview';
 import { getDatabase } from '../../db';
 import { getAutomationSettings, setAutomationSetting } from '../../db/queries/automation-settings';
+import { addLog } from '../logs';
 import { start, stop, getStatus, runAllNow, INTERVAL_TO_CRON } from './scheduler';
 
 // Window references
@@ -81,8 +82,6 @@ export function registerAutomationHandlers(): void {
  */
 export async function playRecording(recipeId: string): Promise<{ success: boolean; message?: string }> {
   try {
-    console.log('[Automation] Starting playback for recipe:', recipeId);
-
     // Get recipe from database
     const { getDatabase } = await import('../../db');
     const db = getDatabase();
@@ -97,7 +96,7 @@ export async function playRecording(recipeId: string): Promise<{ success: boolea
     const steps = JSON.parse(recipe.steps) as RecordingStep[];
     const startUrl = recipe.url;
 
-    console.log(`[Automation] Recipe has ${steps.length} steps, starting at: ${startUrl}`);
+    addLog('info', 'Automation', `Starting playback: "${recipe.name}" (${steps.length} steps)`);
 
     // Create playback window (hidden - status shown on card)
     playbackWindow = new BrowserWindow({
@@ -275,13 +274,11 @@ export async function playRecording(recipeId: string): Promise<{ success: boolea
       try {
         await executeStep(playbackWindow, step);
       } catch (error) {
-        console.error(`[Automation] Step ${i + 1} failed:`, error);
-
-        // Check if navigation occurred despite error
         const urlAfterError = playbackWindow.webContents.getURL();
         if (urlBefore !== urlAfterError) {
           console.log(`[Automation] Navigation detected - treating as success`);
         } else {
+          addLog('error', 'Automation', `Step ${i + 1}/${steps.length} failed (${step.type}): ${(error as Error).message}`);
           allStepsCompleted = false;
           await showStepError(playbackWindow, i, steps.length, step, error);
           break;
@@ -326,7 +323,7 @@ export async function playRecording(recipeId: string): Promise<{ success: boolea
 
     // Only scrape if all steps completed
     if (!allStepsCompleted) {
-      console.log('[Automation] Playback incomplete - skipping scrape');
+      addLog('warning', 'Automation', 'Playback incomplete — scrape skipped');
       await updatePlaybackProgress(playbackWindow, steps.length, steps.length, 'Playback incomplete - no import', '#f59e0b');
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
@@ -341,7 +338,7 @@ export async function playRecording(recipeId: string): Promise<{ success: boolea
     }
 
     // Scrape transactions
-    console.log('[Automation] All steps complete! Waiting for transactions to load...');
+    addLog('info', 'Automation', 'All steps complete — waiting for transactions to load...');
     await updatePlaybackProgress(playbackWindow, steps.length, steps.length, 'Waiting for transactions...', '#3b82f6');
 
     // Wait additional time for transaction table to load (many banks use AJAX to load data)
@@ -439,7 +436,7 @@ export async function playRecording(recipeId: string): Promise<{ success: boolea
     await updatePlaybackProgress(playbackWindow, steps.length, steps.length, 'Extracting transactions...', '#3b82f6');
 
     const { transactions, method } = await scrapeTransactions(playbackWindow);
-    console.log(`[Automation] Scraped ${transactions.length} transactions using ${method} method`);
+    addLog('info', 'Automation', `Scraped ${transactions.length} transaction${transactions.length !== 1 ? 's' : ''} via ${method}`);
 
     // AI cleanup disabled - was creating duplicate categories and invalid responses
     // Categories will be assigned manually or through import mapping
@@ -454,15 +451,15 @@ export async function playRecording(recipeId: string): Promise<{ success: boolea
         transactions,
         count: transactions.length,
       });
+      addLog('success', 'Automation', `Sent ${transactions.length} transaction${transactions.length !== 1 ? 's' : ''} to import pipeline`);
     }
 
     // Update last_run_at timestamp and scraping method
     try {
       const db = getDatabase();
       db.prepare('UPDATE export_recipes SET last_run_at = CURRENT_TIMESTAMP, last_scraping_method = ? WHERE id = ?').run(method, recipeId);
-      console.log(`[Automation] Updated last_run_at and scraping method (${method}) for recipe ${recipeId}`);
     } catch (error) {
-      console.error('[Automation] Failed to update last_run_at:', error);
+      addLog('error', 'Automation', `Failed to update recipe timestamp: ${(error as Error).message}`);
     }
 
     // Close playback window after delay
@@ -476,7 +473,7 @@ export async function playRecording(recipeId: string): Promise<{ success: boolea
 
     return { success: true, message: `Imported ${transactions.length} transactions` };
   } catch (error) {
-    console.error('[Automation] Playback error:', error);
+    addLog('error', 'Automation', `Playback failed: ${error instanceof Error ? error.message : String(error)}`);
 
     if (playbackWindow && !playbackWindow.isDestroyed()) {
       playbackWindow.close();

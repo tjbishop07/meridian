@@ -1,6 +1,7 @@
 import * as cron from 'node-cron';
 import { getDatabase } from '../../db';
 import { getAutomationSettings, setAutomationSetting } from '../../db/queries/automation-settings';
+import { addLog } from '../logs';
 import { playRecording } from './index';
 
 export const INTERVAL_TO_CRON: Record<string, string> = {
@@ -26,7 +27,7 @@ export function initScheduler(): void {
   const db = getDatabase();
   const settings = getAutomationSettings(db);
   if (settings.schedule_enabled && settings.schedule_cron) {
-    console.log('[Scheduler] Initializing from DB settings:', settings.schedule_cron);
+    addLog('info', 'Scheduler', `Schedule loaded from settings: ${settings.schedule_cron}`);
     start(settings.schedule_cron);
   }
 }
@@ -34,12 +35,12 @@ export function initScheduler(): void {
 export function start(cronExpr: string): void {
   stop();
   if (!cron.validate(cronExpr)) {
-    console.warn('[Scheduler] Invalid cron expression:', cronExpr);
+    addLog('error', 'Scheduler', `Invalid cron expression: ${cronExpr}`);
     return;
   }
   activeCronExpr = cronExpr;
   task = cron.schedule(cronExpr, () => { runAll().catch(console.error); });
-  console.log('[Scheduler] Started with cron:', cronExpr);
+  addLog('info', 'Scheduler', `Started (cron: ${cronExpr})`);
 }
 
 export function stop(): void {
@@ -47,7 +48,7 @@ export function stop(): void {
     task.destroy();
     task = null;
     activeCronExpr = null;
-    console.log('[Scheduler] Stopped');
+    addLog('info', 'Scheduler', 'Schedule stopped');
   }
 }
 
@@ -79,32 +80,31 @@ export async function runAllNow(): Promise<void> {
 
 async function runAll(): Promise<void> {
   if (isRunning) {
-    console.log('[Scheduler] Already running, skipping');
+    addLog('warning', 'Scheduler', 'Run skipped — already in progress');
     return;
   }
   isRunning = true;
-  console.log('[Scheduler] Starting sequential run of all recordings');
 
   try {
     const db = getDatabase();
     const recipes = db.prepare('SELECT id, name FROM export_recipes ORDER BY name').all() as Array<{ id: number; name: string }>;
 
-    console.log(`[Scheduler] Found ${recipes.length} recordings to run`);
+    addLog('info', 'Scheduler', `Starting run: ${recipes.length} recording${recipes.length !== 1 ? 's' : ''}`);
 
     for (const recipe of recipes) {
       currentRecordingName = recipe.name;
-      console.log(`[Scheduler] Running: ${recipe.name} (id=${recipe.id})`);
+      addLog('info', 'Scheduler', `Running: "${recipe.name}"`);
       try {
         await playRecording(String(recipe.id));
+        addLog('success', 'Scheduler', `"${recipe.name}" completed`);
       } catch (e) {
-        console.error(`[Scheduler] Recording "${recipe.name}" failed:`, e);
-        // Individual failures don't stop the sequence
+        addLog('error', 'Scheduler', `"${recipe.name}" failed: ${(e as Error).message}`);
       }
       await sleep(2000);
     }
 
     lastRunAt = new Date().toISOString();
-    console.log('[Scheduler] All recordings complete. Last run:', lastRunAt);
+    addLog('success', 'Scheduler', `All recordings complete`);
   } finally {
     currentRecordingName = null;
     isRunning = false;

@@ -3,6 +3,7 @@ import type { ScrapedTransaction } from './types';
 import { scrapeWithVision, type VisionConfig } from './vision-scraper';
 import { getDatabase } from '../../db';
 import { getAutomationSettings } from '../../db/queries/automation-settings';
+import { addLog } from '../logs';
 
 /**
  * Scrape transactions from the current page in the playback window
@@ -15,7 +16,7 @@ export async function scrapeTransactions(window: BrowserWindow): Promise<{ trans
 
   // Try vision scraping first if enabled and configured
   if (settings.vision_provider === 'claude' && settings.claude_api_key) {
-    console.log('[Scraper] Attempting vision-based scraping with Claude...');
+    addLog('info', 'Scraper', 'Attempting Claude vision scraping...');
     try {
       const visionConfig: VisionConfig = {
         provider: 'claude',
@@ -27,16 +28,16 @@ export async function scrapeTransactions(window: BrowserWindow): Promise<{ trans
       const transactions = await scrapeWithVision(window, visionConfig);
 
       if (transactions.length > 0) {
-        console.log('[Scraper] ✓ Vision scraping succeeded with', transactions.length, 'transactions');
+        addLog('success', 'Scraper', `Claude vision found ${transactions.length} transaction${transactions.length !== 1 ? 's' : ''}`);
         return { transactions, method: 'claude' };
       } else {
-        console.log('[Scraper] ⚠️ Vision scraping returned 0 transactions, falling back to DOM');
+        addLog('warning', 'Scraper', 'Claude vision returned 0 results — falling back to DOM');
       }
     } catch (error) {
-      console.warn('[Scraper] ⚠️ Vision scraping failed, falling back to DOM:', error instanceof Error ? error.message : String(error));
+      addLog('warning', 'Scraper', `Claude vision failed: ${error instanceof Error ? error.message : String(error)} — falling back to DOM`);
     }
   } else if ((settings.vision_provider as string) === 'ollama') {
-    console.log('[Scraper] Attempting vision-based scraping with Ollama...');
+    addLog('info', 'Scraper', 'Attempting Ollama vision scraping...');
     try {
       const visionConfig: VisionConfig = {
         provider: 'ollama',
@@ -48,20 +49,22 @@ export async function scrapeTransactions(window: BrowserWindow): Promise<{ trans
       const transactions = await scrapeWithVision(window, visionConfig);
 
       if (transactions.length > 0) {
-        console.log('[Scraper] ✓ Vision scraping succeeded with', transactions.length, 'transactions');
+        addLog('success', 'Scraper', `Ollama vision found ${transactions.length} transaction${transactions.length !== 1 ? 's' : ''}`);
         return { transactions, method: 'ollama' };
       } else {
-        console.log('[Scraper] ⚠️ Vision scraping returned 0 transactions, falling back to DOM');
+        addLog('warning', 'Scraper', 'Ollama vision returned 0 results — falling back to DOM');
       }
     } catch (error) {
-      console.warn('[Scraper] ⚠️ Vision scraping failed, falling back to DOM:', error instanceof Error ? error.message : String(error));
+      addLog('warning', 'Scraper', `Ollama vision failed: ${error instanceof Error ? error.message : String(error)} — falling back to DOM`);
     }
   } else {
-    console.log('[Scraper] Vision scraping disabled or not configured, using DOM extraction');
+    addLog('info', 'Scraper', 'Vision not configured — using DOM extraction');
   }
 
   // Fallback to DOM scraping
+  addLog('info', 'Scraper', 'Starting DOM extraction...');
   const transactions = await scrapeWithDOM(window);
+  addLog(transactions.length > 0 ? 'success' : 'warning', 'Scraper', `DOM extraction found ${transactions.length} transaction${transactions.length !== 1 ? 's' : ''}`);
   return { transactions, method: 'dom' };
 }
 

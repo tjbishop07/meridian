@@ -1,19 +1,23 @@
 import { ipcMain } from 'electron';
+import path from 'path';
 import { detectFormat } from '../services/csv-detector';
 import { parseCSV, validateParsedRows } from '../services/csv-parser';
 import { findDuplicates, removeDuplicates } from '../services/duplicate-detector';
 import { getDatabase } from '../db';
+import { addLog } from './logs';
 import type { CSVFormat, ParsedCSVRow, ImportPreview, ImportResult } from '../../src/types';
 
 export function registerImportHandlers(): void {
   // Detect CSV format
   ipcMain.handle('import:detect-format', async (_, filePath: string) => {
     try {
-      console.log('Detecting format for:', filePath);
+      const filename = path.basename(filePath);
+      addLog('info', 'Import', `Detecting format: ${filename}`);
       const format = await detectFormat(filePath);
+      addLog('info', 'Import', `Format identified for ${filename}`);
       return format;
     } catch (error) {
-      console.error('Error detecting format:', error);
+      addLog('error', 'Import', `Format detection failed: ${(error as Error).message}`);
       throw error;
     }
   });
@@ -26,19 +30,19 @@ export function registerImportHandlers(): void {
       data: { filePath: string; accountId: number; format: CSVFormat }
     ) => {
       try {
-        console.log('Previewing import for account:', data.accountId);
+        const filename = path.basename(data.filePath);
+        addLog('info', 'Import', `Parsing ${filename} for account ${data.accountId}...`);
 
         // Parse CSV
         const rows = await parseCSV(data.filePath, data.format);
-        console.log(`Parsed ${rows.length} rows`);
 
         // Validate rows
         const { valid, invalid } = validateParsedRows(rows);
-        console.log(`Valid: ${valid.length}, Invalid: ${invalid.length}`);
 
         // Check for duplicates
         const duplicates = await findDuplicates(data.accountId, valid);
-        console.log(`Found ${duplicates.length} duplicates`);
+
+        addLog('info', 'Import', `Preview: ${rows.length} rows — ${valid.length} valid, ${invalid.length} invalid, ${duplicates.length} duplicates`);
 
         const preview: ImportPreview = {
           format: data.format,
@@ -52,7 +56,7 @@ export function registerImportHandlers(): void {
 
         return preview;
       } catch (error) {
-        console.error('Error previewing import:', error);
+        addLog('error', 'Import', `Preview failed: ${(error as Error).message}`);
         throw error;
       }
     }
@@ -72,7 +76,7 @@ export function registerImportHandlers(): void {
       }
     ) => {
       try {
-        console.log('Executing import for account:', data.accountId);
+        addLog('info', 'Import', `Starting import: ${data.filename} (${data.rows.length} rows, account ${data.accountId})`);
         const db = getDatabase();
 
         let rowsToImport = data.rows;
@@ -81,9 +85,7 @@ export function registerImportHandlers(): void {
         if (data.skipDuplicates) {
           const duplicates = await findDuplicates(data.accountId, data.rows);
           rowsToImport = removeDuplicates(data.rows, duplicates);
-          console.log(
-            `Skipping ${duplicates.length} duplicates, importing ${rowsToImport.length} rows`
-          );
+          addLog('info', 'Import', `Skipping ${duplicates.length} duplicates — ${rowsToImport.length} rows to import`);
         }
 
         // Map categories
@@ -185,10 +187,10 @@ export function registerImportHandlers(): void {
           history_id: historyResult.lastInsertRowid as number,
         };
 
-        console.log('Import completed:', result);
+        addLog('success', 'Import', `Import complete: ${imported} imported, ${skipped} skipped (${dateRange.start} → ${dateRange.end})`);
         return result;
       } catch (error) {
-        console.error('Error executing import:', error);
+        addLog('error', 'Import', `Import failed: ${(error as Error).message}`);
         throw error;
       }
     }

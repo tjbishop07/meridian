@@ -10,6 +10,7 @@ export interface AutomationSettings {
   schedule_cron: string;
   scraping_prompt?: string;
   prompt_welcome?: string;
+  prompt_auto_tag?: string;
 }
 
 export function useAutomationSettings() {
@@ -23,6 +24,7 @@ export function useAutomationSettings() {
     schedule_cron: '0 6 * * *',
     scraping_prompt: '',
     prompt_welcome: '',
+    prompt_auto_tag: '',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
