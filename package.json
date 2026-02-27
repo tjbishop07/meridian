@@ -12,10 +12,10 @@
     "preview": "vite preview",
     "electron:dev": "vite",
     "electron:build": "npm run build",
-    "postinstall": "electron-rebuild",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
+    "postinstall": "electron-rebuild && node scripts/fix-pnpm-sqlite.mjs",
+    "test": "node scripts/rebuild-for-node.mjs && vitest run; node scripts/fix-pnpm-sqlite.mjs",
+    "test:watch": "node scripts/rebuild-for-node.mjs && vitest",
+    "test:coverage": "node scripts/rebuild-for-node.mjs && vitest run --coverage; node scripts/fix-pnpm-sqlite.mjs",
     "test:ci": "vitest run --reporter=verbose --bail=1"
   },
   "keywords": [
