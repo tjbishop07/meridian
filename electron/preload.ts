@@ -128,6 +128,7 @@ const electronAPI: ElectronAPI = {
       // Ollama
       'ollama:check-status',
       'ollama:check-homebrew',
+      'ollama:check-winget',
       'ollama:open-homebrew-install',
       'ollama:install',
       'ollama:start-server',

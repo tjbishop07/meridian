@@ -444,7 +444,7 @@ const LOCAL_MODELS = [
 
 function AIModelsSection() {
   const { settings, loading, saving, updateSettings } = useAutomationSettings();
-  const { status, isChecking, isPulling, pullingModel, pullPercentage, pullStatus, checkStatus, pullModel, startServer } = useOllama();
+  const { status, isChecking, isPulling, pullingModel, pullPercentage, pullStatus, checkStatus, pullModel, startServer, installOllama, isInstalling, installProgress, homebrewInstalled, wingetInstalled } = useOllama();
   const [aiTab, setAiTab] = useState<'claude' | 'local' | 'vision'>('claude');
   const [isStartingServer, setIsStartingServer] = useState(false);
 
@@ -575,35 +575,75 @@ function AIModelsSection() {
           </div>
 
           {!status.installed && (
-            <div className="my-4 p-3 rounded-lg bg-muted/60 border border-border text-xs text-muted-foreground space-y-2">
+            <div className="my-4 p-3 rounded-lg bg-muted/60 border border-border text-xs text-muted-foreground space-y-3">
               <p>Ollama is not installed. Install it to use local AI features.</p>
-              {status.platform === 'win32' ? (
-                <div className="space-y-1.5">
-                  <p className="font-medium text-foreground">Windows — two options:</p>
-                  <p>
-                    <span className="font-medium">1. Installer:</span>{' '}
-                    <a href="https://ollama.com/download/windows" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                      Download the Windows installer
+
+              {/* Automated install button — winget (Windows) or Homebrew (macOS) */}
+              {((status.platform === 'win32' && wingetInstalled) ||
+                (status.platform !== 'win32' && homebrewInstalled)) && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      onClick={installOllama}
+                      disabled={isInstalling}
+                      className="h-7 text-xs gap-1.5"
+                    >
+                      {isInstalling
+                        ? <><Loader2 className="w-3 h-3 animate-spin" />Installing…</>
+                        : <><Download className="w-3 h-3" />
+                          {status.platform === 'win32' ? 'Install via winget' : 'Install via Homebrew'}
+                        </>}
+                    </Button>
+                    <span className="text-muted-foreground/50">or</span>
+                    <a
+                      href={status.platform === 'win32' ? 'https://ollama.com/download/windows' : 'https://ollama.com/download/mac'}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      download the installer
                     </a>
-                  </p>
-                  <p>
-                    <span className="font-medium">2. winget:</span>{' '}
-                    <code className="font-mono bg-muted px-1 py-0.5 rounded">winget install Ollama.Ollama</code>
-                  </p>
+                  </div>
+                  {installProgress && (
+                    <pre className="mt-1 max-h-24 overflow-y-auto rounded bg-background p-2 font-mono text-[10px] text-muted-foreground whitespace-pre-wrap">
+                      {installProgress}
+                    </pre>
+                  )}
                 </div>
-              ) : (
+              )}
+
+              {/* No package manager available — show manual options */}
+              {((status.platform === 'win32' && !wingetInstalled) ||
+                (status.platform !== 'win32' && !homebrewInstalled)) && (
                 <div className="space-y-1.5">
-                  <p className="font-medium text-foreground">macOS — two options:</p>
-                  <p>
-                    <span className="font-medium">1. Installer:</span>{' '}
-                    <a href="https://ollama.com/download/mac" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                      Download the macOS installer
-                    </a>
-                  </p>
-                  <p>
-                    <span className="font-medium">2. Homebrew:</span>{' '}
-                    <code className="font-mono bg-muted px-1 py-0.5 rounded">brew install ollama</code>
-                  </p>
+                  {status.platform === 'win32' ? (
+                    <>
+                      <p>
+                        <span className="font-medium text-foreground">Installer: </span>
+                        <a href="https://ollama.com/download/windows" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                          Download for Windows
+                        </a>
+                      </p>
+                      <p>
+                        <span className="font-medium text-foreground">winget: </span>
+                        <code className="font-mono bg-muted px-1 py-0.5 rounded">winget install Ollama.Ollama</code>
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p>
+                        <span className="font-medium text-foreground">Installer: </span>
+                        <a href="https://ollama.com/download/mac" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                          Download for macOS
+                        </a>
+                      </p>
+                      <p>
+                        <span className="font-medium text-foreground">Homebrew: </span>
+                        <code className="font-mono bg-muted px-1 py-0.5 rounded">brew install ollama</code>
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
             </div>

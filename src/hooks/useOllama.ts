@@ -26,6 +26,7 @@ export function useOllama() {
   const [pullStatus, setPullStatus] = useState<string>('');
   const [installProgress, setInstallProgress] = useState<string>('');
   const [homebrewInstalled, setHomebrewInstalled] = useState<boolean | null>(null);
+  const [wingetInstalled, setWingetInstalled] = useState<boolean | null>(null);
 
   const checkStatus = async () => {
     setIsChecking(true);
@@ -47,6 +48,18 @@ export function useOllama() {
     } catch (error) {
       console.error('[useOllama] Failed to check Homebrew:', error);
       setHomebrewInstalled(false);
+      return false;
+    }
+  };
+
+  const checkWinget = async () => {
+    try {
+      const result = await window.electron.invoke('ollama:check-winget');
+      setWingetInstalled(result.installed);
+      return result.installed;
+    } catch (error) {
+      console.error('[useOllama] Failed to check winget:', error);
+      setWingetInstalled(false);
       return false;
     }
   };
@@ -184,6 +197,7 @@ export function useOllama() {
   useEffect(() => {
     checkStatus();
     checkHomebrew();
+    checkWinget();
   }, []);
 
   return {
@@ -197,8 +211,10 @@ export function useOllama() {
     pullStatus,
     installProgress,
     homebrewInstalled,
+    wingetInstalled,
     checkStatus,
     checkHomebrew,
+    checkWinget,
     installOllama,
     startServer,
     pullModel,

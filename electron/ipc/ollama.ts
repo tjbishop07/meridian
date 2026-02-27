@@ -25,10 +25,20 @@ export function registerOllamaHandlers() {
     return await checkOllamaStatus();
   });
 
-  // Check if Homebrew is installed
+  // Check if Homebrew is installed (macOS)
   ipcMain.handle('ollama:check-homebrew', async () => {
     try {
       await execAsync('which brew');
+      return { installed: true };
+    } catch {
+      return { installed: false };
+    }
+  });
+
+  // Check if winget is installed (Windows)
+  ipcMain.handle('ollama:check-winget', async () => {
+    try {
+      await execAsync('where winget');
       return { installed: true };
     } catch {
       return { installed: false };
@@ -42,11 +52,44 @@ export function registerOllamaHandlers() {
     return { success: true };
   });
 
-  // Install Ollama (macOS: Homebrew; Windows: open download page)
+  // Install Ollama (macOS: Homebrew; Windows: winget with streaming, fallback to browser)
   ipcMain.handle('ollama:install', async () => {
     if (process.platform === 'win32') {
-      await shell.openExternal('https://ollama.com/download/windows');
-      return { success: true, openedBrowser: true };
+      try {
+        await execAsync('where winget');
+      } catch {
+        // No winget — fall back to browser
+        await shell.openExternal('https://ollama.com/download/windows');
+        return { success: true, openedBrowser: true };
+      }
+
+      try {
+        console.log('[Ollama] Installing via winget...');
+        const installProcess = exec(
+          'winget install Ollama.Ollama --accept-source-agreements --accept-package-agreements'
+        );
+
+        installProcess.stdout?.on('data', (data) => {
+          if (mainWindow && !mainWindow.isDestroyed())
+            mainWindow.webContents.send('ollama:install-progress', data.toString());
+        });
+        installProcess.stderr?.on('data', (data) => {
+          if (mainWindow && !mainWindow.isDestroyed())
+            mainWindow.webContents.send('ollama:install-progress', data.toString());
+        });
+
+        await new Promise((resolve, reject) => {
+          installProcess.on('exit', (code) => {
+            if (code === 0) resolve(true);
+            else reject(new Error(`winget exited with code ${code}`));
+          });
+        });
+
+        return { success: true };
+      } catch (error) {
+        console.error('[Ollama] winget install failed:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      }
     }
 
     try {
