@@ -1,4 +1,5 @@
 import { getDatabase } from '../db';
+import { addLog } from '../ipc/logs';
 import type { Transaction, ParsedCSVRow } from '../../src/types';
 
 export interface DuplicateMatch {
@@ -51,7 +52,7 @@ export async function findDuplicates(
     }
   }
 
-  console.log(`Found ${duplicates.length} potential duplicates out of ${rows.length} rows`);
+  addLog('debug', 'Import', `Duplicate check: ${duplicates.length} potential duplicates out of ${rows.length} rows`);
   return duplicates;
 }
 

@@ -117,13 +117,17 @@ export function registerImportHandlers(): void {
 
           for (const row of rows) {
             try {
-              // Determine transaction type (negative amounts are expenses)
-              const type = row.amount < 0 ? 'expense' : 'income';
+              // Detect transfers by category name before deciding type
+              const rawCategory = (row.category || '').toLowerCase().trim();
+              const isTransfer = rawCategory.includes('transfer');
+
+              // Determine transaction type
+              const type = isTransfer ? 'transfer' : (row.amount < 0 ? 'expense' : 'income');
               const absAmount = Math.abs(row.amount);
 
-              // Try to match category
+              // Try to match category (skip for transfers — no category_id needed)
               let categoryId = null;
-              if (row.category) {
+              if (!isTransfer && row.category) {
                 const categoryName = row.category.toLowerCase();
                 categoryId = categoryMap.get(categoryName) || null;
               }
@@ -151,7 +155,7 @@ export function registerImportHandlers(): void {
                 skipped++; // Duplicate (UNIQUE constraint)
               }
             } catch (error) {
-              console.error('Error inserting row:', error, row);
+              addLog('error', 'Import', `Failed to insert row (${row.date} ${row.description}): ${(error as Error).message}`);
               skipped++;
             }
           }
@@ -196,7 +200,7 @@ export function registerImportHandlers(): void {
     }
   );
 
-  console.log('Import IPC handlers registered');
+  addLog('debug', 'Import', 'Import IPC handlers registered');
 }
 
 function getDateRange(rows: ParsedCSVRow[]): { start: string; end: string } {

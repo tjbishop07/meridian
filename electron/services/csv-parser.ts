@@ -1,6 +1,7 @@
 import fs from 'fs';
 import Papa from 'papaparse';
 import { parse, format } from 'date-fns';
+import { addLog } from '../ipc/logs';
 import type { CSVFormat, ParsedCSVRow } from '../../src/types';
 
 export async function parseCSV(
@@ -17,10 +18,11 @@ export async function parseCSV(
     });
 
     if (result.errors.length > 0) {
-      console.error('CSV parse errors:', result.errors);
+      addLog('warning', 'Import', `CSV parse warnings: ${result.errors.map(e => e.message).join('; ')}`);
     }
 
     const parsedRows: ParsedCSVRow[] = [];
+    let rowErrors = 0;
 
     for (const row of result.data as any[]) {
       try {
@@ -29,14 +31,18 @@ export async function parseCSV(
           parsedRows.push(parsedRow);
         }
       } catch (error) {
-        console.error('Error parsing row:', error, row);
+        rowErrors++;
+        addLog('warning', 'Import', `Skipped row — ${(error as Error).message}`);
       }
     }
 
-    console.log(`Parsed ${parsedRows.length} rows from CSV`);
+    if (rowErrors > 0) {
+      addLog('warning', 'Import', `${rowErrors} rows skipped due to parse errors`);
+    }
+    addLog('debug', 'Import', `Parsed ${parsedRows.length} rows from CSV`);
     return parsedRows;
   } catch (error) {
-    console.error('Error parsing CSV file:', error);
+    addLog('error', 'Import', `Failed to parse CSV file: ${(error as Error).message}`);
     throw new Error('Failed to parse CSV file');
   }
 }
@@ -60,7 +66,7 @@ function parseRow(row: any, format: CSVFormat): ParsedCSVRow | null {
                     category?.toLowerCase().includes('pending');
 
   if (isPending) {
-    console.log('[CSV Parser] Found pending transaction (will import with no category):', description);
+    addLog('debug', 'Import', `Pending transaction (no category): ${description}`);
   }
 
   // Parse date
@@ -68,7 +74,7 @@ function parseRow(row: any, format: CSVFormat): ParsedCSVRow | null {
   try {
     date = parseDateString(dateStr, format.dateFormat);
   } catch (error) {
-    console.error('Error parsing date:', dateStr, error);
+    addLog('warning', 'Import', `Could not parse date "${dateStr}": ${(error as Error).message}`);
     return null;
   }
 
@@ -77,7 +83,7 @@ function parseRow(row: any, format: CSVFormat): ParsedCSVRow | null {
   try {
     amount = parseAmount(amountStr) * format.amountMultiplier;
   } catch (error) {
-    console.error('Error parsing amount:', amountStr, error);
+    addLog('warning', 'Import', `Could not parse amount "${amountStr}": ${(error as Error).message}`);
     return null;
   }
 
@@ -87,7 +93,7 @@ function parseRow(row: any, format: CSVFormat): ParsedCSVRow | null {
     try {
       balance = parseAmount(balanceStr);
     } catch (error) {
-      console.warn('Error parsing balance:', balanceStr, error);
+      addLog('debug', 'Import', `Could not parse balance "${balanceStr}" — skipping`);
       balance = undefined;
     }
   }

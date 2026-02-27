@@ -1,5 +1,6 @@
 import fs from 'fs';
 import Papa from 'papaparse';
+import { addLog } from '../ipc/logs';
 import type { CSVFormat } from '../../src/types';
 
 // Define known CSV formats
@@ -53,7 +54,7 @@ export async function detectFormat(filePath: string): Promise<CSVFormat | null> 
     }
 
     const headers = Object.keys(result.data[0] as any);
-    console.log('CSV Headers detected:', headers);
+    addLog('debug', 'Import', `CSV headers: ${headers.join(', ')}`);
 
     // Try to match against known formats
     for (const format of KNOWN_FORMATS) {
@@ -69,7 +70,7 @@ export async function detectFormat(filePath: string): Promise<CSVFormat | null> 
       ).length;
 
       if (matchCount === requiredColumns.length) {
-        console.log(`Detected format: ${format.name}`);
+        addLog('info', 'Import', `Format matched: ${format.name}`);
         return format;
       }
     }
@@ -80,6 +81,7 @@ export async function detectFormat(filePath: string): Promise<CSVFormat | null> 
     const hasAmount = headers.some((h) => /amount|value|sum/i.test(h));
 
     if (hasDate && hasDescription && hasAmount) {
+      addLog('info', 'Import', 'No known format matched — using auto-detected generic format');
       // Return generic format with detected columns
       return {
         name: 'Generic (Auto-detected)',
@@ -94,10 +96,10 @@ export async function detectFormat(filePath: string): Promise<CSVFormat | null> 
       };
     }
 
-    console.log('No matching format found');
+    addLog('warning', 'Import', `No matching format found for headers: ${headers.join(', ')}`);
     return null;
   } catch (error) {
-    console.error('Error detecting CSV format:', error);
+    addLog('error', 'Import', `Format detection error: ${(error as Error).message}`);
     return null;
   }
 }

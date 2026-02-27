@@ -9,12 +9,14 @@ export function getMonthlyStats(month: string): MonthlyStats {
       `
     SELECT
       ? as month,
-      COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-      COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expenses,
+      COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) as income,
+      COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses,
       COUNT(*) as transaction_count
-    FROM transactions
-    WHERE strftime('%Y-%m', date) = ?
-      AND type != 'transfer'
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE strftime('%Y-%m', t.date) = ?
+      AND t.type != 'transfer'
+      AND LOWER(COALESCE(c.name, '')) NOT LIKE '%transfer%'
   `
     )
     .get(month, month) as any;
@@ -46,7 +48,7 @@ export function getCategoryBreakdown(
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     WHERE t.type = ?
-      AND LOWER(COALESCE(c.name, '')) != 'transfer'
+      AND LOWER(COALESCE(c.name, '')) NOT LIKE '%transfer%'
       AND t.date >= ?
       AND t.date <= ?
     GROUP BY c.id, c.name
@@ -73,13 +75,15 @@ export function getSpendingTrends(months: number): SpendingTrend[] {
     .prepare(
       `
     SELECT
-      strftime('%Y-%m', date) as month,
-      COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-      COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expenses
-    FROM transactions
-    WHERE date >= date('now', '-' || ? || ' months')
-      AND type != 'transfer'
-    GROUP BY strftime('%Y-%m', date)
+      strftime('%Y-%m', t.date) as month,
+      COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) as income,
+      COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE t.date >= date('now', '-' || ? || ' months')
+      AND t.type != 'transfer'
+      AND LOWER(COALESCE(c.name, '')) NOT LIKE '%transfer%'
+    GROUP BY strftime('%Y-%m', t.date)
     ORDER BY month ASC
   `
     )
@@ -107,7 +111,7 @@ export function getTopExpenseCategories(month: string, limit: number = 5): Categ
     FROM transactions t
     LEFT JOIN categories c ON t.category_id = c.id
     WHERE t.type = 'expense'
-      AND LOWER(COALESCE(c.name, '')) != 'transfer'
+      AND LOWER(COALESCE(c.name, '')) NOT LIKE '%transfer%'
       AND strftime('%Y-%m', t.date) = ?
     GROUP BY c.id, c.name
     ORDER BY amount DESC
@@ -154,10 +158,12 @@ export function getTotalsByType(): { income: number; expenses: number; net: numb
     .prepare(
       `
     SELECT
-      COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income,
-      COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expenses
-    FROM transactions
-    WHERE type != 'transfer'
+      COALESCE(SUM(CASE WHEN t.type = 'income' THEN t.amount ELSE 0 END), 0) as income,
+      COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE t.type != 'transfer'
+      AND LOWER(COALESCE(c.name, '')) NOT LIKE '%transfer%'
   `
     )
     .get() as any;
@@ -178,6 +184,7 @@ export function getTopTransactionsByMonth(month: string, limit = 5) {
     LEFT JOIN categories c ON t.category_id = c.id
     WHERE t.type = 'expense'
       AND strftime('%Y-%m', t.date) = ?
+      AND LOWER(COALESCE(c.name, '')) NOT LIKE '%transfer%'
     ORDER BY t.amount DESC
     LIMIT ?
   `).all(month, limit);
@@ -187,13 +194,15 @@ export function getDailySpendingForMonth(month: string): Array<{ date: string; e
   const db = getDatabase();
   const rows = db.prepare(`
     SELECT
-      date,
-      COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expenses
-    FROM transactions
-    WHERE strftime('%Y-%m', date) = ?
-      AND type != 'transfer'
-    GROUP BY date
-    ORDER BY date ASC
+      t.date,
+      COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as expenses
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE strftime('%Y-%m', t.date) = ?
+      AND t.type != 'transfer'
+      AND LOWER(COALESCE(c.name, '')) NOT LIKE '%transfer%'
+    GROUP BY t.date
+    ORDER BY t.date ASC
   `).all(month) as any[];
 
   return rows.map((row) => ({ date: row.date, expenses: row.expenses }));
@@ -206,14 +215,16 @@ export function getDailySpending(days: number = 365): Array<{ date: string; amou
     .prepare(
       `
     SELECT
-      date,
-      COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as amount,
-      COUNT(CASE WHEN type = 'expense' THEN 1 END) as count
-    FROM transactions
-    WHERE date >= date('now', '-' || ? || ' days')
-      AND type = 'expense'
-    GROUP BY date
-    ORDER BY date ASC
+      t.date,
+      COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount ELSE 0 END), 0) as amount,
+      COUNT(CASE WHEN t.type = 'expense' THEN 1 END) as count
+    FROM transactions t
+    LEFT JOIN categories c ON t.category_id = c.id
+    WHERE t.date >= date('now', '-' || ? || ' days')
+      AND t.type = 'expense'
+      AND LOWER(COALESCE(c.name, '')) NOT LIKE '%transfer%'
+    GROUP BY t.date
+    ORDER BY t.date ASC
   `
     )
     .all(days) as any[];
