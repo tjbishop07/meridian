@@ -575,15 +575,44 @@ function AIModelsSection() {
           </div>
 
           {!status.installed && (
-            <div className="my-4 p-3 rounded-lg bg-muted/60 border border-border text-xs text-muted-foreground">
-              Ollama is not installed.{' '}
-              <a href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Download Ollama</a>{' '}
-              to use local AI features.
+            <div className="my-4 p-3 rounded-lg bg-muted/60 border border-border text-xs text-muted-foreground space-y-2">
+              <p>Ollama is not installed. Install it to use local AI features.</p>
+              {status.platform === 'win32' ? (
+                <div className="space-y-1.5">
+                  <p className="font-medium text-foreground">Windows — two options:</p>
+                  <p>
+                    <span className="font-medium">1. Installer:</span>{' '}
+                    <a href="https://ollama.com/download/windows" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      Download the Windows installer
+                    </a>
+                  </p>
+                  <p>
+                    <span className="font-medium">2. winget:</span>{' '}
+                    <code className="font-mono bg-muted px-1 py-0.5 rounded">winget install Ollama.Ollama</code>
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  <p className="font-medium text-foreground">macOS — two options:</p>
+                  <p>
+                    <span className="font-medium">1. Installer:</span>{' '}
+                    <a href="https://ollama.com/download/mac" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                      Download the macOS installer
+                    </a>
+                  </p>
+                  <p>
+                    <span className="font-medium">2. Homebrew:</span>{' '}
+                    <code className="font-mono bg-muted px-1 py-0.5 rounded">brew install ollama</code>
+                  </p>
+                </div>
+              )}
             </div>
           )}
           {status.installed && !status.running && (
             <div className="my-4 p-3 rounded-lg bg-warning/10 border border-warning/20 text-xs text-warning">
-              Ollama is installed but not running. Click "Start Ollama" above, or run <code className="font-mono">ollama serve</code> in your terminal.
+              Ollama is installed but not running. Click "Start Ollama" above, or run{' '}
+              <code className="font-mono">ollama serve</code> in{' '}
+              {status.platform === 'win32' ? 'Command Prompt or PowerShell' : 'your terminal'}.
             </div>
           )}
 

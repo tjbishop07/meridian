@@ -15,6 +15,7 @@ interface OllamaStatus {
   running: boolean;
   hasVisionModel: boolean;
   availableModels: string[];
+  platform: string;
   error?: string;
 }
 
@@ -41,8 +42,13 @@ export function registerOllamaHandlers() {
     return { success: true };
   });
 
-  // Install Ollama via Homebrew (with progress streaming)
+  // Install Ollama (macOS: Homebrew; Windows: open download page)
   ipcMain.handle('ollama:install', async () => {
+    if (process.platform === 'win32') {
+      await shell.openExternal('https://ollama.com/download/windows');
+      return { success: true, openedBrowser: true };
+    }
+
     try {
       console.log('[Ollama] Installing via Homebrew...');
 
@@ -85,7 +91,11 @@ export function registerOllamaHandlers() {
     try {
       console.log('[Ollama] Starting server...');
       // Start in background (don't wait for it to exit)
-      exec('ollama serve > /dev/null 2>&1 &');
+      if (process.platform === 'win32') {
+        exec('start /B ollama serve');
+      } else {
+        exec('ollama serve > /dev/null 2>&1 &');
+      }
 
       // Wait a bit for server to start
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -210,11 +220,13 @@ async function checkOllamaStatus(): Promise<OllamaStatus> {
     running: false,
     hasVisionModel: false,
     availableModels: [],
+    platform: process.platform,
   };
 
   try {
-    // Check if Ollama is installed
-    await execAsync('which ollama');
+    // Check if Ollama is installed — `where` on Windows, `which` on macOS/Linux
+    const findCmd = process.platform === 'win32' ? 'where ollama' : 'which ollama';
+    await execAsync(findCmd);
     status.installed = true;
     console.log('[Ollama] ✓ Installed');
   } catch {

@@ -5,6 +5,7 @@ export interface OllamaStatus {
   running: boolean;
   hasVisionModel: boolean;
   availableModels: string[];
+  platform: string;
   error?: string;
 }
 
@@ -14,6 +15,7 @@ export function useOllama() {
     running: false,
     hasVisionModel: false,
     availableModels: [],
+    platform: '',
   });
   const [isChecking, setIsChecking] = useState(true);
   const [isInstalling, setIsInstalling] = useState(false);
