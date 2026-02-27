@@ -137,3 +137,9 @@ export function getAllTransactionTags(): Array<{ transaction_id: number; tag_id:
     INNER JOIN tags t ON t.id = tt.tag_id
   `).all() as Array<{ transaction_id: number; tag_id: number; tag_name: string; tag_color: string }>;
 }
+
+export function clearAllTagAssignments(): number {
+  const db = getDatabase();
+  const result = db.prepare('DELETE FROM transaction_tags').run();
+  return result.changes;
+}

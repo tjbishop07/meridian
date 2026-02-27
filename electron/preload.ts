@@ -156,6 +156,7 @@ const electronAPI: ElectronAPI = {
       'tags:get-transactions',
       'tags:get-all-transaction-tags',
       'tags:get-monthly-stats',
+      'tags:clear-all-assignments',
 
       // Receipts
       'receipt:start-server',

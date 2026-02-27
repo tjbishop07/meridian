@@ -133,6 +133,17 @@ export function registerTagHandlers(): void {
     }
   });
 
+  ipcMain.handle('tags:clear-all-assignments', async () => {
+    try {
+      const count = tagQueries.clearAllTagAssignments();
+      addLog('info', 'Tags', `Cleared all tag assignments — ${count} removed`);
+      return { count };
+    } catch (error) {
+      addLog('error', 'Tags', `Failed to clear all tag assignments: ${(error as Error).message}`);
+      throw error;
+    }
+  });
+
   ipcMain.handle('tags:auto-tag', async (event: IpcMainInvokeEvent) => {
     try {
       const allTags = tagQueries.getAllTags();
@@ -165,13 +176,14 @@ export function registerTagHandlers(): void {
       const db2 = getDatabase();
       const automationSettings = getAutomationSettings(db2);
       const promptTemplate = automationSettings.prompt_auto_tag || DEFAULT_AUTO_TAG_PROMPT;
+      const ollamaModel = automationSettings.auto_tag_model || 'llama3.2';
 
       const batchSize = 5;
       let tagged = 0;
       const total = allTransactions.length;
       const totalBatches = Math.ceil(total / batchSize);
 
-      addLog('info', 'Tags', `Auto-tag started — ${total} untagged transaction${total !== 1 ? 's' : ''}, ${allTags.length} tags available, ${totalBatches} batch${totalBatches !== 1 ? 'es' : ''}`);
+      addLog('info', 'Tags', `Auto-tag started — ${total} untagged transaction${total !== 1 ? 's' : ''}, ${allTags.length} tags available, ${totalBatches} batch${totalBatches !== 1 ? 'es' : ''} (model: ${ollamaModel})`);
       addLog('debug', 'Tags', `Tags: ${allTags.map(t => t.name).join(', ')}`);
       if (automationSettings.prompt_auto_tag) addLog('debug', 'Tags', 'Using custom auto-tag prompt from settings');
 
@@ -194,8 +206,9 @@ export function registerTagHandlers(): void {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              model: 'llama3.2',
+              model: ollamaModel,
               prompt,
+              format: 'json',
               stream: false,
               options: { temperature: 0.1, num_predict: 512 },
             }),

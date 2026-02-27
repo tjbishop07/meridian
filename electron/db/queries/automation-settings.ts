@@ -11,6 +11,7 @@ export interface AutomationSettings {
   scraping_prompt?: string;
   prompt_welcome?: string;
   prompt_auto_tag?: string;
+  auto_tag_model?: string;
 }
 
 /**
@@ -38,6 +39,7 @@ export function getAutomationSettings(db: Database.Database): AutomationSettings
     scraping_prompt: settings.scraping_prompt || '',
     prompt_welcome: settings.prompt_welcome || '',
     prompt_auto_tag: settings.prompt_auto_tag || '',
+    auto_tag_model: settings.auto_tag_model || 'llama3.2',
   };
 }
 

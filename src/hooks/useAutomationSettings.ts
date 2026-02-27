@@ -11,6 +11,7 @@ export interface AutomationSettings {
   scraping_prompt?: string;
   prompt_welcome?: string;
   prompt_auto_tag?: string;
+  auto_tag_model?: string;
 }
 
 export function useAutomationSettings() {
@@ -25,6 +26,7 @@ export function useAutomationSettings() {
     scraping_prompt: '',
     prompt_welcome: '',
     prompt_auto_tag: '',
+    auto_tag_model: 'llama3.2',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);

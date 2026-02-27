@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Sparkles, Trash2, X, Pencil, Tag } from 'lucide-react';
+import { Plus, Sparkles, Trash2, X, Pencil, Tag, TagsIcon } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ResponsiveBar } from '@nivo/bar';
 import { nivoTheme, tooltipStyle } from '../lib/nivoTheme';
@@ -17,6 +17,7 @@ import { PageSidebar } from '@/components/ui/PageSidebar';
 import { SunkenCard } from '@/components/ui/SunkenCard';
 import { SectionLabel } from '@/components/ui/SectionLabel';
 import { Skeleton } from '@/components/ui/skeleton';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import { usePageEntrance } from '../hooks/usePageEntrance';
 import { cn } from '@/lib/utils';
 
@@ -128,6 +129,7 @@ export default function Tags() {
   const [isNewTagOpen, setIsNewTagOpen] = useState(false);
   const [editingTag, setEditingTag] = useState<TagStat | null>(null);
   const [isAutoTagging, setIsAutoTagging] = useState(false);
+  const [isClearAllOpen, setIsClearAllOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
   const [monthlyData, setMonthlyData] = useState<TagMonthlyRow[]>([]);
@@ -201,6 +203,19 @@ export default function Tags() {
     setEditingTransaction(null);
   };
 
+  const handleClearAllTags = async () => {
+    try {
+      const result = await window.electron.invoke('tags:clear-all-assignments');
+      await loadStats();
+      setSelectedTagId(null);
+      setTagTransactions([]);
+      setIsClearAllOpen(false);
+      toast.success(`Cleared ${result.count} tag assignment${result.count !== 1 ? 's' : ''}`);
+    } catch {
+      toast.error('Failed to clear tag assignments');
+    }
+  };
+
   const handleAutoTag = async () => {
     setIsAutoTagging(true);
     const loadingToast = toast.loading('Auto-tagging transactions with AI…');
@@ -242,7 +257,7 @@ export default function Tags() {
       {/* ── Sidebar ── */}
       <PageSidebar title="Tags" className={sidebarClass}>
         {/* Actions */}
-        <div className="px-3 pt-3 pb-2 space-y-1 border-t border-border/40">
+        <div className="px-3 pt-3 pb-3 space-y-2 border-t border-border/40">
           <AccentButton className="w-full justify-center text-xs h-8" onClick={() => setIsNewTagOpen(true)}>
             <Plus className="w-3.5 h-3.5 mr-1.5" />
             New Tag
@@ -256,6 +271,16 @@ export default function Tags() {
           >
             <Sparkles className="w-3 h-3 mr-1.5" />
             {isAutoTagging ? 'Tagging…' : 'Auto-tag with AI'}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full text-xs text-muted-foreground/40 hover:text-destructive h-7"
+            onClick={() => setIsClearAllOpen(true)}
+            disabled={stats.length === 0}
+          >
+            <TagsIcon className="w-3 h-3 mr-1.5" />
+            Clear All Tags
           </Button>
         </div>
 
@@ -614,6 +639,15 @@ export default function Tags() {
           />
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={isClearAllOpen}
+        onConfirm={handleClearAllTags}
+        onCancel={() => setIsClearAllOpen(false)}
+        title="Clear All Tag Assignments?"
+        description="This will remove all tag assignments from every transaction. Your tag definitions will be kept, but no transactions will be tagged. This cannot be undone."
+        confirmLabel="Clear All"
+      />
     </div>
   );
 }

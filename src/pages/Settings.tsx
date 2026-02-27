@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit2, Trash2, Building2, Tag, Download, Database, Palette, ScanSearch, MessageSquare, Camera, Monitor } from 'lucide-react';
+import { Plus, Edit2, Trash2, Building2, Tag, Download, Database, Palette, ScanSearch, MessageSquare, Camera, Monitor, CheckCircle2, Circle, Loader2, RefreshCw, Brain, Key, CheckCircle, XCircle, Play } from 'lucide-react';
 import { PageSidebar } from '@/components/ui/PageSidebar';
 import { usePageEntrance } from '../hooks/usePageEntrance';
 import { useAccounts } from '../hooks/useAccounts';
 import { useCategories } from '../hooks/useCategories';
 import Modal from '../components/ui/Modal';
-import { ClaudeVisionTab } from '../components/automation/ClaudeVisionTab';
-import { LocalAITab } from '../components/automation/LocalAITab';
 import { useAutomationSettings } from '../hooks/useAutomationSettings';
+import { useOllama } from '../hooks/useOllama';
 import type { Account, Category } from '../types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -398,6 +397,337 @@ function PromptEditorTab({ settingKey, defaultPrompt, title, description, hint, 
   );
 }
 
+// ── AI Models section ─────────────────────────────────────────────────────────
+
+const CLAUDE_MODELS = [
+  { value: 'claude-sonnet-4-5-20250929', label: 'Claude Sonnet 4.5 (Latest — Recommended)' },
+  { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet (Oct 2024)' },
+  { value: 'claude-3-opus-20240229',     label: 'Claude 3 Opus (Most Capable)' },
+  { value: 'claude-3-sonnet-20240229',   label: 'Claude 3 Sonnet (Balanced)' },
+  { value: 'claude-3-haiku-20240307',    label: 'Claude 3 Haiku (Fastest)' },
+];
+
+const LOCAL_MODELS = [
+  {
+    id: 'llama3.2',
+    label: 'Llama 3.2 · 3B',
+    size: '2.0 GB',
+    speed: 'Fastest',
+    rec: false,
+    why: 'The default. Fast and lightweight, but misses nuanced tags and sometimes produces malformed JSON.',
+  },
+  {
+    id: 'llama3.1:8b',
+    label: 'Llama 3.1 · 8B',
+    size: '4.9 GB',
+    speed: 'Fast',
+    rec: true,
+    why: 'Recommended upgrade. Significantly better instruction-following, consistent JSON output, and stronger understanding of financial context.',
+  },
+  {
+    id: 'qwen2.5:7b',
+    label: 'Qwen 2.5 · 7B',
+    size: '4.7 GB',
+    speed: 'Fast',
+    rec: false,
+    why: 'Best-in-class structured JSON output. Ideal if you have many tags with similar descriptions that need precise differentiation.',
+  },
+  {
+    id: 'mistral',
+    label: 'Mistral · 7B',
+    size: '4.1 GB',
+    speed: 'Fast',
+    rec: false,
+    why: 'Strong general reasoning with a slightly smaller footprint. A solid alternative if disk space is a concern.',
+  },
+];
+
+function AIModelsSection() {
+  const { settings, loading, saving, updateSettings } = useAutomationSettings();
+  const { status, isChecking, isPulling, pullingModel, pullPercentage, pullStatus, checkStatus, pullModel, startServer } = useOllama();
+  const [aiTab, setAiTab] = useState<'claude' | 'local' | 'vision'>('claude');
+  const [isStartingServer, setIsStartingServer] = useState(false);
+
+  const currentModel = settings.auto_tag_model || 'llama3.2';
+
+  const isInstalled = (modelId: string) => {
+    const base = modelId.split(':')[0];
+    return status.availableModels.some(m => m === modelId || m.split(':')[0] === base);
+  };
+
+  const isActive = (modelId: string) => {
+    const base = modelId.split(':')[0];
+    return currentModel === modelId || currentModel.split(':')[0] === base;
+  };
+
+  const handleStartServer = async () => {
+    setIsStartingServer(true);
+    try { await startServer(); } finally { setIsStartingServer(false); }
+  };
+
+  const visionProviders = [
+    { value: 'claude', label: 'Claude Vision AI', description: 'Best accuracy. Reads pages like a human — resilient to site changes. Requires a Claude API key (configure in the Claude tab).' },
+    { value: 'ollama', label: 'Local Ollama',      description: 'Free and private. Uses your selected local model. Requires Ollama running with a vision-capable model.' },
+    { value: 'none',   label: 'Disabled',          description: 'DOM parsing only — no AI. Faster but breaks easily when bank websites change.' },
+  ] as const;
+
+  return (
+    <div>
+      {/* Tab bar */}
+      <div className="flex border-b border-border mb-6 -mx-6 px-6">
+        {([
+          { key: 'claude' as const, label: 'Claude' },
+          { key: 'local'  as const, label: 'Local Models' },
+          { key: 'vision' as const, label: 'Vision' },
+        ]).map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setAiTab(tab.key)}
+            className={cn(
+              'px-4 py-2 text-sm font-medium -mb-px border-b-2 transition-colors',
+              aiTab === tab.key
+                ? 'text-primary border-primary'
+                : 'text-muted-foreground border-transparent hover:text-foreground'
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Claude tab ── */}
+      {aiTab === 'claude' && (
+        <div className="border border-border rounded-lg p-6 space-y-5">
+          <div>
+            <h3 className="text-sm font-semibold text-foreground mb-0.5">Claude API</h3>
+            <p className="text-sm text-muted-foreground">
+              Used for vision-based scraping. Provides the highest accuracy for reading bank pages.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">API Key</label>
+            <div className="flex gap-2">
+              <Input
+                type="password"
+                value={settings.claude_api_key}
+                onChange={(e) => updateSettings({ claude_api_key: e.target.value })}
+                placeholder="sk-ant-api..."
+                className="flex-1 font-mono"
+              />
+              {saving && <div className="flex items-center px-3 text-success"><CheckCircle className="w-4 h-4" /></div>}
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              Get your key at{' '}
+              <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                console.anthropic.com
+              </a>
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">Model</label>
+            <select
+              value={settings.claude_model || 'claude-sonnet-4-5-20250929'}
+              onChange={(e) => updateSettings({ claude_model: e.target.value })}
+              className={selectClass}
+            >
+              {CLAUDE_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
+
+          {settings.claude_api_key ? (
+            <div className="flex items-center gap-2.5 p-3 rounded-lg bg-success/10 border border-success/20">
+              <CheckCircle className="w-4 h-4 text-success shrink-0" />
+              <p className="text-xs text-success font-medium">Claude API configured</p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2.5 p-3 rounded-lg bg-warning/10 border border-warning/20">
+              <XCircle className="w-4 h-4 text-warning shrink-0" />
+              <p className="text-xs text-warning">Add an API key above to enable Claude vision scraping</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Local Models tab ── */}
+      {aiTab === 'local' && (
+        <div className="border border-border rounded-lg p-6">
+          <div className="flex items-start justify-between mb-1">
+            <div>
+              <h3 className="text-sm font-semibold text-foreground mb-0.5">Local Models (Ollama)</h3>
+              <p className="text-sm text-muted-foreground">
+                Used for auto-tagging and the welcome message. Free, private, runs on your machine.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 ml-4 shrink-0">
+              {status.installed && !status.running && (
+                <Button size="sm" variant="outline" onClick={handleStartServer} disabled={isStartingServer} className="h-7 text-xs gap-1.5">
+                  {isStartingServer ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                  Start Ollama
+                </Button>
+              )}
+              <button onClick={checkStatus} disabled={isChecking} className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                <RefreshCw className={cn('w-3 h-3', isChecking && 'animate-spin')} />
+                Refresh
+              </button>
+            </div>
+          </div>
+
+          {!status.installed && (
+            <div className="my-4 p-3 rounded-lg bg-muted/60 border border-border text-xs text-muted-foreground">
+              Ollama is not installed.{' '}
+              <a href="https://ollama.com/download" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Download Ollama</a>{' '}
+              to use local AI features.
+            </div>
+          )}
+          {status.installed && !status.running && (
+            <div className="my-4 p-3 rounded-lg bg-warning/10 border border-warning/20 text-xs text-warning">
+              Ollama is installed but not running. Click "Start Ollama" above, or run <code className="font-mono">ollama serve</code> in your terminal.
+            </div>
+          )}
+
+          <div className="space-y-2 mt-4">
+            {LOCAL_MODELS.map((model) => {
+              const installed = isInstalled(model.id);
+              const active = isActive(model.id);
+              const downloading = isPulling && pullingModel === model.id;
+              return (
+                <div
+                  key={model.id}
+                  className={cn(
+                    'rounded-lg border p-4 transition-colors',
+                    active ? 'border-primary/40 bg-primary/5' : 'border-border bg-background/50'
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="mt-0.5 shrink-0">
+                      {active ? <CheckCircle2 className="w-4 h-4 text-primary" /> : <Circle className="w-4 h-4 text-muted-foreground/30" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
+                        <span className="text-sm font-semibold text-foreground">{model.label}</span>
+                        {model.rec && <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-primary/15 text-primary rounded">Recommended</span>}
+                        {installed && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-success/15 text-success rounded">Installed</span>}
+                        {active && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-primary/10 text-primary rounded">Active</span>}
+                      </div>
+                      <div className="flex gap-3 text-xs text-muted-foreground/60 mb-2">
+                        <span>{model.size}</span><span>·</span><span>{model.speed}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{model.why}</p>
+                      {downloading && (
+                        <div className="mt-3 space-y-1.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground">{pullStatus}</span>
+                            <span className="font-medium tabular-nums">{pullPercentage}%</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${pullPercentage}%` }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="shrink-0 ml-2">
+                      {installed ? (
+                        !active && (
+                          <Button size="sm" variant="outline" onClick={() => updateSettings({ auto_tag_model: model.id })} disabled={loading} className="h-7 text-xs">Use</Button>
+                        )
+                      ) : (
+                        <Button size="sm" onClick={() => pullModel(model.id)} disabled={downloading || !status.running} className="h-7 text-xs gap-1.5">
+                          {downloading ? <><Loader2 className="w-3 h-3 animate-spin" />Downloading</> : <><Download className="w-3 h-3" />Download</>}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="text-xs text-muted-foreground/40 mt-3">
+            Models are stored by Ollama. 8B models require ~5–8 GB free disk space.
+          </p>
+        </div>
+      )}
+
+      {/* ── Vision tab ── */}
+      {aiTab === 'vision' && (
+        <div className="border border-border rounded-lg p-6">
+          <div className="mb-5">
+            <h3 className="text-sm font-semibold text-foreground mb-0.5">Vision Provider</h3>
+            <p className="text-sm text-muted-foreground">
+              Choose which AI reads bank pages during automated scraping.
+            </p>
+          </div>
+          <div className="space-y-2">
+            {visionProviders.map((p) => (
+              <button
+                key={p.value}
+                onClick={() => updateSettings({ vision_provider: p.value as any })}
+                disabled={loading}
+                className={cn(
+                  'w-full text-left rounded-lg border p-4 transition-colors',
+                  settings.vision_provider === p.value
+                    ? 'border-primary/40 bg-primary/5'
+                    : 'border-border bg-background/50 hover:border-border/80'
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="mt-0.5 shrink-0">
+                    {settings.vision_provider === p.value
+                      ? <CheckCircle2 className="w-4 h-4 text-primary" />
+                      : <Circle className="w-4 h-4 text-muted-foreground/30" />
+                    }
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{p.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{p.description}</p>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScrapingRetrySettings() {
+  const { settings, updateSettings } = useAutomationSettings();
+
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-foreground mb-1">Error Recovery</h3>
+      <p className="text-sm text-muted-foreground mb-4">
+        How the scraper handles failures during automation playback.
+      </p>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">Retry Attempts</label>
+          <select value={settings.retry_attempts} onChange={(e) => updateSettings({ retry_attempts: Number(e.target.value) })} className={selectClass}>
+            <option value="1">1 — No retries</option>
+            <option value="2">2</option>
+            <option value="3">3 — Recommended</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+          </select>
+          <p className="mt-1 text-xs text-muted-foreground">Times to retry a failed step</p>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">Retry Delay</label>
+          <select value={settings.retry_delay_ms} onChange={(e) => updateSettings({ retry_delay_ms: Number(e.target.value) })} className={selectClass}>
+            <option value="1000">1 second</option>
+            <option value="2000">2 seconds — Recommended</option>
+            <option value="3000">3 seconds</option>
+            <option value="5000">5 seconds</option>
+          </select>
+          <p className="mt-1 text-xs text-muted-foreground">Base delay (uses exponential backoff)</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Receipt settings components ──────────────────────────────────────────────
 function ReceiptModelTab() {
   const [aiModel, setAiModel] = useState('ollama');
@@ -619,8 +949,7 @@ export default function Settings() {
   const [clearStatus, setClearStatus] = useState<string | null>(null);
   const [showClearCategoriesConfirm, setShowClearCategoriesConfirm] = useState(false);
   const [clearCategoriesStatus, setClearCategoriesStatus] = useState<string | null>(null);
-  const [scrapingTab, setScrapingTab] = useState<'claude' | 'ollama' | 'prompt'>('claude');
-  const [promptsTab, setPromptsTab] = useState<'welcome' | 'auto_tag'>('welcome');
+  const [promptsTab, setPromptsTab] = useState<'welcome' | 'auto_tag'>('auto_tag');
   const [receiptTab, setReceiptTab] = useState<'model' | 'prompt'>('model');
   const [launchAtLogin, setLaunchAtLogin] = useState(false);
   const { sidebarClass, contentClass } = usePageEntrance();
@@ -840,9 +1169,10 @@ export default function Settings() {
 
   const SECTIONS = [
     { id: 'system',          Icon: Monitor,         label: 'System' },
-    { id: 'appearance',      Icon: Palette,        label: 'Appearance' },
+    { id: 'appearance',      Icon: Palette,         label: 'Appearance' },
     { id: 'accounts',        Icon: Building2,       label: 'Accounts' },
     { id: 'categories',      Icon: Tag,             label: 'Categories' },
+    { id: 'ai_models',       Icon: Brain,           label: 'AI Models' },
     { id: 'scraping',        Icon: ScanSearch,      label: 'Scraping' },
     { id: 'prompts',         Icon: MessageSquare,   label: 'Prompts' },
     { id: 'receipt_scanning', Icon: Camera,         label: 'Receipts' },
@@ -1152,47 +1482,39 @@ export default function Settings() {
           id="scraping"
           icon={<ScanSearch className="w-4 h-4" />}
           title="Scraping"
+          subtitle="Configure how automated browser scraping reads your bank pages"
         >
-          {/* Inner tab bar */}
-          <div className="flex border-b border-border mb-6 -mx-6 px-6">
-            {([
-              { key: 'claude' as const, label: 'Claude Vision AI' },
-              { key: 'ollama' as const, label: 'Local AI (Ollama)' },
-              { key: 'prompt' as const, label: 'Prompt' },
-            ]).map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setScrapingTab(tab.key)}
-                className={cn(
-                  'px-4 py-2 text-sm font-medium -mb-px border-b-2 transition-colors',
-                  scrapingTab === tab.key
-                    ? 'text-primary border-primary'
-                    : 'text-muted-foreground border-transparent hover:text-foreground'
-                )}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-          {scrapingTab === 'claude' && <ClaudeVisionTab />}
-          {scrapingTab === 'ollama' && <LocalAITab />}
-          {scrapingTab === 'prompt' && (
-            <PromptEditorTab
-              settingKey="scraping_prompt"
-              defaultPrompt={DEFAULT_SCRAPING_PROMPT}
-              title="Scraping Prompt"
-              description="Customize the prompt sent to the AI when scraping transactions. Edit it to fine-tune extraction for your specific bank."
-              hint={
-                <p className="text-xs text-muted-foreground">
-                  The prompt must instruct the AI to return a JSON array with fields:
-                  {['date', 'description', 'amount', 'balance', 'category', 'confidence'].map((f) => (
-                    <code key={f} className="mx-1 px-1 py-0.5 bg-muted rounded text-xs font-mono">{f}</code>
-                  ))}
-                </p>
-              }
-              rows={18}
-            />
-          )}
+          {/* Retry settings */}
+          <ScrapingRetrySettings />
+
+          <div className="border-t border-border/40 my-6" />
+
+          {/* Prompt */}
+          <PromptEditorTab
+            settingKey="scraping_prompt"
+            defaultPrompt={DEFAULT_SCRAPING_PROMPT}
+            title="Scraping Prompt"
+            description="Customize the prompt sent to the AI when scraping transactions."
+            hint={
+              <p className="text-xs text-muted-foreground">
+                The prompt must instruct the AI to return a JSON array with fields:
+                {['date', 'description', 'amount', 'balance', 'category', 'confidence'].map((f) => (
+                  <code key={f} className="mx-1 px-1 py-0.5 bg-muted rounded text-xs font-mono">{f}</code>
+                ))}
+              </p>
+            }
+            rows={18}
+          />
+        </Section>
+
+        {/* ── AI Models ── */}
+        <Section
+          id="ai_models"
+          icon={<Brain className="w-4 h-4" />}
+          title="AI Models"
+          subtitle="Configure cloud and local AI services used throughout the app"
+        >
+          <AIModelsSection />
         </Section>
 
         {/* ── Prompts ── */}
@@ -1204,8 +1526,8 @@ export default function Settings() {
         >
           <div className="flex border-b border-border mb-6 -mx-6 px-6">
             {([
-              { key: 'welcome' as const, label: 'Welcome Message' },
               { key: 'auto_tag' as const, label: 'Auto-tag' },
+              { key: 'welcome' as const, label: 'Welcome Message' },
             ]).map((tab) => (
               <button
                 key={tab.key}
