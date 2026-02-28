@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Upload, FileText, CheckCircle, AlertCircle, Check, Plus, X, ArrowRight, RotateCcw, Cpu, Sparkles, Play, Clock, Loader2, Calendar } from 'lucide-react';
+import { Upload, FileText, CheckCircle, AlertCircle, Check, Plus, X, ArrowRight, RotateCcw, Play, Clock, Loader2, Calendar } from 'lucide-react';
 import { useAccounts } from '../hooks/useAccounts';
 import { Automation, type AutomationHandle } from './Automation';
-import { useAutomationSettings } from '../hooks/useAutomationSettings';
 import type { CSVFormat, ImportPreview, ImportResult } from '../types';
 import { Button } from '@/components/ui/button';
 import { AccentButton } from '@/components/ui/accent-button';
@@ -51,24 +50,8 @@ const STEPS = [
   { key: 'complete', label: 'Complete' },
 ] as const;
 
-const MODEL_OPTIONS = [
-  {
-    value: 'claude' as const,
-    label: 'Claude',
-    description: 'Anthropic API',
-    Icon: Sparkles,
-  },
-  {
-    value: 'ollama' as const,
-    label: 'Ollama',
-    description: 'On-device',
-    Icon: Cpu,
-  },
-];
-
 export default function Import() {
   const { accounts, loadAccounts } = useAccounts();
-  const { settings: automationSettings, updateSettings: updateAutomationSettings } = useAutomationSettings();
   const automationRef = useRef<AutomationHandle>(null);
   const location = useLocation();
 
@@ -238,52 +221,6 @@ export default function Import() {
             <Plus className="w-3.5 h-3.5 shrink-0" />
             New Recording
           </Button>
-        </div>
-
-        <div className="mx-3 border-t border-border/40" />
-
-        {/* Vision Model — tile selector */}
-        <div className="px-3 pt-4 pb-4">
-          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35 mb-2.5 px-0.5">
-            Vision Model
-          </p>
-          <div className="grid grid-cols-2 gap-1.5">
-            {MODEL_OPTIONS.map(({ value, label, description, Icon }) => {
-              const isActive = automationSettings.vision_provider === value;
-              return (
-                <button
-                  key={value}
-                  onClick={() => updateAutomationSettings({ vision_provider: value })}
-                  className={cn(
-                    'relative flex flex-col items-center gap-2 px-2 py-3 rounded-xl text-center transition-all duration-150',
-                    'border',
-                    isActive
-                      ? 'bg-primary/10 border-primary/30 text-primary'
-                      : 'border-border/50 text-muted-foreground hover:text-foreground hover:border-border/80 hover:bg-muted/20'
-                  )}
-                >
-                  <div className={cn(
-                    'w-8 h-8 rounded-lg flex items-center justify-center transition-colors',
-                    isActive ? 'bg-primary/15' : 'bg-muted/50'
-                  )}>
-                    <Icon className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-semibold leading-none mb-0.5">{label}</p>
-                    <p className={cn(
-                      'text-[9px] leading-none',
-                      isActive ? 'text-primary/55' : 'text-muted-foreground/45'
-                    )}>
-                      {description}
-                    </p>
-                  </div>
-                  {isActive && (
-                    <div className="absolute top-2 right-2 w-1.5 h-1.5 rounded-full bg-primary" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         <div className="mx-3 border-t border-border/40" />
