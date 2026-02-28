@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [master]
+
+# Cancel in-progress runs on new push, but never cancel a release mid-flight
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install (skip electron-rebuild and other native build scripts)
+        run: pnpm install --ignore-scripts
+
+      - name: Rebuild better-sqlite3 for system Node.js
+        run: node scripts/rebuild-for-node.mjs
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit --project tsconfig.json
+
+      - name: Run tests
+        run: pnpm test:ci
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+
+  release:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pnpm install --ignore-scripts
+
+      - name: Build
+        run: pnpm run copy-preload && pnpm exec vite build
+
+      - name: Publish
+        run: pnpm exec electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
