@@ -197,7 +197,6 @@ async function executeHTMLScrape() {
 
     // Get the page HTML
     const html = await scraperWindow.webContents.executeJavaScript('document.documentElement.outerHTML');
-    const url = scraperWindow.webContents.getURL();
 
     console.log('[AI Scraper HTML] HTML length:', html.length);
     console.log('[AI Scraper HTML] Calling Ollama...');

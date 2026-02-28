@@ -477,7 +477,7 @@ app.whenReady().then(async () => {
     initOllama().catch(console.error);
 
     // Initialize database
-    const db = initDatabase();
+    initDatabase();
 
     // Register IPC handlers
     registerTransactionHandlers();

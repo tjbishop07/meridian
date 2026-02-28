@@ -6,13 +6,12 @@
  */
 
 import { ipcMain, BrowserWindow } from 'electron';
-import type { PlaybackState, RecordingStep, ScrapedTransaction } from './types';
+import type { PlaybackState, RecordingStep } from './types';
 import { executeStep, resetPageTracking } from './playback';
 import { scrapeTransactions } from './scraper';
-import { cleanTransactionsWithAI, ensureOllamaRunning } from './ai-cleanup';
 import { registerRecordingHandlers, setMainWindow as setBrowserViewMainWindow } from '../automation-browserview';
 import { getDatabase } from '../../db';
-import { getAutomationSettings, setAutomationSetting } from '../../db/queries/automation-settings';
+import { setAutomationSetting } from '../../db/queries/automation-settings';
 import { addLog } from '../logs';
 import { start, stop, getStatus, runAllNow, INTERVAL_TO_CRON } from './scheduler';
 

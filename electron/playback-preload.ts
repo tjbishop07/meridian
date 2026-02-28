@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge } from 'electron';
 
 // Inject playback progress overlay
 window.addEventListener('DOMContentLoaded', () => {

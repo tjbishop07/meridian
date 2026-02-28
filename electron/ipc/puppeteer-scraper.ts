@@ -10,12 +10,11 @@ const execAsync = promisify(exec);
 
 let activeBrowser: Browser | null = null;
 let activePage: Page | null = null;
-let mainWindow: BrowserWindow | null = null;
 let isRecording = false;
 let recordedSteps: any[] = [];
 
-export function setMainWindow(window: BrowserWindow) {
-  mainWindow = window;
+export function setMainWindow(_window: BrowserWindow) {
+  // Reserved for future use
 }
 
 // Get Chrome user data directory - use a dedicated automation profile

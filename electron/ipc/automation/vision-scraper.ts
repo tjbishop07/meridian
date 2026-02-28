@@ -472,7 +472,7 @@ async function extractTransactionsWithOllama(
  * Handle pagination if the bank shows transactions across multiple pages
  * This is a placeholder for future enhancement
  */
-async function handlePagination(window: BrowserWindow): Promise<boolean> {
+export async function handlePagination(window: BrowserWindow): Promise<boolean> {
   // Check if there's a "Next" or "Load More" button
   const hasNextPage = await window.webContents.executeJavaScript(`
     (function() {

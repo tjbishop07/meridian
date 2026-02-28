@@ -1,7 +1,6 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import * as tagQueries from '../db/queries/tags';
 import { addLog } from './logs';
-import { getDatabase } from '../db';
 import { getAutomationSettings } from '../db/queries/automation-settings';
 
 export const DEFAULT_AUTO_TAG_PROMPT =

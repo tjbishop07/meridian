@@ -1,7 +1,6 @@
-import { ipcMain, BrowserWindow, BrowserView, dialog, Notification } from 'electron';
+import { ipcMain, BrowserWindow, BrowserView, Notification } from 'electron';
 import path from 'path';
 import os from 'os';
-import { detectFormat } from '../services/csv-detector';
 
 let recorderWindow: BrowserWindow | null = null;
 let browserView: BrowserView | null = null;
@@ -336,7 +335,7 @@ export function registerRecorderHandlers(): void {
       // recorderWindow.webContents.openDevTools();
 
       // Listen for downloads and auto-import CSV files
-      recorderWindow.webContents.session.on('will-download', async (event, item, webContents) => {
+      recorderWindow.webContents.session.on('will-download', async (_event, item, _webContents) => {
         const fileName = item.getFilename();
         const fileExtension = path.extname(fileName).toLowerCase();
 
@@ -349,7 +348,7 @@ export function registerRecorderHandlers(): void {
           item.setSavePath(savePath);
 
           // When download completes, trigger auto-import
-          item.once('done', async (event, state) => {
+          item.once('done', async (_event, state) => {
             if (state === 'completed') {
               console.log('[Recorder] CSV download completed:', savePath);
 
@@ -397,7 +396,7 @@ export function registerRecorderHandlers(): void {
       });
 
       // Handle full page navigation
-      recorderWindow.webContents.on('did-navigate', async (event, url) => {
+      recorderWindow.webContents.on('did-navigate', async (_event, url) => {
         console.log('[Recorder] Full navigation detected:', url);
         // Wait for page to be ready
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -415,14 +414,14 @@ export function registerRecorderHandlers(): void {
       });
 
       // Listen for console messages from the page (for debugging)
-      recorderWindow.webContents.on('console-message', (event, level, message) => {
+      recorderWindow.webContents.on('console-message', (_event, _level, message) => {
         if (message.includes('[Recorder]')) {
           console.log('[Recorder Page]', message);
         }
       });
 
       // Capture interactions and send to main window
-      recorderWindow.webContents.on('console-message', (event, level, message) => {
+      recorderWindow.webContents.on('console-message', (_event, _level, message) => {
         // Try to parse recorder interactions from console
         if (message.startsWith('[Recorder]') && message.includes('{')) {
           try {
@@ -515,7 +514,7 @@ export function registerRecorderHandlers(): void {
       });
 
       // Listen for downloads
-      browserView.webContents.session.on('will-download', async (event, item, webContents) => {
+      browserView.webContents.session.on('will-download', async (_event, item, _webContents) => {
         const fileName = item.getFilename();
         const fileExtension = path.extname(fileName).toLowerCase();
 
@@ -525,7 +524,7 @@ export function registerRecorderHandlers(): void {
           const savePath = path.join(os.homedir(), 'Downloads', fileName);
           item.setSavePath(savePath);
 
-          item.once('done', async (event, state) => {
+          item.once('done', async (_event, state) => {
             if (state === 'completed') {
               console.log('[Browser] CSV download completed:', savePath);
 
@@ -556,16 +555,16 @@ export function registerRecorderHandlers(): void {
         mainWindow.webContents.send('browser:loading', false);
       });
 
-      browserView.webContents.on('did-navigate', (event, url) => {
+      browserView.webContents.on('did-navigate', (_event, url) => {
         mainWindow.webContents.send('browser:url-changed', url);
       });
 
-      browserView.webContents.on('did-navigate-in-page', (event, url) => {
+      browserView.webContents.on('did-navigate-in-page', (_event, url) => {
         mainWindow.webContents.send('browser:url-changed', url);
       });
 
       // Handle navigation errors
-      browserView.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
+      browserView.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
         // Ignore errors for cancelled loads or user navigating away
         if (errorCode === -3 || errorCode === -2) {
           console.log('[Browser] Load cancelled or failed:', validatedURL);
@@ -821,7 +820,7 @@ export function registerRecorderHandlers(): void {
       };
 
       // Listen for interactions via console messages
-      const consoleListener = (event: any, level: number, message: string) => {
+      const consoleListener = (_event: any, _level: number, message: string) => {
         if (message.startsWith('debug:evt:') && message.includes('{')) {
           try {
             const jsonStart = message.indexOf('{');

@@ -4,7 +4,7 @@ export interface Tag {
   id: number;
   name: string;
   color: string;
-  description: string | null;
+  description?: string | null;
   created_at: string;
 }
 
@@ -98,7 +98,7 @@ export interface Goal {
   // Joined/computed fields
   category_name?: string;
   progress?: number;
-  days_remaining?: number;
+  days_remaining?: number | null;
 }
 
 export interface GoalContribution {
@@ -213,8 +213,8 @@ export interface GoalInput {
   name: string;
   target_amount: number;
   current_amount?: number;
-  target_date?: string;
-  category_id?: number;
+  target_date?: string | null;
+  category_id?: number | null;
   notes?: string;
 }
 
@@ -301,6 +301,8 @@ export interface DashboardData {
   currentMonth: MonthlyStats;
   previousMonth: MonthlyStats;
   topExpenseCategories: CategoryBreakdown[];
+  prevMonthCategories?: CategoryBreakdown[];
+  topTransactions?: Transaction[];
   upcomingBills: Array<Bill & { days_until_due: number }>;
   budgetProgress: Array<Budget & { spent: number; remaining: number; percentage: number }>;
   goalProgress: Array<Goal & { progress: number }>;
@@ -384,7 +386,7 @@ export interface ElectronAPI {
   // Categories
   invoke(channel: 'categories:get-all'): Promise<Category[]>;
   invoke(channel: 'categories:get-tree'): Promise<Category[]>;
-  invoke(channel: 'categories:create', data: Omit<Category, 'id' | 'created_at'>): Promise<Category>;
+  invoke(channel: 'categories:create', data: Omit<Category, 'id' | 'created_at'>): Promise<number>;
   invoke(channel: 'categories:update', data: Partial<Category> & { id: number }): Promise<Category>;
   invoke(channel: 'categories:delete', id: number): Promise<void>;
 
@@ -400,7 +402,8 @@ export interface ElectronAPI {
   invoke(channel: 'goals:create', data: GoalInput): Promise<Goal>;
   invoke(channel: 'goals:update', data: Partial<GoalInput> & { id: number }): Promise<Goal>;
   invoke(channel: 'goals:delete', id: number): Promise<void>;
-  invoke(channel: 'goals:add-contribution', data: { goal_id: number; amount: number; date?: string; notes?: string }): Promise<GoalContribution>;
+  invoke(channel: 'goals:add-contribution', data: { goal_id?: number; goalId?: number; amount: number; date?: string; notes?: string }): Promise<GoalContribution>;
+  invoke(channel: 'goals:get-contributions', goalId: number): Promise<GoalContribution[]>;
 
   // Bills
   invoke(channel: 'bills:get-all', activeOnly?: boolean): Promise<Bill[]>;
@@ -438,7 +441,7 @@ export interface ElectronAPI {
   invoke(channel: 'browser:forward'): Promise<{ success: boolean }>;
   invoke(channel: 'browser:reload'): Promise<{ success: boolean }>;
   invoke(channel: 'browser:start-recording'): Promise<{ success: boolean }>;
-  invoke(channel: 'browser:stop-recording'): Promise<{ success: boolean; recording?: any }>;
+  invoke(channel: 'browser:stop-recording'): Promise<{ success: boolean; recording?: any; error?: string }>;
   invoke(channel: 'browser:execute-step', step: any): Promise<{ success: boolean; error?: string }>;
   invoke(channel: 'browser:prompt-sensitive-input', label: string, stepNumber: number, totalSteps: number): Promise<string>;
 
@@ -465,14 +468,31 @@ export interface ElectronAPI {
   invoke(channel: 'puppeteer:close-browser'): Promise<{ success: boolean; error?: string }>;
 
   // Ollama
-  invoke(channel: 'ollama:check-status'): Promise<{ installed: boolean; running: boolean; hasVisionModel: boolean; availableModels: string[]; error?: string }>;
+  invoke(channel: 'ollama:check-status'): Promise<{ installed: boolean; running: boolean; hasVisionModel: boolean; availableModels: string[]; platform: string; error?: string }>;
   invoke(channel: 'ollama:check-homebrew'): Promise<{ installed: boolean }>;
+  invoke(channel: 'ollama:check-winget'): Promise<{ installed: boolean }>;
   invoke(channel: 'ollama:open-homebrew-install'): Promise<void>;
   invoke(channel: 'ollama:install'): Promise<{ success: boolean; error?: string }>;
   invoke(channel: 'ollama:start-server'): Promise<{ success: boolean; error?: string }>;
   invoke(channel: 'ollama:pull-model', modelName: string): Promise<{ success: boolean; error?: string }>;
   invoke(channel: 'ollama:open-download-page'): Promise<void>;
   invoke(channel: 'ollama:generate', data: { model: string; prompt: string; stream?: boolean }): Promise<{ success: boolean; response?: string; error?: string }>;
+
+  // Logs
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  invoke(channel: 'logs:get-all'): Promise<any[]>;
+  invoke(channel: 'logs:clear'): Promise<void>;
+
+  // Automation Settings
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  invoke(channel: 'automation-settings:get-all'): Promise<any>;
+  invoke(channel: 'automation-settings:update', data: Record<string, string>): Promise<void>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  invoke(channel: 'automation-settings:set', key: string, value: any): Promise<void>;
+
+  // App lifecycle
+  invoke(channel: 'app:restart-now'): Promise<void>;
+  invoke(channel: 'app:get-version'): Promise<string>;
 
   // Tags
   invoke(channel: 'tags:get-all'): Promise<Tag[]>;
@@ -504,6 +524,10 @@ export interface ElectronAPI {
   // Scraper
   invoke(channel: 'scraper:open-browser', options: { accountId: number; startUrl: string }): Promise<{ success: boolean; error?: string }>;
 
+  // Fallback for channels not yet typed above — returns any to avoid TS2769 on valid calls
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  invoke(channel: string, ...args: any[]): Promise<any>;
+
   // Event listeners
   on(channel: 'csv:downloaded', callback: (data: { filePath: string; fileName: string }) => void): void;
   on(channel: 'recorder:interaction', callback: (interaction: any) => void): void;
@@ -520,6 +544,15 @@ export interface ElectronAPI {
   on(channel: 'receipt:uploaded', callback: (data: { receiptId: number; extractedData: ReceiptData | null }) => void): void;
   on(channel: 'receipt:analysis-progress', callback: (data: { step: string; imageDataUrl?: string }) => void): void;
   on(channel: 'receipt:error', callback: (data: { message: string }) => void): void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  on(channel: 'logs:new-entry', callback: (entry: any) => void): void;
+  on(channel: 'app:update-checking', callback: () => void): void;
+  on(channel: 'app:update-available', callback: (version: string) => void): void;
+  on(channel: 'app:update-progress', callback: (percent: number) => void): void;
+  on(channel: 'app:update-restart-pending', callback: (version: string) => void): void;
+  on(channel: 'app:update-not-available', callback: () => void): void;
+  on(channel: 'app:update-error', callback: (message: string) => void): void;
+  on(channel: 'automation:progress', callback: (data: any) => void): void;
   removeListener(channel: string, callback: (...args: any[]) => void): void;
 }
 

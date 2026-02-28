@@ -287,7 +287,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const recordBtn = document.getElementById('record-btn');
   const stopBtn = document.getElementById('stop-recording-btn');
   const statusText = document.getElementById('recording-text');
-  const indicator = document.getElementById('recording-indicator');
+  const _indicator = document.getElementById('recording-indicator');
 
   recordBtn?.addEventListener('click', async () => {
     isRecording = !isRecording;

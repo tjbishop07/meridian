@@ -232,7 +232,7 @@ async function executeClickStep(window: BrowserWindow, identification: ElementId
 /**
  * Execute click using coordinate-based mouse events (for cross-origin iframes)
  */
-async function executeClickWithCoordinates(
+export async function executeClickWithCoordinates(
   window: BrowserWindow,
   identification: ElementIdentification
 ): Promise<void> {

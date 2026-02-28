@@ -177,8 +177,8 @@ export default function Analytics() {
               useMesh
               tooltip={({ point }) => (
                 <div style={tooltipStyle}>
-                  <span style={{ color: point.serieColor, marginRight: 6 }}>●</span>
-                  <strong>{point.serieId}</strong>:{' '}
+                  <span style={{ color: point.seriesColor, marginRight: 6 }}>●</span>
+                  <strong>{point.seriesId}</strong>:{' '}
                   ${(point.data.y as number).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
               )}

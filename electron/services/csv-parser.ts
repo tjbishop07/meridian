@@ -115,7 +115,7 @@ function parseRow(row: any, format: CSVFormat): ParsedCSVRow | null {
   };
 }
 
-function parseDateString(dateStr: string, dateFormat: string): string {
+function parseDateString(dateStr: string, _dateFormat: string): string {
   // Try various date formats
   const formats = [
     'yyyy-MM-dd',

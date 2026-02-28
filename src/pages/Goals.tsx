@@ -295,7 +295,7 @@ export default function Goals() {
                           <div className="flex items-center gap-1">
                             <Calendar className="w-4 h-4" />
                             <span>{format(new Date(goal.target_date), 'MMM d, yyyy')}</span>
-                            {goal.days_remaining !== null && (
+                            {goal.days_remaining != null && (
                               <span className={goal.days_remaining < 0 ? 'text-destructive font-medium' : goal.days_remaining < 30 ? 'text-warning font-medium' : ''}>
                                 ({goal.days_remaining < 0 ? 'overdue' : `${goal.days_remaining} days left`})
                               </span>

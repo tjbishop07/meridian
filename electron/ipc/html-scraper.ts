@@ -1,10 +1,4 @@
-import { ipcMain, BrowserWindow } from 'electron';
-
-let mainWindow: BrowserWindow | null = null;
-
-export function setMainWindow(window: BrowserWindow) {
-  mainWindow = window;
-}
+import { ipcMain } from 'electron';
 
 export function registerHTMLScraperHandlers() {
   // Scrape transactions from HTML source

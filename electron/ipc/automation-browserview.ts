@@ -673,7 +673,7 @@ export function createRecordingWindow(startUrl: string = 'https://www.google.com
       });
 
       // Listen for interactions from BrowserView
-      recordingBrowserView.webContents.on('console-message', (_, level, message) => {
+      recordingBrowserView.webContents.on('console-message', (_event, _level, message) => {
         // Log all [RECORDER] debug messages
         if (message.startsWith('[RECORDER]')) {
           console.log(message);

@@ -1,6 +1,6 @@
 import * as cron from 'node-cron';
 import { getDatabase } from '../../db';
-import { getAutomationSettings, setAutomationSetting } from '../../db/queries/automation-settings';
+import { getAutomationSettings } from '../../db/queries/automation-settings';
 import { addLog } from '../logs';
 import { playRecording } from './index';
 

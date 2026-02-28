@@ -51,8 +51,8 @@ export default function Dashboard() {
       setCurrentMonth(data.currentMonth);
       setPreviousMonth(data.previousMonth);
       setTopCategories(data.topExpenseCategories);
-      setPrevCategories(data.prevMonthCategories);
-      setTopTransactions(data.topTransactions);
+      setPrevCategories(data.prevMonthCategories ?? []);
+      setTopTransactions(data.topTransactions ?? []);
       setRecentTransactions(data.recentTransactions);
     } catch (error) {
       console.error('Error loading dashboard:', error);
@@ -98,7 +98,7 @@ export default function Dashboard() {
   const months = Array.from({ length: 12 }, (_, i) => {
     const monthNum = i + 1;
     const value = `${currentYear}-${monthNum.toString().padStart(2, '0')}`;
-    return { value, label: format(new Date(currentYear, i, 1), 'MMM'), isFuture: value > currentMonthStr };
+    return { value, label: format(new Date(Number(currentYear), i, 1), 'MMM'), isFuture: value > currentMonthStr };
   });
 
   return (
