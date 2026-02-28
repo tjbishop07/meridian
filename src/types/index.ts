@@ -22,6 +22,15 @@ export interface TagMonthlyRow {
   total_amount: number;
 }
 
+export interface TagRule {
+  id: number;
+  tag_id: number;
+  tag_name?: string;
+  pattern: string;
+  action: 'exclude';
+  created_at: string;
+}
+
 export interface Account {
   id: number;
   name: string;
@@ -493,6 +502,11 @@ export interface ElectronAPI {
   // App lifecycle
   invoke(channel: 'app:restart-now'): Promise<void>;
   invoke(channel: 'app:get-version'): Promise<string>;
+
+  // Tag Rules
+  invoke(channel: 'tag-rules:get-all'): Promise<TagRule[]>;
+  invoke(channel: 'tag-rules:create', data: { tag_id: number; pattern: string }): Promise<TagRule>;
+  invoke(channel: 'tag-rules:delete', id: number): Promise<void>;
 
   // Tags
   invoke(channel: 'tags:get-all'): Promise<Tag[]>;

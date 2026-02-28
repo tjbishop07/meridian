@@ -11,7 +11,8 @@ import {
   deleteTag,
   getAllTags,
 } from '../../../../../electron/db/queries/tags';
-import { parseAutoTagResponse } from '../../../../../electron/ipc/tags';
+import { parseAutoTagResponse, applyTagRules } from '../../../../../electron/ipc/tags';
+import type { TagRule } from '../../../../../electron/db/queries/tag-rules';
 import type Database from 'better-sqlite3';
 
 let db: Database.Database;
@@ -123,5 +124,77 @@ describe('deleteTag', () => {
     deleteTag(tagId);
 
     expect(getTagsForTransaction(txId)).toHaveLength(0);
+  });
+});
+
+// ── applyTagRules ─────────────────────────────────────────────────────────────
+
+function makeRule(overrides: Partial<TagRule> = {}): TagRule {
+  return {
+    id: 1,
+    tag_id: 10,
+    tag_name: 'Subscriptions',
+    pattern: 'netflix',
+    action: 'exclude',
+    created_at: '2025-01-01',
+    ...overrides,
+  };
+}
+
+describe('applyTagRules', () => {
+  const tagNameToId = new Map([['subscriptions', 10], ['healthcare', 20]]);
+
+  it('blocks a matching tag on a matching description', () => {
+    const results = [{ id: 1, tags: ['Subscriptions'] }];
+    const batch = [{ id: 1, description: 'Netflix Monthly' }];
+    applyTagRules(results, batch, [makeRule()], tagNameToId);
+    expect(results[0].tags).toHaveLength(0);
+  });
+
+  it('does not block when description does not contain the pattern', () => {
+    const results = [{ id: 1, tags: ['Subscriptions'] }];
+    const batch = [{ id: 1, description: 'Spotify Premium' }];
+    applyTagRules(results, batch, [makeRule()], tagNameToId);
+    expect(results[0].tags).toEqual(['Subscriptions']);
+  });
+
+  it('does not block when the tag name does not match the rule', () => {
+    const results = [{ id: 1, tags: ['Healthcare'] }];
+    const batch = [{ id: 1, description: 'Netflix Monthly' }];
+    // Rule targets tag_id 10 (Subscriptions), not 20 (Healthcare)
+    applyTagRules(results, batch, [makeRule()], tagNameToId);
+    expect(results[0].tags).toEqual(['Healthcare']);
+  });
+
+  it('pattern matching is case-insensitive', () => {
+    const results = [{ id: 1, tags: ['Subscriptions'] }];
+    const batch = [{ id: 1, description: 'NETFLIX ANNUAL' }];
+    applyTagRules(results, batch, [makeRule({ pattern: 'Netflix' })], tagNameToId);
+    expect(results[0].tags).toHaveLength(0);
+  });
+
+  it('multiple rules: only matching ones block', () => {
+    const rules = [
+      makeRule({ pattern: 'netflix' }),
+      makeRule({ id: 2, tag_id: 20, tag_name: 'Healthcare', pattern: 'pharmacy' }),
+    ];
+    const results = [
+      { id: 1, tags: ['Subscriptions', 'Healthcare'] },
+      { id: 2, tags: ['Healthcare'] },
+    ];
+    const batch = [
+      { id: 1, description: 'Netflix Monthly' },    // hits rule 1 only
+      { id: 2, description: 'CVS Pharmacy' },        // hits rule 2 only
+    ];
+    applyTagRules(results, batch, rules, tagNameToId);
+    expect(results[0].tags).toEqual(['Healthcare']); // Subscriptions blocked, Healthcare kept
+    expect(results[1].tags).toHaveLength(0);         // Healthcare blocked
+  });
+
+  it('empty rules array leaves results unchanged', () => {
+    const results = [{ id: 1, tags: ['Subscriptions', 'Healthcare'] }];
+    const batch = [{ id: 1, description: 'Netflix Monthly' }];
+    applyTagRules(results, batch, [], tagNameToId);
+    expect(results[0].tags).toEqual(['Subscriptions', 'Healthcare']);
   });
 });

@@ -1,5 +1,7 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import * as tagQueries from '../db/queries/tags';
+import * as tagRuleQueries from '../db/queries/tag-rules';
+import type { TagRule } from '../db/queries/tag-rules';
 import { addLog } from './logs';
 import { getAutomationSettings } from '../db/queries/automation-settings';
 
@@ -65,6 +67,32 @@ export function parseAutoTagResponse(text: string): Array<{ id: number; tags: st
   } catch { /* fall through */ }
 
   return null;
+}
+
+/**
+ * Filter auto-tag results against exclusion rules.
+ * Mutates `results` in-place by removing blocked tag names.
+ */
+export function applyTagRules(
+  results: Array<{ id: number; tags: string[] }>,
+  batch: Array<{ id: number; description: string }>,
+  tagRules: TagRule[],
+  tagNameToId: Map<string, number>,
+): void {
+  if (tagRules.length === 0) return;
+  for (const result of results) {
+    const tx = batch.find(t => t.id === result.id);
+    const descLower = tx?.description.toLowerCase() ?? '';
+    result.tags = result.tags.filter(tagName => {
+      const tagId = tagNameToId.get(tagName.toLowerCase());
+      const blocked = tagRules.some(r =>
+        r.action === 'exclude' && r.tag_id === tagId &&
+        descLower.includes(r.pattern.toLowerCase())
+      );
+      if (blocked) addLog('info', 'Tags', `Rule blocked "${tagName}" on "${tx?.description}"`);
+      return !blocked;
+    });
+  }
 }
 
 export function registerTagHandlers(): void {
@@ -217,6 +245,8 @@ export function registerTagHandlers(): void {
       const promptTemplate = automationSettings.prompt_auto_tag || DEFAULT_AUTO_TAG_PROMPT;
       const ollamaModel = automationSettings.auto_tag_model || 'llama3.2';
 
+      const tagRules = tagRuleQueries.getAllTagRules();
+
       const batchSize = 5;
       let tagged = 0;
       const total = allTransactions.length;
@@ -236,9 +266,14 @@ export function registerTagHandlers(): void {
           .map(t => `${t.id}: "${t.description}" ${t.amount < 0 ? 'expense' : 'income'} $${Math.abs(t.amount).toFixed(2)}${t.category ? ` [${t.category}]` : ''}`)
           .join('\n');
 
+        let rulesSection = '';
+        if (tagRules.length > 0) {
+          const lines = tagRules.map(r => `- Never tag descriptions containing "${r.pattern}" with "${r.tag_name}"`).join('\n');
+          rulesSection = `\n\nCORRECTION RULES (always override your judgment):\n${lines}`;
+        }
         const prompt = promptTemplate
           .replace('{{TAG_LIST}}', tagList)
-          .replace('{{TX_LINES}}', txLines);
+          .replace('{{TX_LINES}}', txLines) + rulesSection;
 
         try {
           const response = await fetch('http://localhost:11434/api/generate', {
@@ -269,6 +304,8 @@ export function registerTagHandlers(): void {
             addLog('warning', 'Tags', `Batch ${batchNum}/${totalBatches}: could not parse AI response — ${text.slice(0, 120)}`);
             continue;
           }
+
+          applyTagRules(results, batch, tagRules, tagNameToId);
 
           let batchTagged = 0;
           for (const result of results) {
@@ -302,6 +339,37 @@ export function registerTagHandlers(): void {
       return { tagged };
     } catch (error) {
       addLog('error', 'Tags', `Auto-tag failed: ${(error as Error).message}`);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('tag-rules:get-all', async () => {
+    try {
+      return tagRuleQueries.getAllTagRules();
+    } catch (error) {
+      console.error('Error getting tag rules:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('tag-rules:create', async (_: IpcMainInvokeEvent, data: { tag_id: number; pattern: string }) => {
+    try {
+      const id = tagRuleQueries.createTagRule({ tag_id: data.tag_id, pattern: data.pattern });
+      const rule = tagRuleQueries.getAllTagRules().find(r => r.id === id);
+      addLog('info', 'Tags', `Created rule: never tag "${rule?.tag_name ?? data.tag_id}" when description contains "${data.pattern}"`);
+      return rule;
+    } catch (error) {
+      addLog('error', 'Tags', `Failed to create tag rule: ${(error as Error).message}`);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('tag-rules:delete', async (_: IpcMainInvokeEvent, id: number) => {
+    try {
+      tagRuleQueries.deleteTagRule(id);
+      addLog('info', 'Tags', `Deleted tag rule ${id}`);
+    } catch (error) {
+      addLog('error', 'Tags', `Failed to delete tag rule ${id}: ${(error as Error).message}`);
       throw error;
     }
   });

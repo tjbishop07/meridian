@@ -310,6 +310,24 @@ export const migrations: Migration[] = [
       `);
       console.log('Migration 9: Done');
     }
+  },
+  {
+    version: 10,
+    name: 'add_tag_rules',
+    up: (db: Database.Database) => {
+      console.log('Migration 10: Creating tag_rules table');
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS tag_rules (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tag_id INTEGER NOT NULL,
+          pattern TEXT NOT NULL,
+          action TEXT NOT NULL DEFAULT 'exclude' CHECK(action IN ('exclude')),
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+        );
+      `);
+      console.log('Migration 10: Done');
+    }
   }
 ];
 

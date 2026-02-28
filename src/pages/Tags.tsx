@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
-import { Plus, Sparkles, Trash2, X, Pencil, Tag, TagsIcon } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Plus, Sparkles, Trash2, X, Pencil, Tag, TagsIcon, ShieldAlert } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { ResponsiveBar } from '@nivo/bar';
 import { nivoTheme, tooltipStyle } from '../lib/nivoTheme';
 import { useTags } from '../hooks/useTags';
 import { toast } from 'sonner';
 import Modal from '../components/ui/Modal';
-import TransactionForm from '../components/transactions/TransactionForm';
-import type { TagStat, TagMonthlyRow, Transaction, CreateTransactionInput } from '../types';
+import { EditTransactionDrawer } from '../components/transactions/EditTransactionDrawer';
+import type { TagStat, TagMonthlyRow, Transaction, TagRule } from '../types';
 import { Button } from '@/components/ui/button';
 import { AccentButton } from '@/components/ui/accent-button';
 import { Input } from '@/components/ui/input';
@@ -121,7 +121,7 @@ export default function Tags() {
   const { sidebarClass, contentClass } = usePageEntrance();
   const { tags, loadTags, createTag, updateTag, deleteTag } = useTags();
 
-  const [activeTab, setActiveTab] = useState<'browse' | 'analytics'>('browse');
+  const [activeTab, setActiveTab] = useState<'browse' | 'analytics' | 'rules'>('browse');
   const [stats, setStats] = useState<TagStat[]>([]);
   const [selectedTagId, setSelectedTagId] = useState<number | null>(null);
   const [tagTransactions, setTagTransactions] = useState<Transaction[]>([]);
@@ -132,16 +132,27 @@ export default function Tags() {
   const [isClearAllOpen, setIsClearAllOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
 
+  const [tagRules, setTagRules] = useState<TagRule[]>([]);
+  const [newRulePattern, setNewRulePattern] = useState('');
+  const [isAddingRule, setIsAddingRule] = useState(false);
+  const [quickRuleTxId, setQuickRuleTxId] = useState<number | null>(null);
+  const [quickRuleDescription, setQuickRuleDescription] = useState<string>('');
+  const quickRuleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [allRules, setAllRules] = useState<TagRule[]>([]);
+
   const [monthlyData, setMonthlyData] = useState<TagMonthlyRow[]>([]);
   const [analyticsMonths, setAnalyticsMonths] = useState(6);
 
   useEffect(() => {
     loadTags();
     loadStats();
+    loadAllRules();
   }, []);
 
   useEffect(() => {
     if (activeTab === 'analytics') loadMonthlyStats();
+    if (activeTab === 'rules') loadAllRules();
   }, [activeTab, analyticsMonths]);
 
   const loadStats = async () => {
@@ -154,13 +165,81 @@ export default function Tags() {
     catch (err) { console.error('Failed to load monthly stats', err); }
   };
 
+  const loadAllRules = async () => {
+    try { setAllRules(await window.electron.invoke('tag-rules:get-all')); }
+    catch (err) { console.error('Failed to load all rules', err); }
+  };
+
   const handleSelectTag = async (tagId: number) => {
-    if (selectedTagId === tagId) { setSelectedTagId(null); setTagTransactions([]); return; }
+    if (selectedTagId === tagId) {
+      setSelectedTagId(null);
+      setTagTransactions([]);
+      setTagRules([]);
+      return;
+    }
     setSelectedTagId(tagId);
+    setQuickRuleTxId(null);
+    setIsAddingRule(false);
+    setNewRulePattern('');
     setLoadingTransactions(true);
-    try { setTagTransactions(await window.electron.invoke('tags:get-transactions', tagId)); }
-    catch (err) { console.error('Failed to load transactions for tag', err); }
+    try {
+      const [txs, allRules] = await Promise.all([
+        window.electron.invoke('tags:get-transactions', tagId),
+        window.electron.invoke('tag-rules:get-all'),
+      ]);
+      setTagTransactions(txs);
+      setTagRules(allRules.filter((r) => r.tag_id === tagId));
+    } catch (err) { console.error('Failed to load transactions for tag', err); }
     finally { setLoadingTransactions(false); }
+  };
+
+  const refreshRules = async (tagId: number) => {
+    try {
+      const allRules = await window.electron.invoke('tag-rules:get-all');
+      setTagRules(allRules.filter((r) => r.tag_id === tagId));
+    } catch (err) { console.error('Failed to refresh rules', err); }
+  };
+
+  const handleAddRule = async () => {
+    if (!newRulePattern.trim() || !selectedTagId) return;
+    try {
+      await window.electron.invoke('tag-rules:create', { tag_id: selectedTagId, pattern: newRulePattern.trim() });
+      setNewRulePattern('');
+      setIsAddingRule(false);
+      const allFresh = await window.electron.invoke('tag-rules:get-all');
+      setAllRules(allFresh);
+      setTagRules(allFresh.filter((r) => r.tag_id === selectedTagId));
+      toast.success('Correction rule added');
+    } catch { toast.error('Failed to add rule'); }
+  };
+
+  const handleDeleteRule = async (ruleId: number) => {
+    if (!selectedTagId) return;
+    try {
+      await window.electron.invoke('tag-rules:delete', ruleId);
+      await refreshRules(selectedTagId);
+    } catch { toast.error('Failed to delete rule'); }
+  };
+
+  const handleDeleteRuleGlobal = async (ruleId: number) => {
+    try {
+      await window.electron.invoke('tag-rules:delete', ruleId);
+      setAllRules((prev) => prev.filter((r) => r.id !== ruleId));
+      // also keep the browse-tab per-tag list in sync if the deleted rule belongs to the selected tag
+      setTagRules((prev) => prev.filter((r) => r.id !== ruleId));
+    } catch { toast.error('Failed to delete rule'); }
+  };
+
+  const handleQuickCreateRule = async (txId: number, description: string) => {
+    if (!selectedTagId) return;
+    try {
+      await window.electron.invoke('tag-rules:create', { tag_id: selectedTagId, pattern: description });
+      const allFresh = await window.electron.invoke('tag-rules:get-all');
+      setAllRules(allFresh);
+      setTagRules(allFresh.filter((r) => r.tag_id === selectedTagId));
+      setQuickRuleTxId(null);
+      toast.success('Correction rule created');
+    } catch { toast.error('Failed to create rule'); }
   };
 
   const handleCreateTag = async (values: { name: string; color: string; description: string }) => {
@@ -186,22 +265,23 @@ export default function Tags() {
   const handleRemoveTransactionFromTag = async (transactionId: number) => {
     if (!selectedTagId) return;
     try {
+      const tx = tagTransactions.find((t) => t.id === transactionId);
       const currentTags = await window.electron.invoke('tags:get-for-transaction', transactionId);
       const newTagIds = currentTags.map((t) => t.id).filter((id) => id !== selectedTagId);
       await window.electron.invoke('tags:set-for-transaction', transactionId, newTagIds);
-      setTagTransactions((prev) => prev.filter((tx) => tx.id !== transactionId));
+      setTagTransactions((prev) => prev.filter((t) => t.id !== transactionId));
       await loadStats();
+
+      // Show quick-rule prompt for 10 seconds
+      if (tx) {
+        setQuickRuleDescription(tx.description);
+        setQuickRuleTxId(transactionId);
+        if (quickRuleTimerRef.current) clearTimeout(quickRuleTimerRef.current);
+        quickRuleTimerRef.current = setTimeout(() => setQuickRuleTxId(null), 10000);
+      }
     } catch (err) { console.error('Failed to remove transaction from tag', err); }
   };
 
-  const handleUpdateTransaction = async (data: CreateTransactionInput, tagIds: number[]) => {
-    if (!editingTransaction) return;
-    await window.electron.invoke('transactions:update', { id: editingTransaction.id, ...data } as any);
-    await window.electron.invoke('tags:set-for-transaction', editingTransaction.id, tagIds);
-    if (selectedTagId) setTagTransactions(await window.electron.invoke('tags:get-transactions', selectedTagId));
-    await loadStats();
-    setEditingTransaction(null);
-  };
 
   const handleClearAllTags = async () => {
     try {
@@ -358,18 +438,28 @@ export default function Tags() {
         {/* Tab bar + controls */}
         <div className="px-6 pt-5 pb-4 flex items-center justify-between flex-shrink-0 border-b border-border/60">
           <div className="flex gap-1">
-            {(['browse', 'analytics'] as const).map((tab) => (
+            {(['browse', 'analytics', 'rules'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={cn(
-                  'px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors',
+                  'px-4 py-1.5 rounded-md text-sm font-medium capitalize transition-colors flex items-center gap-1.5',
                   activeTab === tab
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 )}
               >
                 {tab}
+                {tab === 'rules' && allRules.length > 0 && (
+                  <span className={cn(
+                    'text-[10px] font-bold tabular-nums px-1.5 py-0.5 rounded-full leading-none',
+                    activeTab === 'rules'
+                      ? 'bg-primary-foreground/20 text-primary-foreground'
+                      : 'bg-muted text-muted-foreground'
+                  )}>
+                    {allRules.length}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -427,6 +517,30 @@ export default function Tags() {
                   </div>
                 )}
 
+                {/* Quick-rule banner — appears after a tag is removed from a transaction */}
+                {quickRuleTxId !== null && (
+                  <div className="mb-3 flex items-center gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-2.5 text-xs">
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                    <span className="flex-1 text-muted-foreground/70">
+                      Prevent AI from tagging similar transactions?
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[10px] border-amber-500/30 hover:border-amber-500/60"
+                      onClick={() => handleQuickCreateRule(quickRuleTxId, quickRuleDescription)}
+                    >
+                      Create Rule
+                    </Button>
+                    <button
+                      onClick={() => setQuickRuleTxId(null)}
+                      className="p-0.5 text-muted-foreground/30 hover:text-foreground transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+
                 {/* Transaction table */}
                 <SunkenCard className="p-0 overflow-hidden">
                   <table className="min-w-full">
@@ -478,6 +592,140 @@ export default function Tags() {
                           </td>
                         </tr>
                       ))}
+                    </tbody>
+                  </table>
+                </SunkenCard>
+
+                {/* ── Correction Rules section ── */}
+                <div className="mt-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <SectionLabel className="mb-0">Correction Rules</SectionLabel>
+                    {!isAddingRule && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 text-[10px] text-muted-foreground/50 hover:text-foreground"
+                        onClick={() => setIsAddingRule(true)}
+                      >
+                        <Plus className="w-3 h-3 mr-1" />
+                        Add Rule
+                      </Button>
+                    )}
+                  </div>
+
+                  {isAddingRule && (
+                    <div className="flex items-center gap-2 mb-3">
+                      <Input
+                        value={newRulePattern}
+                        onChange={(e) => setNewRulePattern(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleAddRule(); if (e.key === 'Escape') { setIsAddingRule(false); setNewRulePattern(''); } }}
+                        placeholder="Description pattern to exclude…"
+                        className="h-8 text-xs flex-1"
+                        autoFocus
+                      />
+                      <Button size="sm" className="h-8 text-xs" onClick={handleAddRule} disabled={!newRulePattern.trim()}>
+                        Add
+                      </Button>
+                      <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setIsAddingRule(false); setNewRulePattern(''); }}>
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
+
+                  <SunkenCard className="p-3">
+                    {tagRules.length === 0 ? (
+                      <p className="text-xs text-muted-foreground/30 text-center py-1">
+                        No rules yet — remove a mis-tagged transaction above to create one quickly
+                      </p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {tagRules.map((rule) => (
+                          <div key={rule.id} className="flex items-center gap-2 group">
+                            <ShieldAlert className="w-3 h-3 text-amber-500/60 flex-shrink-0" />
+                            <span className="text-xs text-muted-foreground/70 flex-1 truncate">
+                              Never tag descriptions containing{' '}
+                              <span className="font-medium text-foreground/70 font-mono">"{rule.pattern}"</span>
+                            </span>
+                            <button
+                              onClick={() => handleDeleteRule(rule.id)}
+                              className="p-0.5 text-muted-foreground/20 hover:text-destructive transition-colors rounded opacity-0 group-hover:opacity-100"
+                              title="Delete rule"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </SunkenCard>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Rules Tab ── */}
+        {activeTab === 'rules' && (
+          <div className="flex-1 overflow-y-auto px-6 py-5">
+            {allRules.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center gap-3 text-center">
+                <ShieldAlert className="w-8 h-8 text-muted-foreground/15" />
+                <p className="text-sm text-muted-foreground/50">No correction rules yet</p>
+                <p className="text-xs text-muted-foreground/30">
+                  Select a tag in Browse and remove a mis-tagged transaction to create one
+                </p>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-xs text-muted-foreground/50">
+                    {allRules.length} rule{allRules.length !== 1 ? 's' : ''} — AI will skip these tag assignments during auto-tag
+                  </p>
+                </div>
+                <SunkenCard className="p-0 overflow-hidden">
+                  <table className="min-w-full">
+                    <thead>
+                      <tr className="border-b border-border/30">
+                        <th className="px-4 py-2.5 text-left text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Tag</th>
+                        <th className="px-4 py-2.5 text-left text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Never tag when description contains</th>
+                        <th className="px-4 py-2.5 text-right text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Created</th>
+                        <th className="px-4 py-2.5 w-10" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/15">
+                      {allRules.map((rule) => {
+                        const tagStat = stats.find((s) => s.id === rule.tag_id);
+                        const color = tagStat?.color ?? '#6366f1';
+                        return (
+                          <tr key={rule.id} className="group hover:bg-white/[0.02] transition-colors">
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              <span
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                                style={{ backgroundColor: color, color: '#fff' }}
+                              >
+                                {rule.tag_name ?? tagStat?.name ?? `Tag ${rule.tag_id}`}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <code className="text-xs font-mono text-foreground/70 bg-muted/40 px-1.5 py-0.5 rounded">
+                                {rule.pattern}
+                              </code>
+                            </td>
+                            <td className="px-4 py-3 text-right text-xs text-muted-foreground/40 whitespace-nowrap tabular-nums">
+                              {format(parseISO(rule.created_at), 'MMM d, yyyy')}
+                            </td>
+                            <td className="px-4 py-3 w-10">
+                              <button
+                                onClick={() => handleDeleteRuleGlobal(rule.id)}
+                                className="p-1 text-muted-foreground/20 hover:text-destructive transition-colors rounded opacity-0 group-hover:opacity-100"
+                                title="Delete rule"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </SunkenCard>
@@ -609,16 +857,17 @@ export default function Tags() {
         )}
       </div>
 
-      {/* ── Modals ── */}
-      <Modal isOpen={!!editingTransaction} onClose={() => setEditingTransaction(null)} title="Edit Transaction" size="lg">
-        {editingTransaction && (
-          <TransactionForm
-            transaction={editingTransaction}
-            onSubmit={handleUpdateTransaction}
-            onCancel={() => setEditingTransaction(null)}
-          />
-        )}
-      </Modal>
+      {/* ── Drawers & Modals ── */}
+      <EditTransactionDrawer
+        transaction={editingTransaction}
+        onClose={() => setEditingTransaction(null)}
+        onSaved={async () => {
+          if (selectedTagId) {
+            setTagTransactions(await window.electron.invoke('tags:get-transactions', selectedTagId));
+          }
+          await loadStats();
+        }}
+      />
 
       <Modal isOpen={isNewTagOpen} onClose={() => setIsNewTagOpen(false)} title="New Tag" size="sm">
         <TagForm

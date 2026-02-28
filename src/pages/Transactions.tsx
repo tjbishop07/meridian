@@ -1,14 +1,13 @@
 import { useEffect, useState, useMemo } from 'react';
-import { Search, Filter, Edit2, Trash2, Camera, X } from 'lucide-react';
+import { Search, Filter, Edit2, Trash2 } from 'lucide-react';
 import { Sparkline } from '@/components/ui/Sparkline';
 import { toast } from 'sonner';
 import { useTransactions } from '../hooks/useTransactions';
 import { useAccounts } from '../hooks/useAccounts';
 import { useCategories } from '../hooks/useCategories';
 import { useTags } from '../hooks/useTags';
-import TransactionForm from '../components/transactions/TransactionForm';
-import { ReceiptCapture } from '../components/receipts/ReceiptCapture';
-import type { Transaction, CreateTransactionInput, Tag, Receipt } from '../types';
+import { EditTransactionDrawer } from '../components/transactions/EditTransactionDrawer';
+import type { Transaction, Tag } from '../types';
 import { format, parseISO } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,8 +32,6 @@ export default function Transactions() {
   const { tags, loadTags, setTagsForTransaction } = useTags();
 
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
-  const [showReceiptCapture, setShowReceiptCapture] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMonth, setSelectedMonth] = useState('');
   const [showUncategorized, setShowUncategorized] = useState(false);
@@ -70,42 +67,6 @@ export default function Transactions() {
     if (transactions.length > 0) refreshTagMap();
   }, [transactions.length > 0]);
 
-  useEffect(() => {
-    if (editingTransaction) {
-      setEditingReceipt(null);
-      setShowReceiptCapture(false);
-      window.electron.invoke('receipt:get-for-transaction', editingTransaction.id)
-        .then((receipt) => setEditingReceipt(receipt))
-        .catch(console.error);
-    } else {
-      setEditingReceipt(null);
-      setShowReceiptCapture(false);
-    }
-  }, [editingTransaction?.id]);
-
-  const handleUpdate = async (data: CreateTransactionInput, tagIds: number[]) => {
-    if (!editingTransaction) return;
-    const updateData: any = {
-      id: editingTransaction.id,
-      type: data.type,
-      account_id: data.account_id,
-      category_id: data.category_id,
-      date: data.date,
-      description: data.description,
-      amount: data.amount,
-      status: data.status,
-      notes: data.notes,
-      to_account_id: data.to_account_id,
-    };
-    await updateTransaction(updateData, true);
-    await setTagsForTransaction(editingTransaction.id, tagIds);
-    setTransactionTags((prev) => {
-      const next = new Map(prev);
-      next.set(editingTransaction.id, tags.filter((t) => tagIds.includes(t.id)));
-      return next;
-    });
-    setEditingTransaction(null);
-  };
 
   const handleDelete = async (id: number) => {
     if (confirm('Are you sure you want to delete this transaction?')) {
@@ -522,74 +483,11 @@ export default function Transactions() {
         )}
       </div>
 
-      {/* Overlay — scoped to this page */}
-      <div
-        className={`absolute inset-0 z-40 bg-black/40 transition-opacity duration-300 ${
-          editingTransaction ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        }`}
-        onClick={() => setEditingTransaction(null)}
+      <EditTransactionDrawer
+        transaction={editingTransaction}
+        onClose={() => setEditingTransaction(null)}
+        onSaved={refreshTagMap}
       />
-
-      {/* Edit drawer — slides in from the left */}
-      <div
-        className={`absolute inset-y-0 left-0 z-50 w-[420px] bg-card border-r border-border flex flex-col transition-transform duration-300 ease-in-out ${
-          editingTransaction ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        {/* Drawer header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 mb-0.5">
-              Edit Transaction
-            </p>
-            <h2 className="text-sm font-semibold text-foreground truncate">
-              {editingTransaction?.description || 'Transaction'}
-            </h2>
-          </div>
-          <div className="flex items-center gap-0.5 flex-shrink-0 ml-3">
-            <button
-              onClick={() => setShowReceiptCapture(true)}
-              title="Capture receipt"
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <Camera className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setEditingTransaction(null)}
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Receipt capture overlay */}
-        {showReceiptCapture && editingTransaction && (
-          <ReceiptCapture
-            transactionId={editingTransaction.id}
-            onDone={(receiptId, extractedData) => {
-              setShowReceiptCapture(false);
-              // Reload receipt from DB to get full row
-              window.electron.invoke('receipt:get-for-transaction', editingTransaction.id)
-                .then((r) => setEditingReceipt(r))
-                .catch(console.error);
-            }}
-            onCancel={() => setShowReceiptCapture(false)}
-          />
-        )}
-
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          {editingTransaction && (
-            <TransactionForm
-              transaction={editingTransaction}
-              receipt={editingReceipt}
-              onSubmit={handleUpdate}
-              onCancel={() => setEditingTransaction(null)}
-              onReceiptDeleted={() => setEditingReceipt(null)}
-            />
-          )}
-        </div>
-      </div>
       </div>
     </div>
   );

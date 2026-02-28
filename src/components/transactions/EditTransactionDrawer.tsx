@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Camera } from 'lucide-react';
+import { Camera, X } from 'lucide-react';
 import TransactionForm from './TransactionForm';
 import { ReceiptCapture } from '../receipts/ReceiptCapture';
 import { useTransactions } from '../../hooks/useTransactions';
@@ -14,7 +14,7 @@ interface Props {
 
 export function EditTransactionDrawer({ transaction, onClose, onSaved }: Props) {
   const { updateTransaction } = useTransactions();
-  const { tags, setTagsForTransaction } = useTags();
+  const { setTagsForTransaction } = useTags();
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [showReceiptCapture, setShowReceiptCapture] = useState(false);
 
@@ -54,36 +54,41 @@ export function EditTransactionDrawer({ transaction, onClose, onSaved }: Props) 
     <>
       {/* Overlay */}
       <div
-        className={`absolute inset-0 z-40 bg-black/20 backdrop-blur-sm transition-opacity duration-300 ${
+        className={`absolute inset-0 z-40 bg-black/40 transition-opacity duration-300 ${
           transaction ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
         }`}
         onClick={onClose}
       />
 
-      {/* Drawer */}
+      {/* Drawer panel */}
       <div
         className={`absolute inset-y-0 left-0 z-50 w-[420px] bg-card border-r border-border flex flex-col transition-transform duration-300 ease-in-out ${
           transaction ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border flex-shrink-0">
-          <h2 className="text-sm font-semibold text-foreground">Edit Transaction</h2>
-          <div className="flex items-center gap-1">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 mb-0.5">
+              Edit Transaction
+            </p>
+            <h2 className="text-sm font-semibold text-foreground truncate">
+              {transaction?.description || 'Transaction'}
+            </h2>
+          </div>
+          <div className="flex items-center gap-0.5 flex-shrink-0 ml-3">
             <button
               onClick={() => setShowReceiptCapture(true)}
               title="Capture receipt"
-              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
               <Camera className="w-4 h-4" />
             </button>
             <button
               onClick={onClose}
-              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>

@@ -159,6 +159,11 @@ const electronAPI: ElectronAPI = {
       'tags:get-monthly-stats',
       'tags:clear-all-assignments',
 
+      // Tag Rules
+      'tag-rules:get-all',
+      'tag-rules:create',
+      'tag-rules:delete',
+
       // Receipts
       'receipt:start-server',
       'receipt:stop-server',
