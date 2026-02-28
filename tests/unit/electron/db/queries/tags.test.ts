@@ -11,6 +11,7 @@ import {
   deleteTag,
   getAllTags,
 } from '../../../../../electron/db/queries/tags';
+import { parseAutoTagResponse } from '../../../../../electron/ipc/tags';
 import type Database from 'better-sqlite3';
 
 let db: Database.Database;
@@ -65,6 +66,45 @@ describe('setTagsForTransaction', () => {
     setTagsForTransaction(txId, []);
 
     expect(getTagsForTransaction(txId)).toHaveLength(0);
+  });
+});
+
+describe('parseAutoTagResponse', () => {
+  it('strategy 1: parses a clean JSON array', () => {
+    const input = JSON.stringify([{ id: 1, tags: ['Healthcare'] }, { id: 2, tags: [] }]);
+    const result = parseAutoTagResponse(input);
+    expect(result).toEqual([{ id: 1, tags: ['Healthcare'] }, { id: 2, tags: [] }]);
+  });
+
+  it('strategy 2: extracts array embedded in prose', () => {
+    const input = 'Sure! Here is the result:\n[{"id":5,"tags":["Subscriptions"]}]\nDone.';
+    const result = parseAutoTagResponse(input);
+    expect(result).toEqual([{ id: 5, tags: ['Subscriptions'] }]);
+  });
+
+  it('strategy 3: converts object-keyed response to array', () => {
+    const input = JSON.stringify({
+      '8758': { tags: ['Healthcare'] },
+      '8759': { tags: [] },
+      '8760': { tags: ['Subscriptions'] },
+    });
+    const result = parseAutoTagResponse(input);
+    expect(result).toHaveLength(3);
+    expect(result).toContainEqual({ id: 8758, tags: ['Healthcare'] });
+    expect(result).toContainEqual({ id: 8759, tags: [] });
+    expect(result).toContainEqual({ id: 8760, tags: ['Subscriptions'] });
+  });
+
+  it('strategy 3: handles missing tags field gracefully', () => {
+    const input = JSON.stringify({ '1': {}, '2': { tags: ['Food'] } });
+    const result = parseAutoTagResponse(input);
+    expect(result).toContainEqual({ id: 1, tags: [] });
+    expect(result).toContainEqual({ id: 2, tags: ['Food'] });
+  });
+
+  it('returns null for unparseable input', () => {
+    expect(parseAutoTagResponse('not json at all')).toBeNull();
+    expect(parseAutoTagResponse('')).toBeNull();
   });
 });
 

@@ -27,6 +27,46 @@ Return ONLY the raw JSON array — no markdown, no explanation, no extra text.
 
 JSON:`;
 
+/**
+ * Parse the raw text response from Ollama into a tag-assignment array.
+ * Handles three formats models may return:
+ *   1. JSON array  — [{id, tags}, ...]
+ *   2. Array embedded in prose — "Here you go: [{id, tags}, ...]"
+ *   3. Object keyed by ID — {"8758": {"tags": [...]}, ...}
+ */
+export function parseAutoTagResponse(text: string): Array<{ id: number; tags: string[] }> | null {
+  // Strategy 1: whole response is a valid JSON array
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return parsed;
+  } catch { /* fall through */ }
+
+  // Strategy 2: find the first [...] block (handles leading/trailing prose)
+  // Only accept arrays of objects to avoid matching nested string arrays like ["Food"]
+  const start = text.indexOf('[');
+  const end = text.lastIndexOf(']');
+  if (start !== -1 && end > start) {
+    try {
+      const parsed = JSON.parse(text.slice(start, end + 1));
+      if (Array.isArray(parsed) && parsed.every(item => typeof item === 'object' && item !== null)) return parsed;
+    } catch { /* fall through */ }
+  }
+
+  // Strategy 3: object keyed by transaction ID e.g. {"8758": {"tags": [...]}, ...}
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const arr = Object.entries(parsed).map(([key, val]: [string, any]) => ({
+        id: Number(key),
+        tags: Array.isArray((val as any)?.tags) ? (val as any).tags : [],
+      }));
+      if (arr.length > 0) return arr;
+    }
+  } catch { /* fall through */ }
+
+  return null;
+}
+
 export function registerTagHandlers(): void {
   ipcMain.handle('tags:get-all', async () => {
     try {
@@ -223,40 +263,7 @@ export function registerTagHandlers(): void {
 
           addLog('debug', 'Tags', `Batch ${batchNum}/${totalBatches}: received response (${text.length} chars)`);
 
-          // Try multiple extraction strategies for robustly getting the JSON array
-          let results: Array<{ id: number; tags: string[] }> | null = null;
-
-          // Strategy 1: whole response is valid JSON array
-          try {
-            const parsed = JSON.parse(text);
-            if (Array.isArray(parsed)) results = parsed;
-          } catch { /* fall through */ }
-
-          // Strategy 2: find the first [...] block (handles leading/trailing text)
-          if (!results) {
-            const start = text.indexOf('[');
-            const end = text.lastIndexOf(']');
-            if (start !== -1 && end > start) {
-              try {
-                const parsed = JSON.parse(text.slice(start, end + 1));
-                if (Array.isArray(parsed)) results = parsed;
-              } catch { /* fall through */ }
-            }
-          }
-
-          // Strategy 3: object keyed by transaction ID e.g. {"8758": {"tags": [...]}, ...}
-          if (!results) {
-            try {
-              const parsed = JSON.parse(text);
-              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                const arr = Object.entries(parsed).map(([key, val]: [string, any]) => ({
-                  id: Number(key),
-                  tags: Array.isArray(val?.tags) ? val.tags : [],
-                }));
-                if (arr.length > 0) results = arr;
-              }
-            } catch { /* fall through */ }
-          }
+          const results = parseAutoTagResponse(text);
 
           if (!results) {
             addLog('warning', 'Tags', `Batch ${batchNum}/${totalBatches}: could not parse AI response — ${text.slice(0, 120)}`);
