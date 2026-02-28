@@ -125,8 +125,8 @@ describe('runMigrations – tracking', () => {
 
     const rows = db.prepare('SELECT version FROM migrations ORDER BY version').all() as { version: number }[];
     const versions = rows.map((r) => r.version);
-    // All 9 migrations should be recorded
-    expect(versions).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    // All 10 migrations should be recorded
+    expect(versions).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   });
 
   it('is idempotent — running a second time adds no new migration rows', () => {
@@ -163,8 +163,8 @@ describe('runMigrations – tracking', () => {
 
     const rows = db.prepare('SELECT version FROM migrations ORDER BY version').all() as { version: number }[];
     const versions = rows.map((r) => r.version);
-    // Should have 1-9; 1-5 were pre-seeded, 6-9 should now be added
-    expect(versions).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    // Should have 1-10; 1-5 were pre-seeded, 6-10 should now be added
+    expect(versions).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   });
 });
 
