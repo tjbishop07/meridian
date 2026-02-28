@@ -244,6 +244,20 @@ export function registerTagHandlers(): void {
             }
           }
 
+          // Strategy 3: object keyed by transaction ID e.g. {"8758": {"tags": [...]}, ...}
+          if (!results) {
+            try {
+              const parsed = JSON.parse(text);
+              if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                const arr = Object.entries(parsed).map(([key, val]: [string, any]) => ({
+                  id: Number(key),
+                  tags: Array.isArray(val?.tags) ? val.tags : [],
+                }));
+                if (arr.length > 0) results = arr;
+              }
+            } catch { /* fall through */ }
+          }
+
           if (!results) {
             addLog('warning', 'Tags', `Batch ${batchNum}/${totalBatches}: could not parse AI response — ${text.slice(0, 120)}`);
             continue;
