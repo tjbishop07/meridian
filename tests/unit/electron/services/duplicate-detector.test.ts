@@ -54,18 +54,18 @@ describe('findDuplicates', () => {
   });
 
   it('detects a fuzzy match with confidence ≥ 0.7', async () => {
+    // Descriptions that differ by a single digit: similarity ≈ 0.93, well above the 0.7 threshold
     seedTransaction(db, {
       account_id: accountId,
       date: '2025-06-01',
-      description: 'Starbucks Coffee',
+      description: 'Starbucks #1234',
       amount: -5.5,
     });
 
-    const dupes = await findDuplicates(accountId, [makeRow({ description: 'Starbucks' })]);
-    if (dupes.length > 0) {
-      expect(dupes[0].confidence).toBeGreaterThanOrEqual(0.7);
-      expect(dupes[0].matchType).toBe('fuzzy');
-    }
+    const dupes = await findDuplicates(accountId, [makeRow({ description: 'Starbucks #1235' })]);
+    expect(dupes).toHaveLength(1);
+    expect(dupes[0].confidence).toBeGreaterThanOrEqual(0.7);
+    expect(dupes[0].matchType).toBe('fuzzy');
   });
 
   it('does NOT flag different date+amount as duplicate', async () => {
