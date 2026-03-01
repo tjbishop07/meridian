@@ -6,6 +6,7 @@ import type { TagRule } from '../db/queries/tag-rules';
 import { addLog } from './logs';
 import { getAutomationSettings } from '../db/queries/automation-settings';
 import { getDatabase } from '../db/index';
+import type Database from 'better-sqlite3';
 
 export const DEFAULT_AUTO_TAG_PROMPT =
 `You are a financial transaction tagger for a personal finance app. Assign tags to bank transactions based on what they clearly represent.
@@ -122,6 +123,55 @@ export function applyInclusionRules(
   }
 
   return preTagged;
+}
+
+/**
+ * Apply a single tag rule to all matching transactions in the database.
+ * Include rules add the tag; exclude rules remove it.
+ * Returns the number of transactions actually modified.
+ */
+export function applyRuleToDb(
+  rule: { tag_id: number; action: string; pattern: string },
+  db: Database.Database,
+  daysBack = 0,
+): number {
+  const safeDaysBack = daysBack > 0 ? Math.floor(daysBack) : 0;
+  const dateClause = safeDaysBack > 0 ? `AND date >= date('now', '-${safeDaysBack} days')` : '';
+  let count = 0;
+
+  if (rule.action === 'include') {
+    const txs = db.prepare(
+      `SELECT id FROM transactions WHERE LOWER(description) LIKE LOWER(?) ${dateClause}`
+    ).all(`%${rule.pattern}%`) as Array<{ id: number }>;
+
+    for (const tx of txs) {
+      const currentTagIds = (db.prepare(
+        'SELECT tag_id FROM transaction_tags WHERE transaction_id = ?'
+      ).all(tx.id) as Array<{ tag_id: number }>).map((r) => r.tag_id);
+      if (!currentTagIds.includes(rule.tag_id)) {
+        tagQueries.setTagsForTransaction(tx.id, [...currentTagIds, rule.tag_id]);
+        count++;
+      }
+    }
+  } else {
+    const txs = db.prepare(
+      `SELECT tt.transaction_id as id
+       FROM transaction_tags tt
+       JOIN transactions tr ON tr.id = tt.transaction_id
+       WHERE tt.tag_id = ? AND LOWER(tr.description) LIKE LOWER(?)
+       ${dateClause}`
+    ).all(rule.tag_id, `%${rule.pattern}%`) as Array<{ id: number }>;
+
+    for (const tx of txs) {
+      const currentTagIds = (db.prepare(
+        'SELECT tag_id FROM transaction_tags WHERE transaction_id = ?'
+      ).all(tx.id) as Array<{ tag_id: number }>).map((r) => r.tag_id).filter((id) => id !== rule.tag_id);
+      tagQueries.setTagsForTransaction(tx.id, currentTagIds);
+      count++;
+    }
+  }
+
+  return count;
 }
 
 export function registerTagHandlers(): void {
@@ -471,43 +521,7 @@ export function registerTagHandlers(): void {
       ).get(ruleId) as (typeof tagRuleQueries.getAllTagRules extends () => (infer R)[] ? R : never) | undefined;
       if (!rule) throw new Error(`Rule ${ruleId} not found`);
 
-      const safeDaysBack = typeof daysBack === 'number' && daysBack > 0 ? Math.floor(daysBack) : 0;
-      const dateClause = safeDaysBack > 0 ? `AND date >= date('now', '-${safeDaysBack} days')` : '';
-
-      let count = 0;
-
-      if (rule.action === 'include') {
-        const txs = db.prepare(
-          `SELECT id FROM transactions WHERE LOWER(description) LIKE LOWER(?) ${dateClause}`
-        ).all(`%${rule.pattern}%`) as Array<{ id: number }>;
-
-        for (const tx of txs) {
-          const currentTagIds = (db.prepare(
-            'SELECT tag_id FROM transaction_tags WHERE transaction_id = ?'
-          ).all(tx.id) as Array<{ tag_id: number }>).map((r) => r.tag_id);
-          if (!currentTagIds.includes(rule.tag_id)) {
-            tagQueries.setTagsForTransaction(tx.id, [...currentTagIds, rule.tag_id]);
-            count++;
-          }
-        }
-      } else {
-        const txs = db.prepare(
-          `SELECT tt.transaction_id as id
-           FROM transaction_tags tt
-           JOIN transactions tr ON tr.id = tt.transaction_id
-           WHERE tt.tag_id = ? AND LOWER(tr.description) LIKE LOWER(?)
-           ${dateClause}`
-        ).all(rule.tag_id, `%${rule.pattern}%`) as Array<{ id: number }>;
-
-        for (const tx of txs) {
-          const currentTagIds = (db.prepare(
-            'SELECT tag_id FROM transaction_tags WHERE transaction_id = ?'
-          ).all(tx.id) as Array<{ tag_id: number }>).map((r) => r.tag_id).filter((id) => id !== rule.tag_id);
-          tagQueries.setTagsForTransaction(tx.id, currentTagIds);
-          count++;
-        }
-      }
-
+      const count = applyRuleToDb(rule, db, daysBack);
       addLog('info', 'Tags', `Applied rule "${rule.tag_name} / ${rule.pattern}" — ${count} transaction(s) updated`);
       return { count };
     } catch (error) {

@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
+import { derivePattern } from '@/lib/derivePattern';
 
 interface TransactionFormProps {
   transaction?: Transaction;
@@ -121,11 +122,6 @@ export default function TransactionForm({ transaction, receipt, onSubmit, onCanc
   };
 
   const currentType = TYPE_CONFIG[formData.type];
-
-  const derivePattern = (desc: string) => {
-    const first = desc.trim().split(/[\s.*#_/\\@&!,]+/)[0];
-    return (first.replace(/\d+$/, '') || desc.trim().slice(0, 20)).toLowerCase();
-  };
 
   const handleOpenSimilar = () => {
     setSimilarPattern(derivePattern(formData.description));
