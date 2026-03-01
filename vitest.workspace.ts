@@ -27,7 +27,7 @@ export default defineWorkspace([
     resolve: { alias },
     test: {
       name: 'browser',
-      include: ['tests/unit/src/**/*.test.ts'],
+      include: ['tests/unit/src/**/*.test.{ts,tsx}'],
       environment: 'happy-dom',
       setupFiles: ['tests/setup/browser-setup.ts'],
       globals: true,

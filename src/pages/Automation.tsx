@@ -438,6 +438,12 @@ function Automation({ embedded = false }, ref) {
       const result = await window.electron.invoke('automation:play-recording', idStr);
       console.log('[Automation] IPC result:', result);
 
+      if (!result.success) {
+        toast.error(result.message || 'Playback failed');
+        clearProgress(idStr);
+      }
+      // On success, automation:scrape-complete event handles clearing progress
+
     } catch (error) {
       console.error('[Automation] Failed to play recording:', error);
       toast.error('Failed to play recording');
