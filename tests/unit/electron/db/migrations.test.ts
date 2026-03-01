@@ -125,8 +125,8 @@ describe('runMigrations – tracking', () => {
 
     const rows = db.prepare('SELECT version FROM migrations ORDER BY version').all() as { version: number }[];
     const versions = rows.map((r) => r.version);
-    // All 10 migrations should be recorded
-    expect(versions).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    // All 11 migrations should be recorded
+    expect(versions).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   });
 
   it('is idempotent — running a second time adds no new migration rows', () => {
@@ -163,8 +163,8 @@ describe('runMigrations – tracking', () => {
 
     const rows = db.prepare('SELECT version FROM migrations ORDER BY version').all() as { version: number }[];
     const versions = rows.map((r) => r.version);
-    // Should have 1-10; 1-5 were pre-seeded, 6-10 should now be added
-    expect(versions).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    // Should have 1-11; 1-5 were pre-seeded, 6-11 should now be added
+    expect(versions).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   });
 });
 
@@ -445,5 +445,81 @@ describe('migration 9: add_receipts', () => {
       migrations[8].up(db);
       migrations[8].up(db);
     }).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Migration 10: add_tag_rules (basic check — full tests in tag-rules.test.ts)
+// ---------------------------------------------------------------------------
+
+describe('migration 10: add_tag_rules', () => {
+  it('creates the tag_rules table', () => {
+    const db = createSchemaOnlyDb();
+    runMigrations(db);
+
+    const table = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tag_rules'")
+      .get();
+    expect(table).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Migration 11: add_tag_corrections_and_update_rules
+// ---------------------------------------------------------------------------
+
+describe('migration 11: add_tag_corrections_and_update_rules', () => {
+  it('creates the tag_corrections table', () => {
+    const db = createSchemaOnlyDb();
+    runMigrations(db);
+
+    const table = db
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tag_corrections'")
+      .get();
+    expect(table).toBeDefined();
+  });
+
+  it('tag_corrections table has the expected columns', () => {
+    const db = createSchemaOnlyDb();
+    runMigrations(db);
+
+    const cols = (db.pragma('table_info(tag_corrections)') as Array<{ name: string }>).map((c) => c.name);
+    expect(cols).toContain('tag_id');
+    expect(cols).toContain('description');
+    expect(cols).toContain('direction');
+    expect(cols).toContain('created_at');
+  });
+
+  it('tag_rules now allows include action', () => {
+    const db = createSchemaOnlyDb();
+    runMigrations(db);
+
+    // Seed a tag so we can insert a rule with FK satisfied
+    db.prepare(`INSERT INTO tags (name, color) VALUES ('Coffee', '#8b5cf6')`).run();
+    const tagId = (db.prepare('SELECT last_insert_rowid() as id').get() as { id: number }).id;
+
+    expect(() => {
+      db.prepare(`INSERT INTO tag_rules (tag_id, pattern, action) VALUES (?, ?, 'include')`).run(tagId, 'starbucks');
+    }).not.toThrow();
+  });
+
+  it('preserves existing exclusion rules after recreation', () => {
+    const db = createSchemaOnlyDb();
+    // Run up to migration 10 manually
+    for (const m of migrations.slice(0, 10)) {
+      m.up(db);
+    }
+    // Insert an exclusion rule
+    db.prepare(`INSERT INTO tags (name, color) VALUES ('Subs', '#8b5cf6')`).run();
+    const tagId = (db.prepare('SELECT last_insert_rowid() as id').get() as { id: number }).id;
+    db.prepare(`INSERT INTO tag_rules (tag_id, pattern) VALUES (?, ?)`).run(tagId, 'netflix');
+
+    // Now run migration 11
+    migrations[10].up(db);
+
+    const rules = db.prepare('SELECT * FROM tag_rules').all() as Array<{ pattern: string; action: string }>;
+    expect(rules).toHaveLength(1);
+    expect(rules[0].pattern).toBe('netflix');
+    expect(rules[0].action).toBe('exclude');
   });
 });

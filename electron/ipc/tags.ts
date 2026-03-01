@@ -1,9 +1,11 @@
 import { ipcMain, IpcMainInvokeEvent } from 'electron';
 import * as tagQueries from '../db/queries/tags';
 import * as tagRuleQueries from '../db/queries/tag-rules';
+import * as tagCorrectionQueries from '../db/queries/tag-corrections';
 import type { TagRule } from '../db/queries/tag-rules';
 import { addLog } from './logs';
 import { getAutomationSettings } from '../db/queries/automation-settings';
+import { getDatabase } from '../db/index';
 
 export const DEFAULT_AUTO_TAG_PROMPT =
 `You are a financial transaction tagger for a personal finance app. Assign tags to bank transactions based on what they clearly represent.
@@ -93,6 +95,33 @@ export function applyTagRules(
       return !blocked;
     });
   }
+}
+
+/**
+ * Apply inclusion rules to untagged transactions.
+ * Returns a map of txId → tagIds for transactions that should be pre-tagged before the AI batch.
+ */
+export function applyInclusionRules(
+  transactions: Array<{ id: number; description: string }>,
+  inclusionRules: TagRule[],
+): Map<number, number[]> {
+  const preTagged = new Map<number, number[]>();
+  if (inclusionRules.length === 0) return preTagged;
+
+  for (const tx of transactions) {
+    const descLower = tx.description.toLowerCase();
+    const matchingTagIds = new Set<number>();
+    for (const rule of inclusionRules) {
+      if (descLower.includes(rule.pattern.toLowerCase())) {
+        matchingTagIds.add(rule.tag_id);
+      }
+    }
+    if (matchingTagIds.size > 0) {
+      preTagged.set(tx.id, [...matchingTagIds]);
+    }
+  }
+
+  return preTagged;
 }
 
 export function registerTagHandlers(): void {
@@ -211,7 +240,7 @@ export function registerTagHandlers(): void {
     }
   });
 
-  ipcMain.handle('tags:auto-tag', async (event: IpcMainInvokeEvent) => {
+  ipcMain.handle('tags:auto-tag', async (event: IpcMainInvokeEvent, options?: { daysBack?: number }) => {
     try {
       const allTags = tagQueries.getAllTags();
       if (allTags.length === 0) {
@@ -221,11 +250,16 @@ export function registerTagHandlers(): void {
 
       const { getDatabase } = await import('../db/index');
       const db = getDatabase();
+      const daysBack = options?.daysBack ?? 0;
+      const dateClause = daysBack > 0
+        ? `AND tr.date >= date('now', '-${daysBack} days')`
+        : '';
       const allTransactions = db.prepare(`
         SELECT tr.id, tr.description, tr.amount, c.name as category
         FROM transactions tr
         LEFT JOIN categories c ON c.id = tr.category_id
         WHERE tr.id NOT IN (SELECT DISTINCT transaction_id FROM transaction_tags)
+        ${dateClause}
         ORDER BY tr.date DESC
       `).all() as Array<{ id: number; description: string; amount: number; category: string | null }>;
 
@@ -245,19 +279,77 @@ export function registerTagHandlers(): void {
       const promptTemplate = automationSettings.prompt_auto_tag || DEFAULT_AUTO_TAG_PROMPT;
       const ollamaModel = automationSettings.auto_tag_model || 'llama3.2';
 
-      const tagRules = tagRuleQueries.getAllTagRules();
+      // Load all rule types and training examples
+      const allTagRules = tagRuleQueries.getAllTagRules();
+      const inclusionRules = allTagRules.filter(r => r.action === 'include');
+      const exclusionRules = allTagRules.filter(r => r.action === 'exclude');
+      const corrections = tagCorrectionQueries.getAllTagCorrections();
 
-      const batchSize = 5;
-      let tagged = 0;
       const total = allTransactions.length;
-      const totalBatches = Math.ceil(total / batchSize);
-
-      addLog('info', 'Tags', `Auto-tag started — ${total} untagged transaction${total !== 1 ? 's' : ''}, ${allTags.length} tags available, ${totalBatches} batch${totalBatches !== 1 ? 'es' : ''} (model: ${ollamaModel})`);
+      addLog('info', 'Tags', `Auto-tag started — ${total} untagged transaction${total !== 1 ? 's' : ''}, ${allTags.length} tags available (model: ${ollamaModel})`);
       addLog('debug', 'Tags', `Tags: ${allTags.map(t => t.name).join(', ')}`);
       if (automationSettings.prompt_auto_tag) addLog('debug', 'Tags', 'Using custom auto-tag prompt from settings');
+      if (inclusionRules.length > 0) addLog('debug', 'Tags', `Inclusion rules: ${inclusionRules.length}, exclusion rules: ${exclusionRules.length}, training examples: ${corrections.length}`);
 
-      for (let i = 0; i < allTransactions.length; i += batchSize) {
-        const batch = allTransactions.slice(i, i + batchSize);
+      // ── Step 1: Apply inclusion rules (deterministic pre-tagging before AI) ──
+      let inclusionTagged = 0;
+      const preTaggedIds = new Set<number>();
+
+      if (inclusionRules.length > 0) {
+        const preTaggedMap = applyInclusionRules(allTransactions, inclusionRules);
+        for (const [txId, tagIds] of preTaggedMap) {
+          tagQueries.setTagsForTransaction(txId, tagIds);
+          const tx = allTransactions.find(t => t.id === txId);
+          const tagNames = tagIds.map(id => allTags.find(t => t.id === id)?.name ?? id).join(', ');
+          addLog('info', 'Tags', `Inclusion rule: tagged "${tx?.description}" → ${tagNames}`);
+          preTaggedIds.add(txId);
+          inclusionTagged++;
+        }
+        if (inclusionTagged > 0) {
+          addLog('info', 'Tags', `Inclusion rules pre-tagged ${inclusionTagged} transaction${inclusionTagged !== 1 ? 's' : ''}`);
+          event.sender.send('tags:auto-tag-progress', { done: inclusionTagged, total });
+        }
+      }
+
+      // ── Step 2: Build prompt additions (built once, applied to every batch) ──
+      let fewShotSection = '';
+      if (corrections.length > 0) {
+        const lines: string[] = [];
+        for (const ex of corrections.slice(0, 20)) {
+          if (ex.direction === 'positive') {
+            lines.push(`- "${ex.description}" SHOULD be tagged as "${ex.tag_name}"`);
+          } else {
+            lines.push(`- "${ex.description}" should NOT be tagged as "${ex.tag_name}"`);
+          }
+        }
+        if (lines.length > 0) {
+          fewShotSection = `\n\nEXAMPLES FROM YOUR CORRECTIONS (use these to calibrate accuracy):\n${lines.join('\n')}`;
+        }
+      }
+
+      let rulesSection = '';
+      if (exclusionRules.length > 0) {
+        const lines = exclusionRules.map(r => `- Never tag descriptions containing "${r.pattern}" with "${r.tag_name}"`).join('\n');
+        rulesSection = `\n\nCORRECTION RULES (always override your judgment):\n${lines}`;
+      }
+
+      // ── Step 3: Send remaining transactions to AI ──
+      const aiTransactions = allTransactions.filter(t => !preTaggedIds.has(t.id));
+
+      if (aiTransactions.length === 0) {
+        addLog('success', 'Tags', `Auto-tag complete — ${inclusionTagged} of ${total} transaction${total !== 1 ? 's' : ''} tagged (all by inclusion rules)`);
+        return { tagged: inclusionTagged };
+      }
+
+      const batchSize = 5;
+      let aiTagged = 0;
+      const aiTotal = aiTransactions.length;
+      const totalBatches = Math.ceil(aiTotal / batchSize);
+
+      addLog('debug', 'Tags', `Sending ${aiTotal} transaction${aiTotal !== 1 ? 's' : ''} to AI in ${totalBatches} batch${totalBatches !== 1 ? 'es' : ''}`);
+
+      for (let i = 0; i < aiTransactions.length; i += batchSize) {
+        const batch = aiTransactions.slice(i, i + batchSize);
         const batchNum = Math.floor(i / batchSize) + 1;
 
         addLog('debug', 'Tags', `Batch ${batchNum}/${totalBatches}: sending ${batch.length} transaction${batch.length !== 1 ? 's' : ''} to Ollama`);
@@ -266,14 +358,9 @@ export function registerTagHandlers(): void {
           .map(t => `${t.id}: "${t.description}" ${t.amount < 0 ? 'expense' : 'income'} $${Math.abs(t.amount).toFixed(2)}${t.category ? ` [${t.category}]` : ''}`)
           .join('\n');
 
-        let rulesSection = '';
-        if (tagRules.length > 0) {
-          const lines = tagRules.map(r => `- Never tag descriptions containing "${r.pattern}" with "${r.tag_name}"`).join('\n');
-          rulesSection = `\n\nCORRECTION RULES (always override your judgment):\n${lines}`;
-        }
         const prompt = promptTemplate
           .replace('{{TAG_LIST}}', tagList)
-          .replace('{{TX_LINES}}', txLines) + rulesSection;
+          .replace('{{TX_LINES}}', txLines) + fewShotSection + rulesSection;
 
         try {
           const response = await fetch('http://localhost:11434/api/generate', {
@@ -305,7 +392,7 @@ export function registerTagHandlers(): void {
             continue;
           }
 
-          applyTagRules(results, batch, tagRules, tagNameToId);
+          applyTagRules(results, batch, exclusionRules, tagNameToId);
 
           let batchTagged = 0;
           for (const result of results) {
@@ -321,8 +408,8 @@ export function registerTagHandlers(): void {
             if (matchedTags.length > 0) {
               tagQueries.setTagsForTransaction(result.id, matchedTags.map(t => t.id));
               const tx = batch.find(t => t.id === result.id);
-              addLog('info', 'Tags', `Tagged "${tx?.description ?? result.id}" → ${matchedTags.map(t => t.name).join(', ')}`);
-              tagged++;
+              addLog('info', 'Tags', `AI tagged "${tx?.description ?? result.id}" → ${matchedTags.map(t => t.name).join(', ')}`);
+              aiTagged++;
               batchTagged++;
             }
           }
@@ -332,11 +419,12 @@ export function registerTagHandlers(): void {
           addLog('error', 'Tags', `Batch ${batchNum}/${totalBatches}: request failed — ${(err as Error).message}`);
         }
 
-        event.sender.send('tags:auto-tag-progress', { done: Math.min(i + batchSize, total), total });
+        event.sender.send('tags:auto-tag-progress', { done: inclusionTagged + Math.min(i + batchSize, aiTotal), total });
       }
 
-      addLog('success', 'Tags', `Auto-tag complete — ${tagged} of ${total} transaction${total !== 1 ? 's' : ''} tagged`);
-      return { tagged };
+      const totalTagged = inclusionTagged + aiTagged;
+      addLog('success', 'Tags', `Auto-tag complete — ${totalTagged} of ${total} transaction${total !== 1 ? 's' : ''} tagged (${inclusionTagged} by rules, ${aiTagged} by AI)`);
+      return { tagged: totalTagged };
     } catch (error) {
       addLog('error', 'Tags', `Auto-tag failed: ${(error as Error).message}`);
       throw error;
@@ -352,11 +440,12 @@ export function registerTagHandlers(): void {
     }
   });
 
-  ipcMain.handle('tag-rules:create', async (_: IpcMainInvokeEvent, data: { tag_id: number; pattern: string }) => {
+  ipcMain.handle('tag-rules:create', async (_: IpcMainInvokeEvent, data: { tag_id: number; pattern: string; action?: 'exclude' | 'include' }) => {
     try {
-      const id = tagRuleQueries.createTagRule({ tag_id: data.tag_id, pattern: data.pattern });
+      const id = tagRuleQueries.createTagRule({ tag_id: data.tag_id, pattern: data.pattern, action: data.action });
       const rule = tagRuleQueries.getAllTagRules().find(r => r.id === id);
-      addLog('info', 'Tags', `Created rule: never tag "${rule?.tag_name ?? data.tag_id}" when description contains "${data.pattern}"`);
+      const actionWord = (data.action ?? 'exclude') === 'include' ? 'always' : 'never';
+      addLog('info', 'Tags', `Created rule: ${actionWord} tag "${rule?.tag_name ?? data.tag_id}" when description contains "${data.pattern}"`);
       return rule;
     } catch (error) {
       addLog('error', 'Tags', `Failed to create tag rule: ${(error as Error).message}`);
@@ -370,6 +459,91 @@ export function registerTagHandlers(): void {
       addLog('info', 'Tags', `Deleted tag rule ${id}`);
     } catch (error) {
       addLog('error', 'Tags', `Failed to delete tag rule ${id}: ${(error as Error).message}`);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('tag-rules:apply', async (_: IpcMainInvokeEvent, ruleId: number, daysBack?: number) => {
+    try {
+      const db = getDatabase();
+      const rule = db.prepare(
+        'SELECT tr.*, t.name as tag_name FROM tag_rules tr JOIN tags t ON t.id = tr.tag_id WHERE tr.id = ?'
+      ).get(ruleId) as (typeof tagRuleQueries.getAllTagRules extends () => (infer R)[] ? R : never) | undefined;
+      if (!rule) throw new Error(`Rule ${ruleId} not found`);
+
+      const safeDaysBack = typeof daysBack === 'number' && daysBack > 0 ? Math.floor(daysBack) : 0;
+      const dateClause = safeDaysBack > 0 ? `AND date >= date('now', '-${safeDaysBack} days')` : '';
+
+      let count = 0;
+
+      if (rule.action === 'include') {
+        const txs = db.prepare(
+          `SELECT id FROM transactions WHERE LOWER(description) LIKE LOWER(?) ${dateClause}`
+        ).all(`%${rule.pattern}%`) as Array<{ id: number }>;
+
+        for (const tx of txs) {
+          const currentTagIds = (db.prepare(
+            'SELECT tag_id FROM transaction_tags WHERE transaction_id = ?'
+          ).all(tx.id) as Array<{ tag_id: number }>).map((r) => r.tag_id);
+          if (!currentTagIds.includes(rule.tag_id)) {
+            tagQueries.setTagsForTransaction(tx.id, [...currentTagIds, rule.tag_id]);
+            count++;
+          }
+        }
+      } else {
+        const txs = db.prepare(
+          `SELECT tt.transaction_id as id
+           FROM transaction_tags tt
+           JOIN transactions tr ON tr.id = tt.transaction_id
+           WHERE tt.tag_id = ? AND LOWER(tr.description) LIKE LOWER(?)
+           ${dateClause}`
+        ).all(rule.tag_id, `%${rule.pattern}%`) as Array<{ id: number }>;
+
+        for (const tx of txs) {
+          const currentTagIds = (db.prepare(
+            'SELECT tag_id FROM transaction_tags WHERE transaction_id = ?'
+          ).all(tx.id) as Array<{ tag_id: number }>).map((r) => r.tag_id).filter((id) => id !== rule.tag_id);
+          tagQueries.setTagsForTransaction(tx.id, currentTagIds);
+          count++;
+        }
+      }
+
+      addLog('info', 'Tags', `Applied rule "${rule.tag_name} / ${rule.pattern}" — ${count} transaction(s) updated`);
+      return { count };
+    } catch (error) {
+      addLog('error', 'Tags', `Failed to apply tag rule ${ruleId}: ${(error as Error).message}`);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('tag-corrections:get-all', async () => {
+    try {
+      return tagCorrectionQueries.getAllTagCorrections();
+    } catch (error) {
+      console.error('Error getting tag corrections:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('tag-corrections:create', async (_: IpcMainInvokeEvent, data: { tag_id: number; description: string; direction: 'positive' | 'negative' }) => {
+    try {
+      const id = tagCorrectionQueries.createTagCorrection(data);
+      const correction = tagCorrectionQueries.getAllTagCorrections().find(c => c.id === id);
+      const dirWord = data.direction === 'positive' ? 'positive' : 'negative';
+      addLog('info', 'Tags', `Saved ${dirWord} training example for "${correction?.tag_name ?? data.tag_id}": "${data.description}"`);
+      return correction;
+    } catch (error) {
+      addLog('error', 'Tags', `Failed to create tag correction: ${(error as Error).message}`);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('tag-corrections:delete', async (_: IpcMainInvokeEvent, id: number) => {
+    try {
+      tagCorrectionQueries.deleteTagCorrection(id);
+      addLog('info', 'Tags', `Deleted tag correction ${id}`);
+    } catch (error) {
+      addLog('error', 'Tags', `Failed to delete tag correction ${id}: ${(error as Error).message}`);
       throw error;
     }
   });

@@ -6,6 +6,7 @@ import { Automation, type AutomationHandle } from './Automation';
 import type { CSVFormat, ImportPreview, ImportResult } from '../types';
 import { Button } from '@/components/ui/button';
 import { AccentButton } from '@/components/ui/accent-button';
+import { SidebarButton } from '@/components/ui/SidebarButton';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -205,22 +206,14 @@ export default function Import() {
 
         {/* Primary actions */}
         <div className="px-3 pt-3 pb-3 space-y-1.5">
-          <AccentButton
-            onClick={() => setDrawerOpen(true)}
-            className="w-full justify-start text-xs h-9 px-3 gap-2"
-          >
+          <SidebarButton variant="primary" onClick={() => setDrawerOpen(true)}>
             <Upload className="w-3.5 h-3.5 shrink-0" />
             Manual CSV Import
-          </AccentButton>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="w-full justify-start text-xs h-9 gap-2 text-muted-foreground hover:text-foreground"
-            onClick={() => automationRef.current?.openNewRecording()}
-          >
+          </SidebarButton>
+          <SidebarButton onClick={() => automationRef.current?.openNewRecording()}>
             <Plus className="w-3.5 h-3.5 shrink-0" />
             New Recording
-          </Button>
+          </SidebarButton>
         </div>
 
         <div className="mx-3 border-t border-border/40" />

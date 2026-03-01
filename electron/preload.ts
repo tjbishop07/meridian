@@ -163,6 +163,12 @@ const electronAPI: ElectronAPI = {
       'tag-rules:get-all',
       'tag-rules:create',
       'tag-rules:delete',
+      'tag-rules:apply',
+
+      // Tag Corrections
+      'tag-corrections:get-all',
+      'tag-corrections:create',
+      'tag-corrections:delete',
 
       // Receipts
       'receipt:start-server',

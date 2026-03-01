@@ -11,7 +11,7 @@ import {
   deleteTag,
   getAllTags,
 } from '../../../../../electron/db/queries/tags';
-import { parseAutoTagResponse, applyTagRules } from '../../../../../electron/ipc/tags';
+import { parseAutoTagResponse, applyTagRules, applyInclusionRules } from '../../../../../electron/ipc/tags';
 import type { TagRule } from '../../../../../electron/db/queries/tag-rules';
 import type Database from 'better-sqlite3';
 
@@ -196,5 +196,69 @@ describe('applyTagRules', () => {
     const batch = [{ id: 1, description: 'Netflix Monthly' }];
     applyTagRules(results, batch, [], tagNameToId);
     expect(results[0].tags).toEqual(['Subscriptions', 'Healthcare']);
+  });
+});
+
+// ── applyInclusionRules ───────────────────────────────────────────────────────
+
+function makeInclusionRule(overrides: Partial<TagRule> = {}): TagRule {
+  return {
+    id: 1,
+    tag_id: 10,
+    tag_name: 'Coffee',
+    pattern: 'starbucks',
+    action: 'include',
+    created_at: '2025-01-01',
+    ...overrides,
+  };
+}
+
+describe('applyInclusionRules', () => {
+  it('pre-tags a transaction whose description contains the inclusion pattern', () => {
+    const transactions = [{ id: 1, description: 'Starbucks Coffee #1234' }];
+    const result = applyInclusionRules(transactions, [makeInclusionRule()]);
+    expect(result.has(1)).toBe(true);
+    expect(result.get(1)).toEqual([10]);
+  });
+
+  it('does not pre-tag when description does not contain the pattern', () => {
+    const transactions = [{ id: 1, description: 'Dunkin Donuts' }];
+    const result = applyInclusionRules(transactions, [makeInclusionRule()]);
+    expect(result.has(1)).toBe(false);
+  });
+
+  it('matching is case-insensitive', () => {
+    const transactions = [{ id: 1, description: 'STARBUCKS RESERVE' }];
+    const result = applyInclusionRules(transactions, [makeInclusionRule({ pattern: 'starbucks' })]);
+    expect(result.has(1)).toBe(true);
+  });
+
+  it('returns empty map for empty rules array', () => {
+    const transactions = [{ id: 1, description: 'Starbucks Coffee' }];
+    const result = applyInclusionRules(transactions, []);
+    expect(result.size).toBe(0);
+  });
+
+  it('collects multiple tag ids when multiple rules match the same transaction', () => {
+    const rules = [
+      makeInclusionRule({ tag_id: 10, pattern: 'starbucks' }),
+      makeInclusionRule({ id: 2, tag_id: 20, tag_name: 'Dining', pattern: 'coffee' }),
+    ];
+    const transactions = [{ id: 1, description: 'Starbucks Coffee Reserve' }];
+    const result = applyInclusionRules(transactions, rules);
+    const tagIds = result.get(1) ?? [];
+    expect(tagIds).toContain(10);
+    expect(tagIds).toContain(20);
+  });
+
+  it('only pre-tags matching transactions, leaves non-matching ones out', () => {
+    const rules = [makeInclusionRule({ pattern: 'starbucks' })];
+    const transactions = [
+      { id: 1, description: 'Starbucks Coffee' },
+      { id: 2, description: 'McDonalds' },
+    ];
+    const result = applyInclusionRules(transactions, rules);
+    expect(result.has(1)).toBe(true);
+    expect(result.has(2)).toBe(false);
   });
 });

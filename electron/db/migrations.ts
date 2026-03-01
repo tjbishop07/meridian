@@ -328,6 +328,43 @@ export const migrations: Migration[] = [
       `);
       console.log('Migration 10: Done');
     }
+  },
+  {
+    version: 11,
+    name: 'add_tag_corrections_and_update_rules',
+    up: (db: Database.Database) => {
+      console.log('Migration 11: Expanding tag_rules action constraint and creating tag_corrections table');
+
+      // SQLite cannot modify CHECK constraints — recreate tag_rules to allow 'include' action
+      db.exec(`
+        CREATE TABLE tag_rules_v2 (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tag_id INTEGER NOT NULL,
+          pattern TEXT NOT NULL,
+          action TEXT NOT NULL DEFAULT 'exclude' CHECK(action IN ('exclude', 'include')),
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+        )
+      `);
+      // Preserve existing exclusion rules
+      db.exec(`INSERT INTO tag_rules_v2 SELECT * FROM tag_rules`);
+      db.exec(`DROP TABLE tag_rules`);
+      db.exec(`ALTER TABLE tag_rules_v2 RENAME TO tag_rules`);
+
+      // AI few-shot training examples (user-confirmed corrections fed back into prompt)
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS tag_corrections (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          tag_id INTEGER NOT NULL,
+          description TEXT NOT NULL,
+          direction TEXT NOT NULL DEFAULT 'positive' CHECK(direction IN ('positive', 'negative')),
+          created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+        )
+      `);
+
+      console.log('Migration 11: Done');
+    }
   }
 ];
 

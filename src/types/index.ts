@@ -27,7 +27,17 @@ export interface TagRule {
   tag_id: number;
   tag_name?: string;
   pattern: string;
-  action: 'exclude';
+  action: 'exclude' | 'include';
+  created_at: string;
+}
+
+export interface TagCorrection {
+  id: number;
+  tag_id: number;
+  tag_name?: string;
+  tag_color?: string;
+  description: string;
+  direction: 'positive' | 'negative';
   created_at: string;
 }
 
@@ -505,8 +515,14 @@ export interface ElectronAPI {
 
   // Tag Rules
   invoke(channel: 'tag-rules:get-all'): Promise<TagRule[]>;
-  invoke(channel: 'tag-rules:create', data: { tag_id: number; pattern: string }): Promise<TagRule>;
+  invoke(channel: 'tag-rules:create', data: { tag_id: number; pattern: string; action?: 'exclude' | 'include' }): Promise<TagRule>;
   invoke(channel: 'tag-rules:delete', id: number): Promise<void>;
+  invoke(channel: 'tag-rules:apply', ruleId: number, daysBack?: number): Promise<{ count: number }>;
+
+  // Tag Corrections
+  invoke(channel: 'tag-corrections:get-all'): Promise<TagCorrection[]>;
+  invoke(channel: 'tag-corrections:create', data: { tag_id: number; description: string; direction: 'positive' | 'negative' }): Promise<TagCorrection>;
+  invoke(channel: 'tag-corrections:delete', id: number): Promise<void>;
 
   // Tags
   invoke(channel: 'tags:get-all'): Promise<Tag[]>;
@@ -517,7 +533,7 @@ export interface ElectronAPI {
   invoke(channel: 'tags:get-for-transaction', transactionId: number): Promise<Tag[]>;
   invoke(channel: 'tags:set-for-transaction', transactionId: number, tagIds: number[]): Promise<void>;
   invoke(channel: 'tags:get-stats'): Promise<TagStat[]>;
-  invoke(channel: 'tags:auto-tag'): Promise<{ tagged: number }>;
+  invoke(channel: 'tags:auto-tag', options?: { daysBack?: number }): Promise<{ tagged: number }>;
   invoke(channel: 'tags:get-transactions', tagId: number): Promise<Transaction[]>;
   invoke(channel: 'tags:get-all-transaction-tags'): Promise<Array<{ transaction_id: number; tag_id: number; tag_name: string; tag_color: string }>>;
 
