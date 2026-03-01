@@ -77,6 +77,25 @@ jobs:
         with:
           python-version: '3.11'
 
+      # electron-builder downloads NSIS plugins and other build-time binaries
+      # on demand. Cache them so the download only needs to succeed once, and
+      # Windows builds don't fail on transient network errors.
+      - name: Cache electron-builder binaries (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.LOCALAPPDATA }}\electron-builder\cache
+          key: electron-builder-win-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: electron-builder-win-
+
+      - name: Cache electron-builder binaries (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/electron-builder
+          key: electron-builder-mac-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: electron-builder-mac-
+
       - name: Install dependencies
         run: pnpm install --ignore-scripts
 
