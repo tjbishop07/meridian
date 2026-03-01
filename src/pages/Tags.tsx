@@ -231,7 +231,7 @@ export default function Tags() {
   const handleQuickBlockTag = async () => {
     if (!selectedTagId) return;
     try {
-      await window.electron.invoke('tag-rules:create', { tag_id: selectedTagId, pattern: quickRuleDescription, action: 'exclude' });
+      await window.electron.invoke('tag-rules:create', { tag_id: selectedTagId, pattern: quickRuleDescription.toLowerCase(), action: 'exclude' });
       setAllRules(await window.electron.invoke('tag-rules:get-all'));
       setQuickRuleTxId(null);
       toast.success('Exclusion rule created');
@@ -251,7 +251,7 @@ export default function Tags() {
   const handleAddPatternRule = async () => {
     if (!newRulePattern.trim() || newRuleTagId === '') return;
     try {
-      await window.electron.invoke('tag-rules:create', { tag_id: newRuleTagId as number, pattern: newRulePattern.trim(), action: newRuleAction });
+      await window.electron.invoke('tag-rules:create', { tag_id: newRuleTagId as number, pattern: newRulePattern.trim().toLowerCase(), action: newRuleAction });
       setAllRules(await window.electron.invoke('tag-rules:get-all'));
       setNewRulePattern('');
       setNewRuleTagId('');
@@ -700,7 +700,7 @@ export default function Tags() {
                   <div className="flex items-center gap-2">
                     <Input
                       value={newRulePattern}
-                      onChange={(e) => setNewRulePattern(e.target.value)}
+                      onChange={(e) => setNewRulePattern(e.target.value.toLowerCase())}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') handleAddPatternRule();
                         if (e.key === 'Escape') { setIsAddingPatternRule(false); setNewRulePattern(''); setNewRuleTagId(''); }

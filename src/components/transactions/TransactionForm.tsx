@@ -5,12 +5,13 @@ import { useTags } from '../../hooks/useTags';
 import type { Transaction, CreateTransactionInput, Receipt } from '../../types';
 import { ReceiptViewer } from '../receipts/ReceiptViewer';
 import { format } from 'date-fns';
-import { X, TrendingDown, TrendingUp, ArrowLeftRight } from 'lucide-react';
+import { X, TrendingDown, TrendingUp, ArrowLeftRight, Zap, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
 
 interface TransactionFormProps {
   transaction?: Transaction;
@@ -80,9 +81,14 @@ export default function TransactionForm({ transaction, receipt, onSubmit, onCanc
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSimilarPanel, setShowSimilarPanel] = useState(false);
+  const [similarPattern, setSimilarPattern] = useState('');
+  const [isApplyingSimilar, setIsApplyingSimilar] = useState(false);
 
   useEffect(() => {
     loadTags();
+    setShowSimilarPanel(false);
+    setSimilarPattern('');
     if (transaction?.id) {
       window.electron.invoke('tags:get-for-transaction', transaction.id).then((existingTags) => {
         setSelectedTagIds(existingTags.map((t) => t.id));
@@ -115,6 +121,37 @@ export default function TransactionForm({ transaction, receipt, onSubmit, onCanc
   };
 
   const currentType = TYPE_CONFIG[formData.type];
+
+  const derivePattern = (desc: string) => {
+    const first = desc.trim().split(/[\s.*#_/\\@&!,]+/)[0];
+    return (first.replace(/\d+$/, '') || desc.trim().slice(0, 20)).toLowerCase();
+  };
+
+  const handleOpenSimilar = () => {
+    setSimilarPattern(derivePattern(formData.description));
+    setShowSimilarPanel(true);
+  };
+
+  const handleApplySimilar = async () => {
+    const pattern = similarPattern.trim().toLowerCase();
+    if (!pattern || selectedTagIds.length === 0) return;
+    setIsApplyingSimilar(true);
+    try {
+      let tagged = 0;
+      for (const tagId of selectedTagIds) {
+        const rule = await window.electron.invoke('tag-rules:create', { tag_id: tagId, pattern, action: 'include' });
+        const { count } = await window.electron.invoke('tag-rules:apply', rule.id, 0);
+        if (count > tagged) tagged = count;
+      }
+      const ruleWord = selectedTagIds.length === 1 ? 'rule' : 'rules';
+      toast.success(`Tagged ${tagged} transaction${tagged !== 1 ? 's' : ''} and created ${selectedTagIds.length} inclusion ${ruleWord}`);
+      setShowSimilarPanel(false);
+    } catch {
+      toast.error('Failed to apply to similar transactions');
+    } finally {
+      setIsApplyingSimilar(false);
+    }
+  };
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -342,6 +379,57 @@ export default function TransactionForm({ transaction, receipt, onSubmit, onCanc
                 </option>
               ))}
           </select>
+        )}
+
+        {selectedTagIds.length > 0 && !showSimilarPanel && (
+          <button
+            type="button"
+            onClick={handleOpenSimilar}
+            className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50 hover:text-foreground transition-colors"
+          >
+            <Zap className="w-3 h-3" />
+            Apply to all similar transactions…
+          </button>
+        )}
+
+        {showSimilarPanel && (
+          <div className="rounded-lg border border-border/40 bg-muted/20 p-3 space-y-2.5">
+            <p className="text-[11px] text-muted-foreground/60">
+              Tag all transactions whose description contains:
+            </p>
+            <Input
+              value={similarPattern}
+              onChange={(e) => setSimilarPattern(e.target.value.toLowerCase())}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleApplySimilar(); } if (e.key === 'Escape') setShowSimilarPanel(false); }}
+              placeholder="Pattern to match…"
+              className="h-8 text-xs font-mono"
+              autoFocus
+            />
+            <p className="text-[10px] text-muted-foreground/40">
+              An inclusion rule will be created so future transactions are tagged automatically.
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 text-xs flex-1"
+                onClick={handleApplySimilar}
+                disabled={isApplyingSimilar || !similarPattern.trim()}
+              >
+                {isApplyingSimilar ? <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Applying…</> : 'Apply & Create Rule'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs"
+                onClick={() => setShowSimilarPanel(false)}
+                disabled={isApplyingSimilar}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
         )}
       </div>
 
