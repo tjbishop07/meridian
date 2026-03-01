@@ -44,10 +44,10 @@ export function EditTransactionDrawer({ transaction, onClose, onSaved }: Props) 
       status: data.status,
       notes: data.notes,
       to_account_id: data.to_account_id,
-    } as any, true);
+    } as any);
     await setTagsForTransaction(transaction.id, tagIds);
     onClose();
-    onSaved?.();
+    await onSaved?.();
   };
 
   return (

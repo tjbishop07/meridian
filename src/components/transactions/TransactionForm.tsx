@@ -5,12 +5,20 @@ import { useTags } from '../../hooks/useTags';
 import type { Transaction, CreateTransactionInput, Receipt } from '../../types';
 import { ReceiptViewer } from '../receipts/ReceiptViewer';
 import { format } from 'date-fns';
-import { X, TrendingDown, TrendingUp, ArrowLeftRight, Zap, Loader2 } from 'lucide-react';
+import { X, TrendingDown, TrendingUp, ArrowLeftRight, Zap, Loader2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { derivePattern } from '@/lib/derivePattern';
 
@@ -82,13 +90,13 @@ export default function TransactionForm({ transaction, receipt, onSubmit, onCanc
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showSimilarPanel, setShowSimilarPanel] = useState(false);
+  const [showSimilarDialog, setShowSimilarDialog] = useState(false);
   const [similarPattern, setSimilarPattern] = useState('');
   const [isApplyingSimilar, setIsApplyingSimilar] = useState(false);
 
   useEffect(() => {
     loadTags();
-    setShowSimilarPanel(false);
+    setShowSimilarDialog(false);
     setSimilarPattern('');
     if (transaction?.id) {
       window.electron.invoke('tags:get-for-transaction', transaction.id).then((existingTags) => {
@@ -125,7 +133,7 @@ export default function TransactionForm({ transaction, receipt, onSubmit, onCanc
 
   const handleOpenSimilar = () => {
     setSimilarPattern(derivePattern(formData.description));
-    setShowSimilarPanel(true);
+    setShowSimilarDialog(true);
   };
 
   const handleApplySimilar = async () => {
@@ -141,7 +149,7 @@ export default function TransactionForm({ transaction, receipt, onSubmit, onCanc
       }
       const ruleWord = selectedTagIds.length === 1 ? 'rule' : 'rules';
       toast.success(`Tagged ${tagged} transaction${tagged !== 1 ? 's' : ''} and created ${selectedTagIds.length} inclusion ${ruleWord}`);
-      setShowSimilarPanel(false);
+      setShowSimilarDialog(false);
     } catch {
       toast.error('Failed to apply to similar transactions');
     } finally {
@@ -377,57 +385,123 @@ export default function TransactionForm({ transaction, receipt, onSubmit, onCanc
           </select>
         )}
 
-        {selectedTagIds.length > 0 && !showSimilarPanel && (
+        {selectedTagIds.length > 0 && (
           <button
             type="button"
             onClick={handleOpenSimilar}
-            className="flex items-center gap-1.5 text-[11px] text-muted-foreground/50 hover:text-foreground transition-colors"
+            className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed border-primary/20 bg-primary/[0.03] text-left transition-all duration-200 hover:border-primary/40 hover:bg-primary/[0.06]"
           >
-            <Zap className="w-3 h-3" />
-            Apply to all similar transactions…
+            <div className="flex-shrink-0 w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center group-hover:bg-primary/15 transition-colors">
+              <Zap className="w-3.5 h-3.5 text-primary" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-medium text-primary leading-tight">
+                Auto-tag similar transactions
+              </p>
+              <p className="text-[11px] text-muted-foreground/60 mt-0.5 truncate">
+                Apply to all matching "{derivePattern(formData.description)}"
+              </p>
+            </div>
+            <Sparkles className="w-3.5 h-3.5 text-primary/40 flex-shrink-0 group-hover:text-primary/70 transition-colors" />
           </button>
         )}
+      </div>
 
-        {showSimilarPanel && (
-          <div className="rounded-lg border border-border/40 bg-muted/20 p-3 space-y-2.5">
-            <p className="text-[11px] text-muted-foreground/60">
-              Tag all transactions whose description contains:
-            </p>
-            <Input
-              value={similarPattern}
-              onChange={(e) => setSimilarPattern(e.target.value.toLowerCase())}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleApplySimilar(); } if (e.key === 'Escape') setShowSimilarPanel(false); }}
-              placeholder="Pattern to match…"
-              className="h-8 text-xs font-mono"
-              autoFocus
-            />
-            <p className="text-[10px] text-muted-foreground/40">
-              An inclusion rule will be created so future transactions are tagged automatically.
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                size="sm"
-                className="h-7 text-xs flex-1"
-                onClick={handleApplySimilar}
-                disabled={isApplyingSimilar || !similarPattern.trim()}
-              >
-                {isApplyingSimilar ? <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Applying…</> : 'Apply & Create Rule'}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-7 text-xs"
-                onClick={() => setShowSimilarPanel(false)}
-                disabled={isApplyingSimilar}
-              >
-                Cancel
-              </Button>
+      {/* Auto-tag dialog */}
+      <Dialog open={showSimilarDialog} onOpenChange={(open) => !open && setShowSimilarDialog(false)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                <Zap className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <DialogTitle className="text-base">Auto-tag Similar Transactions</DialogTitle>
+                <DialogDescription className="text-xs mt-0.5">
+                  Tag existing matches and create a rule for future ones.
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            {/* Tags being applied */}
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Tags to apply</p>
+              <div className="flex flex-wrap gap-1.5">
+                {selectedTagIds.map((tagId) => {
+                  const tag = tags.find((t) => t.id === tagId);
+                  if (!tag) return null;
+                  return (
+                    <span
+                      key={tagId}
+                      className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium"
+                      style={{
+                        backgroundColor: tag.color + '22',
+                        color: tag.color,
+                        border: `1px solid ${tag.color}44`,
+                      }}
+                    >
+                      {tag.name}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Pattern input */}
+            <div>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Match transactions containing</p>
+              <Input
+                value={similarPattern}
+                onChange={(e) => setSimilarPattern(e.target.value.toLowerCase())}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); handleApplySimilar(); }
+                  if (e.key === 'Escape') setShowSimilarDialog(false);
+                }}
+                placeholder="e.g. amazon"
+                className="font-mono"
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground/60 mt-1.5">
+                Case-insensitive — matches any transaction whose description contains{' '}
+                <span className="font-mono font-medium text-foreground">
+                  "{similarPattern || '…'}"
+                </span>
+              </p>
+            </div>
+
+            {/* Info callout */}
+            <div className="flex items-start gap-2.5 rounded-lg bg-muted/50 border border-border/40 px-3 py-2.5">
+              <Sparkles className="w-3.5 h-3.5 text-primary flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                <span className="font-medium text-foreground">Creates an inclusion rule</span> — future transactions matching this pattern will be tagged automatically.
+              </p>
             </div>
           </div>
-        )}
-      </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowSimilarDialog(false)}
+              disabled={isApplyingSimilar}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleApplySimilar}
+              disabled={isApplyingSimilar || !similarPattern.trim()}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
+            >
+              {isApplyingSimilar
+                ? <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />Applying…</>
+                : <><Zap className="w-3.5 h-3.5 mr-1.5" />Apply Rule</>}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Receipt */}
       {receipt && onReceiptDeleted && (
