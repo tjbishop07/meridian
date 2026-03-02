@@ -250,7 +250,7 @@ export default function Budgets() {
           )}
         </div>
         <div className="px-4 pt-4 pb-3">
-          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/35 mb-2">
+          <p className="text-2xs font-bold uppercase tracking-[0.18em] text-muted-foreground/35 mb-2">
             Month
           </p>
           <Input type="month" value={selectedMonth}

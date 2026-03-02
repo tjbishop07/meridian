@@ -437,7 +437,7 @@ export default function Tags() {
                   )}>
                     {stat.name}
                   </p>
-                  <p className="text-[10px] text-muted-foreground/40 tabular-nums">
+                  <p className="text-xs text-muted-foreground/40 tabular-nums">
                     {stat.count} · ${stat.total_amount.toFixed(0)}
                   </p>
                 </div>
@@ -468,7 +468,7 @@ export default function Tags() {
         {/* Summary footer */}
         {stats.length > 0 && (
           <div className="px-4 py-3 border-t border-border/40">
-            <p className="text-[10px] text-muted-foreground/35 tabular-nums">
+            <p className="text-xs text-muted-foreground/35 tabular-nums">
               {stats.length} tag{stats.length !== 1 ? 's' : ''} · {stats.reduce((s, t) => s + t.count, 0)} transactions
             </p>
           </div>
@@ -495,7 +495,7 @@ export default function Tags() {
                 {tab}
                 {tab === 'rules' && (allRules.length + allCorrections.length) > 0 && (
                   <span className={cn(
-                    'text-[10px] font-bold tabular-nums px-1.5 py-0.5 rounded-full leading-none',
+                    'text-xs font-bold tabular-nums px-1.5 py-0.5 rounded-full leading-none',
                     activeTab === 'rules'
                       ? 'bg-primary-foreground/20 text-primary-foreground'
                       : 'bg-muted text-muted-foreground'
@@ -570,7 +570,7 @@ export default function Tags() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-6 text-[10px] border-amber-500/30 hover:border-amber-500/60"
+                      className="h-6 text-xs border-amber-500/30 hover:border-amber-500/60"
                       onClick={handleQuickBlockTag}
                       title="Create an exclusion rule — AI will never apply this tag to matching descriptions"
                     >
@@ -579,7 +579,7 @@ export default function Tags() {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-6 text-[10px] border-amber-500/30 hover:border-amber-500/60"
+                      className="h-6 text-xs border-amber-500/30 hover:border-amber-500/60"
                       onClick={handleQuickSaveExample}
                       title="Save a training example — AI learns from this correction"
                     >
@@ -599,10 +599,10 @@ export default function Tags() {
                   <table className="min-w-full">
                     <thead>
                       <tr className="border-b border-border/30">
-                        <th className="px-4 py-2.5 text-left text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Date</th>
-                        <th className="px-4 py-2.5 text-left text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Description</th>
-                        <th className="px-4 py-2.5 text-left text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Category</th>
-                        <th className="px-4 py-2.5 text-right text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Amount</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-bold text-muted-foreground/40 uppercase tracking-widest">Date</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-bold text-muted-foreground/40 uppercase tracking-widest">Description</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-bold text-muted-foreground/40 uppercase tracking-widest">Category</th>
+                        <th className="px-4 py-2.5 text-right text-xs font-bold text-muted-foreground/40 uppercase tracking-widest">Amount</th>
                         <th className="px-4 py-2.5 w-10" />
                       </tr>
                     </thead>
@@ -663,12 +663,12 @@ export default function Tags() {
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <SectionLabel className="mb-0">Pattern Rules</SectionLabel>
-                  <p className="text-[11px] text-muted-foreground/40 mt-0.5">
+                  <p className="text-2xs text-muted-foreground/40 mt-0.5">
                     Include rules run before AI (deterministic). Exclude rules filter AI results.
                   </p>
                 </div>
                 {!isAddingPatternRule && (
-                  <Button variant="ghost" size="sm" className="h-6 text-[10px] text-muted-foreground/50 hover:text-foreground"
+                  <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground/50 hover:text-foreground"
                     onClick={() => setIsAddingPatternRule(true)}>
                     <Plus className="w-3 h-3 mr-1" />Add Rule
                   </Button>
@@ -732,10 +732,10 @@ export default function Tags() {
                   <table className="min-w-full">
                     <thead>
                       <tr className="border-b border-border/30">
-                        <th className="px-4 py-2.5 text-left text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Tag</th>
-                        <th className="px-4 py-2.5 text-left text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Type</th>
-                        <th className="px-4 py-2.5 text-left text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Pattern</th>
-                        <th className="px-4 py-2.5 text-right text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Created</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-bold text-muted-foreground/40 uppercase tracking-widest">Tag</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-bold text-muted-foreground/40 uppercase tracking-widest">Type</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-bold text-muted-foreground/40 uppercase tracking-widest">Pattern</th>
+                        <th className="px-4 py-2.5 text-right text-xs font-bold text-muted-foreground/40 uppercase tracking-widest">Created</th>
                         <th className="px-4 py-2.5 w-20" />
                       </tr>
                     </thead>
@@ -753,11 +753,11 @@ export default function Tags() {
                             </td>
                             <td className="px-4 py-3">
                               {rule.action === 'include' ? (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-500">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-emerald-500/15 text-emerald-500">
                                   Include
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-destructive/15 text-destructive">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-destructive/15 text-destructive">
                                   Exclude
                                 </span>
                               )}
@@ -804,12 +804,12 @@ export default function Tags() {
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <SectionLabel className="mb-0">AI Training Examples</SectionLabel>
-                  <p className="text-[11px] text-muted-foreground/40 mt-0.5">
+                  <p className="text-2xs text-muted-foreground/40 mt-0.5">
                     Corrections are injected into the AI prompt to improve future accuracy.
                   </p>
                 </div>
                 {!isAddingCorrection && (
-                  <Button variant="ghost" size="sm" className="h-6 text-[10px] text-muted-foreground/50 hover:text-foreground"
+                  <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground/50 hover:text-foreground"
                     onClick={() => setIsAddingCorrection(true)}>
                     <Plus className="w-3 h-3 mr-1" />Add Example
                   </Button>
@@ -873,10 +873,10 @@ export default function Tags() {
                   <table className="min-w-full">
                     <thead>
                       <tr className="border-b border-border/30">
-                        <th className="px-4 py-2.5 text-left text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Tag</th>
-                        <th className="px-4 py-2.5 text-left text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Direction</th>
-                        <th className="px-4 py-2.5 text-left text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Description</th>
-                        <th className="px-4 py-2.5 text-right text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Created</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-bold text-muted-foreground/40 uppercase tracking-widest">Tag</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-bold text-muted-foreground/40 uppercase tracking-widest">Direction</th>
+                        <th className="px-4 py-2.5 text-left text-xs font-bold text-muted-foreground/40 uppercase tracking-widest">Description</th>
+                        <th className="px-4 py-2.5 text-right text-xs font-bold text-muted-foreground/40 uppercase tracking-widest">Created</th>
                         <th className="px-4 py-2.5 w-10" />
                       </tr>
                     </thead>
@@ -893,11 +893,11 @@ export default function Tags() {
                             </td>
                             <td className="px-4 py-3">
                               {correction.direction === 'positive' ? (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 text-emerald-500">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-emerald-500/15 text-emerald-500">
                                   ✓ Always
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-destructive/15 text-destructive">
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-destructive/15 text-destructive">
                                   ✗ Never
                                 </span>
                               )}
@@ -988,13 +988,13 @@ export default function Tags() {
                       <table className="min-w-full">
                         <thead>
                           <tr className="border-b border-border/30">
-                            <th className="px-4 py-2.5 text-left text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Tag</th>
+                            <th className="px-4 py-2.5 text-left text-xs font-bold text-muted-foreground/40 uppercase tracking-widest">Tag</th>
                             {tableMonths.map((m) => (
-                              <th key={m} className="px-4 py-2.5 text-right text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">
+                              <th key={m} className="px-4 py-2.5 text-right text-xs font-bold text-muted-foreground/40 uppercase tracking-widest">
                                 {m}
                               </th>
                             ))}
-                            <th className="px-4 py-2.5 text-right text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest">Total</th>
+                            <th className="px-4 py-2.5 text-right text-xs font-bold text-muted-foreground/40 uppercase tracking-widest">Total</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border/15">
@@ -1062,7 +1062,7 @@ export default function Tags() {
         >
           <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 mb-0.5">
+              <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 mb-0.5">
                 Tags
               </p>
               <h2 className="text-sm font-semibold text-foreground">New Tag</h2>

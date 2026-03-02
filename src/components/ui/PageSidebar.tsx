@@ -22,7 +22,7 @@ export function PageSidebar({ title, children, className }: PageSidebarProps) {
       }}
     >
       <div className="px-4 pt-5 pb-4 border-b border-border/40">
-        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35 mb-1">
+        <p className="text-2xs font-bold uppercase tracking-[0.2em] text-muted-foreground/35 mb-1">
           Workspace
         </p>
         <h1 className="text-sm font-semibold text-foreground">{title}</h1>

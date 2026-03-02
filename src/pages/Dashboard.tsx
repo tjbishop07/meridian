@@ -117,7 +117,7 @@ export default function Dashboard() {
               <div>
                 <div className="flex items-center gap-1.5 mb-1">
                   <TrendingUp className="w-3.5 h-3.5 text-success" />
-                  <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50">Income</p>
+                  <p className="text-2xs font-bold uppercase tracking-[0.18em] text-muted-foreground/50">Income</p>
                 </div>
                 <p className="text-xl font-semibold text-foreground tracking-tight">
                   ${animatedIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -127,7 +127,7 @@ export default function Dashboard() {
                     {incomeChange >= 0
                       ? <ArrowUpRight className="w-3 h-3 text-success" />
                       : <ArrowDownRight className="w-3 h-3 text-destructive" />}
-                    <span className={`text-[10px] ${incomeChange >= 0 ? 'text-success' : 'text-destructive'}`}>
+                    <span className={`text-xs ${incomeChange >= 0 ? 'text-success' : 'text-destructive'}`}>
                       {Math.abs(incomeChange).toFixed(1)}% vs last month
                     </span>
                   </div>
@@ -138,7 +138,7 @@ export default function Dashboard() {
               <div>
                 <div className="flex items-center gap-1.5 mb-1">
                   <TrendingDown className="w-3.5 h-3.5 text-destructive" />
-                  <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50">Expenses</p>
+                  <p className="text-2xs font-bold uppercase tracking-[0.18em] text-muted-foreground/50">Expenses</p>
                 </div>
                 <p className="text-xl font-semibold text-foreground tracking-tight">
                   ${animatedExpenses.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -148,7 +148,7 @@ export default function Dashboard() {
                     {expenseChange >= 0
                       ? <ArrowUpRight className="w-3 h-3 text-destructive" />
                       : <ArrowDownRight className="w-3 h-3 text-success" />}
-                    <span className={`text-[10px] ${expenseChange >= 0 ? 'text-destructive' : 'text-success'}`}>
+                    <span className={`text-xs ${expenseChange >= 0 ? 'text-destructive' : 'text-success'}`}>
                       {Math.abs(expenseChange).toFixed(1)}% vs last month
                     </span>
                   </div>
@@ -159,7 +159,7 @@ export default function Dashboard() {
               <div>
                 <div className="flex items-center gap-1.5 mb-1">
                   <DollarSign className="w-3.5 h-3.5 text-muted-foreground" />
-                  <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50">Net</p>
+                  <p className="text-2xs font-bold uppercase tracking-[0.18em] text-muted-foreground/50">Net</p>
                 </div>
                 <p className={`text-xl font-semibold tracking-tight ${currentMonth.net >= 0 ? 'text-success' : 'text-destructive'}`}>
                   {currentMonth.net >= 0 ? '+' : '-'}${Math.abs(animatedNet).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -169,7 +169,7 @@ export default function Dashboard() {
                     {netChange >= 0
                       ? <ArrowUpRight className="w-3 h-3 text-success" />
                       : <ArrowDownRight className="w-3 h-3 text-destructive" />}
-                    <span className={`text-[10px] ${netChange >= 0 ? 'text-success' : 'text-destructive'}`}>
+                    <span className={`text-xs ${netChange >= 0 ? 'text-success' : 'text-destructive'}`}>
                       {Math.abs(netChange).toFixed(1)}% vs last month
                     </span>
                   </div>

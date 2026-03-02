@@ -69,7 +69,7 @@ export function EditTransactionDrawer({ transaction, onClose, onSaved }: Props) 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 mb-0.5">
+            <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 mb-0.5">
               Edit Transaction
             </p>
             <h2 className="text-sm font-semibold text-foreground truncate">

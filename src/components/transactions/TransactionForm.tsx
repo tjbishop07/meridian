@@ -59,7 +59,7 @@ const labelClass = 'text-xs font-medium text-muted-foreground';
 function SectionDivider({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3 pt-1">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 whitespace-nowrap">
+      <span className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground/50 whitespace-nowrap">
         {label}
       </span>
       <div className="flex-1 h-px bg-border" />
@@ -398,7 +398,7 @@ export default function TransactionForm({ transaction, receipt, onSubmit, onCanc
               <p className="text-xs font-medium text-primary leading-tight">
                 Auto-tag similar transactions
               </p>
-              <p className="text-[11px] text-muted-foreground/60 mt-0.5 truncate">
+              <p className="text-2xs text-muted-foreground/60 mt-0.5 truncate">
                 Apply to all matching "{derivePattern(formData.description)}"
               </p>
             </div>

@@ -220,7 +220,7 @@ export default function Import() {
 
         {/* Schedule */}
         <div className="px-3 pt-4 pb-4 flex-1 flex flex-col gap-3">
-          <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-muted-foreground/35 px-0.5">
+          <p className="text-2xs font-bold uppercase tracking-[0.2em] text-muted-foreground/35 px-0.5">
             Schedule
           </p>
 
@@ -244,12 +244,12 @@ export default function Import() {
                 </div>
                 <div>
                   <p className={cn(
-                    'text-[11px] font-semibold leading-none',
+                    'text-2xs font-semibold leading-none',
                     scheduleEnabled ? 'text-emerald-400' : 'text-foreground/50'
                   )}>
                     {scheduleUpdating ? 'Updating…' : scheduleEnabled ? 'Active' : 'Disabled'}
                   </p>
-                  <p className="text-[9px] text-muted-foreground/40 mt-0.5 leading-none">
+                  <p className="text-2xs text-muted-foreground/40 mt-0.5 leading-none">
                     Auto-run all
                   </p>
                 </div>
@@ -280,7 +280,7 @@ export default function Import() {
           {scheduleStatus?.lastRunAt && (
             <div className="flex items-center gap-1.5 px-0.5">
               <Clock className="w-3 h-3 text-muted-foreground/35 shrink-0" />
-              <span className="text-[10px] text-muted-foreground/45">
+              <span className="text-xs text-muted-foreground/45">
                 Last: {formatRelativeTime(scheduleStatus.lastRunAt)}
               </span>
             </div>
@@ -292,9 +292,9 @@ export default function Import() {
               <div className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-primary/8 border border-primary/20">
                 <Loader2 className="w-3.5 h-3.5 text-primary animate-spin shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold text-primary leading-none mb-0.5">Running</p>
+                  <p className="text-2xs font-semibold text-primary leading-none mb-0.5">Running</p>
                   {scheduleStatus?.currentRecordingName && (
-                    <p className="text-[9px] text-primary/55 leading-none truncate">
+                    <p className="text-2xs text-primary/55 leading-none truncate">
                       {scheduleStatus.currentRecordingName}
                     </p>
                   )}
@@ -341,8 +341,8 @@ export default function Import() {
         {/* Header */}
         <div className="flex items-start justify-between px-6 pt-5 pb-4 border-b border-border/50 flex-shrink-0">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted-foreground/40 mb-0.5">Import</p>
-            <h2 className="text-[17px] font-semibold text-foreground leading-tight">CSV Transactions</h2>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground/40 mb-0.5">Import</p>
+            <h2 className="text-lg font-semibold text-foreground leading-tight">CSV Transactions</h2>
           </div>
           <button
             onClick={closeDrawer}
@@ -362,7 +362,7 @@ export default function Import() {
                 <div key={s.key} className="flex items-center flex-1 last:flex-none">
                   <div className="flex flex-col items-center gap-1.5">
                     <div className={cn(
-                      'w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold transition-all duration-300',
+                      'w-7 h-7 rounded-full flex items-center justify-center text-2xs font-bold transition-all duration-300',
                       isDone
                         ? 'bg-primary text-primary-foreground'
                         : isActive
@@ -372,7 +372,7 @@ export default function Import() {
                       {isDone ? <Check className="w-3.5 h-3.5" /> : idx + 1}
                     </div>
                     <span className={cn(
-                      'text-[10px] font-semibold uppercase tracking-[0.1em] whitespace-nowrap transition-colors',
+                      'text-xs font-semibold uppercase tracking-[0.1em] whitespace-nowrap transition-colors',
                       isActive ? 'text-foreground' : 'text-muted-foreground/40'
                     )}>
                       {s.label}
@@ -405,7 +405,7 @@ export default function Import() {
           {step === 'select' && (
             <div className="space-y-5">
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/50">
+                <Label className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground/50">
                   Account
                 </Label>
                 <Select value={selectedAccount} onValueChange={setSelectedAccount}>
@@ -423,7 +423,7 @@ export default function Import() {
               </div>
 
               <div className="space-y-2">
-                <Label className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/50">
+                <Label className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground/50">
                   CSV File
                 </Label>
                 <button
@@ -490,7 +490,7 @@ export default function Import() {
                   { label: 'To Import', value: preview.rows.length - preview.duplicates.length, className: 'border-emerald-500/20 bg-emerald-500/5', valueClass: 'text-emerald-400' },
                 ].map(({ label, value, className, valueClass }) => (
                   <div key={label} className={cn('rounded-xl border px-4 py-3.5', className)}>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground/50 mb-1.5">{label}</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground/50 mb-1.5">{label}</p>
                     <p className={cn('text-2xl font-bold tabular-nums', valueClass ?? 'text-foreground')}>{value}</p>
                   </div>
                 ))}
@@ -519,16 +519,16 @@ export default function Import() {
 
               <div className="rounded-xl border border-border/50 overflow-hidden">
                 <div className="px-4 py-3 border-b border-border/50 flex items-center justify-between bg-muted/20">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/50">Transactions</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted-foreground/50">Transactions</p>
                   <span className="text-xs text-muted-foreground/60">{preview.rows.length} rows</span>
                 </div>
                 <div className="max-h-56 overflow-y-auto">
                   <table className="w-full">
                     <thead className="sticky top-0 bg-card/90 backdrop-blur-sm border-b border-border/40">
                       <tr>
-                        <th className="px-4 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-muted-foreground/40">Date</th>
-                        <th className="px-4 py-2 text-left text-[10px] font-bold uppercase tracking-wide text-muted-foreground/40">Description</th>
-                        <th className="px-4 py-2 text-right text-[10px] font-bold uppercase tracking-wide text-muted-foreground/40">Amount</th>
+                        <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wide text-muted-foreground/40">Date</th>
+                        <th className="px-4 py-2 text-left text-xs font-bold uppercase tracking-wide text-muted-foreground/40">Description</th>
+                        <th className="px-4 py-2 text-right text-xs font-bold uppercase tracking-wide text-muted-foreground/40">Amount</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/30">
@@ -583,11 +583,11 @@ export default function Import() {
 
               <div className="grid grid-cols-2 gap-4 w-full max-w-[260px]">
                 <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-5 py-4">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground/50 mb-1.5">Imported</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground/50 mb-1.5">Imported</p>
                   <p className="text-3xl font-bold tabular-nums text-emerald-400">{result.imported}</p>
                 </div>
                 <div className="rounded-xl border border-border/60 bg-muted/30 px-5 py-4">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground/50 mb-1.5">Skipped</p>
+                  <p className="text-xs font-bold uppercase tracking-[0.1em] text-muted-foreground/50 mb-1.5">Skipped</p>
                   <p className="text-3xl font-bold tabular-nums text-foreground">{result.skipped}</p>
                 </div>
               </div>

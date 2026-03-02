@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { FormField } from '@/components/ui/FormField';
+import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -606,7 +607,7 @@ function AIModelsSection() {
                     </a>
                   </div>
                   {installProgress && (
-                    <pre className="mt-1 max-h-24 overflow-y-auto rounded bg-background p-2 font-mono text-[10px] text-muted-foreground whitespace-pre-wrap">
+                    <pre className="mt-1 max-h-24 overflow-y-auto rounded bg-background p-2 font-mono text-xs text-muted-foreground whitespace-pre-wrap">
                       {installProgress}
                     </pre>
                   )}
@@ -676,9 +677,9 @@ function AIModelsSection() {
                     <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
                         <span className="text-sm font-semibold text-foreground">{model.label}</span>
-                        {model.rec && <span className="px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-primary/15 text-primary rounded">Recommended</span>}
-                        {installed && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-success/15 text-success rounded">Installed</span>}
-                        {active && <span className="px-1.5 py-0.5 text-[10px] font-medium bg-primary/10 text-primary rounded">Active</span>}
+                        {model.rec && <span className="px-1.5 py-0.5 text-xs font-bold uppercase tracking-wide bg-primary/15 text-primary rounded">Recommended</span>}
+                        {installed && <span className="px-1.5 py-0.5 text-xs font-medium bg-success/15 text-success rounded">Installed</span>}
+                        {active && <span className="px-1.5 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded">Active</span>}
                       </div>
                       <div className="flex gap-3 text-xs text-muted-foreground/60 mb-2">
                         <span>{model.size}</span><span>·</span><span>{model.speed}</span>
@@ -765,32 +766,53 @@ function ScrapingRetrySettings() {
   const { settings, updateSettings } = useAutomationSettings();
 
   return (
-    <div>
-      <h3 className="text-sm font-semibold text-foreground mb-1">Error Recovery</h3>
-      <p className="text-sm text-muted-foreground mb-4">
-        How the scraper handles failures during automation playback.
-      </p>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">Retry Attempts</label>
-          <select value={settings.retry_attempts} onChange={(e) => updateSettings({ retry_attempts: Number(e.target.value) })} className={selectClass}>
-            <option value="1">1 — No retries</option>
-            <option value="2">2</option>
-            <option value="3">3 — Recommended</option>
-            <option value="4">4</option>
-            <option value="5">5</option>
-          </select>
-          <p className="mt-1 text-xs text-muted-foreground">Times to retry a failed step</p>
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-sm font-semibold text-foreground mb-1">Error Recovery</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          How the scraper handles failures during automation playback.
+        </p>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">Retry Attempts</label>
+            <select value={settings.retry_attempts} onChange={(e) => updateSettings({ retry_attempts: Number(e.target.value) })} className={selectClass}>
+              <option value="1">1 — No retries</option>
+              <option value="2">2</option>
+              <option value="3">3 — Recommended</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+            <p className="mt-1 text-xs text-muted-foreground">Times to retry a failed step</p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">Retry Delay</label>
+            <select value={settings.retry_delay_ms} onChange={(e) => updateSettings({ retry_delay_ms: Number(e.target.value) })} className={selectClass}>
+              <option value="1000">1 second</option>
+              <option value="2000">2 seconds — Recommended</option>
+              <option value="3000">3 seconds</option>
+              <option value="5000">5 seconds</option>
+            </select>
+            <p className="mt-1 text-xs text-muted-foreground">Base delay (uses exponential backoff)</p>
+          </div>
         </div>
-        <div>
-          <label className="block text-xs font-medium text-muted-foreground mb-1.5 uppercase tracking-wide">Retry Delay</label>
-          <select value={settings.retry_delay_ms} onChange={(e) => updateSettings({ retry_delay_ms: Number(e.target.value) })} className={selectClass}>
-            <option value="1000">1 second</option>
-            <option value="2000">2 seconds — Recommended</option>
-            <option value="3000">3 seconds</option>
-            <option value="5000">5 seconds</option>
-          </select>
-          <p className="mt-1 text-xs text-muted-foreground">Base delay (uses exponential backoff)</p>
+      </div>
+
+      <div className="border-t border-border/40 pt-5">
+        <h3 className="text-sm font-semibold text-foreground mb-1">Debugging</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Options to help diagnose automation failures.
+        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-foreground">Show browser during playback</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Opens a visible browser window when running a recording so you can see exactly what the automation is doing. Disable when everything is working correctly.
+            </p>
+          </div>
+          <Switch
+            checked={settings.debug_show_browser}
+            onCheckedChange={(checked) => updateSettings({ debug_show_browser: checked })}
+          />
         </div>
       </div>
     </div>
@@ -1253,7 +1275,7 @@ export default function Settings() {
     <div className="flex h-full">
       <PageSidebar title="Settings" className={sidebarClass}>
         <div className="px-4 pt-4 pb-3 flex-1">
-          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/35 mb-3">
+          <p className="text-2xs font-bold uppercase tracking-[0.18em] text-muted-foreground/35 mb-3">
             Sections
           </p>
           <div className="space-y-1.5">

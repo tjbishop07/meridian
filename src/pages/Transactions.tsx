@@ -159,14 +159,14 @@ export default function Transactions() {
       <PageSidebar title="Transactions" className={sidebarClass}>
         <div className="px-4 pt-4 pb-4 space-y-6 border-t border-border/40 overflow-y-auto flex-1">
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50 mb-1">
+            <p className="text-2xs font-bold uppercase tracking-[0.18em] text-muted-foreground/50 mb-1">
               Transactions
             </p>
             <p className="text-xl font-semibold tracking-tight tabular-nums text-foreground">
               {transactions.length.toLocaleString()}
             </p>
             {filteredTransactions.length !== transactions.length && (
-              <p className="text-[10px] text-muted-foreground/50 mt-0.5">
+              <p className="text-xs text-muted-foreground/50 mt-0.5">
                 {filteredTransactions.length.toLocaleString()} filtered
               </p>
             )}
@@ -189,7 +189,7 @@ export default function Transactions() {
             return (
               <div key={account.id}>
                 <div className="flex items-center gap-1.5 mb-1">
-                  <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/50 truncate">
+                  <p className="text-2xs font-bold uppercase tracking-[0.18em] text-muted-foreground/50 truncate">
                     {account.name}
                   </p>
                 </div>
@@ -205,7 +205,7 @@ export default function Transactions() {
                   </div>
                 )}
                 {account.institution && (
-                  <p className="text-[10px] text-muted-foreground/50 mt-0.5">{account.institution}</p>
+                  <p className="text-xs text-muted-foreground/50 mt-0.5">{account.institution}</p>
                 )}
               </div>
             );

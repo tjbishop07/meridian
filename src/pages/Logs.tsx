@@ -118,7 +118,7 @@ export default function Logs() {
                     : 'text-foreground/70 hover:bg-muted hover:text-foreground'
                 )}
               >
-                <span className={cn('inline-block px-1.5 py-0.5 rounded text-[10px] font-mono uppercase leading-none', LEVEL_STYLES[level])}>
+                <span className={cn('inline-block px-1.5 py-0.5 rounded text-xs font-mono uppercase leading-none', LEVEL_STYLES[level])}>
                   {level}
                 </span>
               </button>
@@ -219,7 +219,7 @@ export default function Logs() {
                   {formatTime(entry.timestamp)}
                 </span>
                 <span className={cn(
-                  'shrink-0 inline-block px-1.5 py-px rounded text-[10px] uppercase leading-none self-center',
+                  'shrink-0 inline-block px-1.5 py-px rounded text-xs uppercase leading-none self-center',
                   LEVEL_STYLES[entry.level]
                 )}>
                   {entry.level}

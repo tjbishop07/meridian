@@ -88,7 +88,7 @@ export default function Analytics() {
     <div className="flex h-full">
       <PageSidebar title="Analytics" className={sidebarClass}>
         <div className="px-4 pt-4 pb-3">
-          <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-muted-foreground/35 mb-2">
+          <p className="text-2xs font-bold uppercase tracking-[0.18em] text-muted-foreground/35 mb-2">
             Period
           </p>
           <Select value={String(trendMonths)} onValueChange={(v) => setTrendMonths(Number(v))}>
